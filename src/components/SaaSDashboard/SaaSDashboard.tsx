@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MetricsGrid } from './MetricsGrid';
-import { ARRChart } from './ARRChart';
-import { RecentMerchants } from './RecentMerchants';
-import { PlatformHealth } from './PlatformHealth';
+import { SaasOverviewContent } from './SaasOverviewContent';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
 
 export const SaaSDashboard: React.FC = () => {
@@ -102,25 +99,10 @@ export const SaaSDashboard: React.FC = () => {
     }
 
     return (
-      <div className="space-y-gutter">
-        {/* Bento Grid Metrics */}
-        <MetricsGrid refreshTrigger={refreshTrigger} />
-
-        {/* Revenue and Recently Joined Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
-          {/* Revenue Growth (ARR) */}
-          <ARRChart />
-
-          {/* Recently Joined Merchants */}
-          <RecentMerchants
-            onNavigateToView={handleNavigateView}
-            refreshTrigger={refreshTrigger}
-          />
-        </div>
-
-        {/* Platform Health Section */}
-        <PlatformHealth refreshTrigger={refreshTrigger} />
-      </div>
+      <SaasOverviewContent
+        refreshTrigger={refreshTrigger}
+        onNavigateToView={handleNavigateView}
+      />
     );
   };
 
