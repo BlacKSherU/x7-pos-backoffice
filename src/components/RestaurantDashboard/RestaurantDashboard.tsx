@@ -399,7 +399,7 @@ export const RestaurantDashboard: React.FC = () => {
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
-              <span className="material-symbols-outlined text-[20px] text-[#d51f2c]">dashboard</span>
+              <span className={`material-symbols-outlined text-[20px] ${activeCategory === 'saas' ? 'text-[#d51f2c]' : ''}`}>dashboard</span>
               <span className="font-sans text-[13px]">Platform SaaS</span>
             </div>
 
@@ -443,16 +443,12 @@ export const RestaurantDashboard: React.FC = () => {
             { id: 'growth', label: 'Growth', icon: 'trending_up' },
           ].map((cat) => {
             if (cat.id === 'inventory') {
-              const isCatActive = activeCategory === 'inventory';
+              const isCatActive = ['categories', 'products', 'modifiers', 'variants', 'food-costing'].includes(activeTab);
               return (
                 <div key={cat.id} className="w-full text-left">
                   <div
                     onClick={() => {
-                      setActiveCategory('inventory');
                       setIsInventoryExpanded(!isInventoryExpanded);
-                      if (!['categories', 'products', 'modifiers', 'variants', 'food-costing'].includes(activeTab)) {
-                        setActiveTab('categories');
-                      }
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-colors ${
                       isCatActive
