@@ -1,3 +1,5 @@
+import type { SubscriptionPlan } from '../types/subscription';
+
 export interface MerchantMetric {
   count: number;
   terminals: number;
@@ -191,5 +193,43 @@ export const saasService = {
         cloudNodes: 'operational',
       },
     };
+  },
+
+  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+    await delay(600);
+    return [
+      {
+        id: 'plan_starter_001',
+        name: 'Starter',
+        description: 'Entry-level plan for single-location quick service restaurants. Up to 2 POS terminals included.',
+        price: 49.99,
+        billingCycle: 'monthly',
+        status: 'active',
+      },
+      {
+        id: 'plan_pro_002',
+        name: 'Professional',
+        description: 'Multi-location support with advanced reporting, inventory management, and staff scheduling.',
+        price: 129.99,
+        billingCycle: 'monthly',
+        status: 'active',
+      },
+      {
+        id: 'plan_ent_003',
+        name: 'Enterprise',
+        description: 'Unlimited locations, white-label options, dedicated SLA, and custom integrations with ERP systems.',
+        price: 1199.99,
+        billingCycle: 'annual',
+        status: 'active',
+      },
+      {
+        id: 'plan_legacy_000',
+        name: 'Legacy Basic',
+        description: 'Deprecated legacy tier. No longer available for new merchants. Grandfathered accounts only.',
+        price: 19.99,
+        billingCycle: 'monthly',
+        status: 'inactive',
+      },
+    ];
   },
 };
