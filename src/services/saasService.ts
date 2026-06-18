@@ -1,4 +1,26 @@
-import type { SubscriptionPlan } from '../types/subscription';
+import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto } from '../types/subscription';
+import { getSaasToken, clearSaasToken } from '../lib/saas-auth-storage';
+
+async function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getSaasToken();
+  const res = await fetch(`/api/${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers as Record<string, string> | undefined),
+    },
+  });
+  if (res.status === 401) {
+    clearSaasToken();
+    throw new Error('SESSION_EXPIRED');
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { message?: string }).message || `Request failed: ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
 
 export interface MerchantMetric {
   count: number;
@@ -196,40 +218,29 @@ export const saasService = {
   },
 
   async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-    await delay(600);
-    return [
+    const response = await saasApiFetch<{
+      data: SubscriptionPlan[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+    }>('subscription-plan');
+    return response.data.map((plan) => ({ ...plan, price: Number(plan.price) }));
+  },
+
+  async createSubscriptionPlan(dto: CreateSubscriptionPlanDto): Promise<SubscriptionPlan> {
+    const response = await saasApiFetch<{ data: SubscriptionPlan }>('subscription-plan', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+    return { ...response.data, price: Number(response.data.price) };
+  },
+
+  async updateSubscriptionPlan(id: number, dto: UpdateSubscriptionPlanDto): Promise<SubscriptionPlan> {
+    const response = await saasApiFetch<{ data: SubscriptionPlan }>(
+      `subscription-plan/${id}`,
       {
-        id: 'plan_starter_001',
-        name: 'Starter',
-        description: 'Entry-level plan for single-location quick service restaurants. Up to 2 POS terminals included.',
-        price: 49.99,
-        billingCycle: 'monthly',
-        status: 'active',
+        method: 'PATCH',
+        body: JSON.stringify(dto),
       },
-      {
-        id: 'plan_pro_002',
-        name: 'Professional',
-        description: 'Multi-location support with advanced reporting, inventory management, and staff scheduling.',
-        price: 129.99,
-        billingCycle: 'monthly',
-        status: 'active',
-      },
-      {
-        id: 'plan_ent_003',
-        name: 'Enterprise',
-        description: 'Unlimited locations, white-label options, dedicated SLA, and custom integrations with ERP systems.',
-        price: 1199.99,
-        billingCycle: 'annual',
-        status: 'active',
-      },
-      {
-        id: 'plan_legacy_000',
-        name: 'Legacy Basic',
-        description: 'Deprecated legacy tier. No longer available for new merchants. Grandfathered accounts only.',
-        price: 19.99,
-        billingCycle: 'monthly',
-        status: 'inactive',
-      },
-    ];
+    );
+    return { ...response.data, price: Number(response.data.price) };
   },
 };

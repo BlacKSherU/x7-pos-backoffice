@@ -1,4 +1,3 @@
-//cambio para el github
 export interface UserProfile {
   name: string;
   role: string;

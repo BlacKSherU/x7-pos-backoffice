@@ -1,8 +1,24 @@
 export interface SubscriptionPlan {
-  id: string;
+  id: number;
   name: string;
   description: string;
   price: number;
-  billingCycle: string;
-  status: string;
+  billingCycle: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  status: 'active' | 'inactive';
+}
+
+export interface CreateSubscriptionPlanDto {
+  name: string;
+  description: string;
+  price: number;
+  billingCycle: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  status: 'active';
+}
+
+export interface UpdateSubscriptionPlanDto {
+  name: string;
+  description: string;
+  price: number;
+  billingCycle: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  status: 'active' | 'inactive';
 }

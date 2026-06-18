@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { SaasOverviewContent } from './SaasOverviewContent';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
 import { SubscriptionPlansView } from './SubscriptionPlansView';
+import { SaasLoginOverlay } from './SaasLoginOverlay';
+import { isSaasAuthenticated } from '../../lib/saas-auth-storage';
 
 export const SaaSDashboard: React.FC = () => {
+  const [saasAuthenticated, setSaasAuthenticated] = useState(isSaasAuthenticated);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchText, setSearchText] = useState<string>('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
@@ -73,7 +76,7 @@ export const SaaSDashboard: React.FC = () => {
 
     if (activeTab !== 'dashboard') {
       return (
-        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded">
+        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
           <span className="material-symbols-outlined text-[#d51f2c] text-6xl">
             {activeTab === 'companies' && 'corporate_fare'}
             {activeTab === 'merchants' && 'store'}
@@ -86,7 +89,7 @@ export const SaaSDashboard: React.FC = () => {
             {activeTab === 'users' && 'Platform Users'}
             {activeTab === 'reports' && 'System Reports'}
           </h2>
-          <p className="text-body-md text-[#666666] mt-2 max-w-md mx-auto">
+          <p className="text-body-md text-[#666666] mt-2 max-w-md text-center">
             Esta sección virtual simula la ruta SPA para{' '}
             <strong className="text-[#d51f2c]">/{activeTab}</strong>. Toda la navegación se
             realiza reactivamente sin recargas de página físicas.
@@ -108,6 +111,10 @@ export const SaaSDashboard: React.FC = () => {
       />
     );
   };
+
+  if (!saasAuthenticated) {
+    return <SaasLoginOverlay onSuccess={() => setSaasAuthenticated(true)} />;
+  }
 
   return (
     <div className="text-on-background antialiased font-sans bg-[#f1ece4] min-h-screen text-[14px]">
@@ -135,29 +142,25 @@ export const SaaSDashboard: React.FC = () => {
             {/* Sub-items (AC 1.1 y 1.2) */}
             <div className="mt-1 ml-4 border-l border-white/20 flex flex-col space-y-1">
               {[
-                { id: 'dashboard', label: 'Dashboard' },
-                { id: 'subscription', label: 'Subscription Plans' },
-                { id: 'companies', label: 'Companies' },
-                { id: 'merchants', label: 'Merchants' },
-                { id: 'users', label: 'Users' },
-                { id: 'reports', label: 'Reports' },
+                { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+                { id: 'subscription', label: 'Subscription Plans', icon: 'workspace_premium' },
+                { id: 'companies', label: 'Companies', icon: 'corporate_fare' },
+                { id: 'merchants', label: 'Merchants', icon: 'store' },
+                { id: 'users', label: 'Users', icon: 'group' },
+                { id: 'reports', label: 'Reports', icon: 'description' },
               ].map((item) => {
                 const isActive = activeTab === item.id;
                 return (
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
-                    className={`pl-6 py-2 text-[13px] text-left transition-colors flex items-center gap-2 w-full ${
+                    className={`pl-4 pr-3 py-2 text-[13px] text-left transition-colors flex items-center gap-2.5 w-full ${
                       isActive
                         ? 'text-[#d51f2c] font-semibold bg-white/5 border-l-2 border-[#d51f2c] -ml-[1px]'
                         : 'text-white/70 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span
-                      className={`w-1 h-1 rounded-full ${
-                        isActive ? 'bg-[#d51f2c]' : 'bg-transparent'
-                      }`}
-                    ></span>
+                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
                     {item.label}
                   </button>
                 );
@@ -270,7 +273,7 @@ export const SaaSDashboard: React.FC = () => {
 
       {/* Main Content Canvas */}
       <main className="ml-64 pt-16 min-h-screen">
-        <div className="p-gutter max-w-[1600px] mx-auto space-y-gutter">
+        <div className="p-8 max-w-[1600px] mx-auto space-y-8">
           {/* Dashboard Header */}
           <div className="flex justify-between items-end">
             <div>
@@ -280,7 +283,9 @@ export const SaaSDashboard: React.FC = () => {
               <p className="text-body-md text-[#666666] mt-1">
                 {activeTab === 'dashboard'
                   ? 'Real-time performance metrics and merchant growth tracking.'
-                  : `Visualización interactiva y gestión para /${activeTab}.`}
+                  : activeTab === 'subscription'
+                    ? 'Manage subscription tiers, pricing models, and billing cadences for your platform.'
+                    : `Visualización interactiva y gestión para /${activeTab}.`}
               </p>
             </div>
             {activeTab === 'dashboard' && (
