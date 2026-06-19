@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getAccessToken, clearAuthSession } from '../../lib/auth-storage';
 
 interface Category {
   id: string;
@@ -10,41 +11,9 @@ interface Category {
 }
 
 export const ProductCategoriesView: React.FC = () => {
-  // Estado inicial de categorías obtenido del HTML de referencia
-  const [categories, setCategories] = useState<Category[]>([
-    {
-      id: 'CAT_001_BEV',
-      name: 'Beverages',
-      type: 'Root Category',
-      parentId: 'NULL',
-      linkedProducts: 142,
-      status: 'Active',
-    },
-    {
-      id: 'CAT_002_SFT',
-      name: 'Soft Drinks',
-      type: 'Sub-Category',
-      parentId: 'CAT_001_BEV',
-      linkedProducts: 28,
-      status: 'Active',
-    },
-    {
-      id: 'CAT_003_MNC',
-      name: 'Main Course',
-      type: 'Root Category',
-      parentId: 'NULL',
-      linkedProducts: 310,
-      status: 'Active',
-    },
-    {
-      id: 'CAT_004_SEA',
-      name: 'Seasonal Specials',
-      type: 'Root Category',
-      parentId: 'NULL',
-      linkedProducts: 0,
-      status: 'Inactive',
-    },
-  ]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Estados de filtros y búsqueda
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -60,6 +29,73 @@ export const ProductCategoriesView: React.FC = () => {
   const [formParent, setFormParent] = useState<string>('NULL');
   const [formStatus, setFormStatus] = useState<'Active' | 'Inactive'>('Active');
   const [formLinkedProducts, setFormLinkedProducts] = useState<number>(0);
+
+  const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+
+  const fetchCategories = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const [categoriesRes, productsRes] = await Promise.all([
+        fetch(`${API_BASE}/category?limit=100`, { headers }),
+        fetch(`${API_BASE}/products?limit=100`, { headers })
+      ]);
+
+      if (categoriesRes.status === 401 || productsRes.status === 401) {
+        clearAuthSession();
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!categoriesRes.ok || !productsRes.ok) {
+        throw new Error('Error al cargar datos del servidor');
+      }
+
+      const categoriesJson = await categoriesRes.json();
+      const productsJson = await productsRes.json();
+
+      const categoriesData = categoriesJson.data || [];
+      const productsData = productsJson.data || [];
+
+      // Mapear al formato de la interfaz local
+      const mapped: Category[] = categoriesData.map((cat: any) => {
+        const hasParent = cat.parents && cat.parents.length > 0;
+        const parentId = hasParent ? String(cat.parents[0].id) : 'NULL';
+        const type = hasParent ? 'Sub-Category' : 'Root Category';
+        
+        // Contar productos vinculados
+        const linkedProducts = productsData.filter((p: any) => p.category?.id === cat.id).length;
+
+        return {
+          id: String(cat.id),
+          name: cat.name,
+          type,
+          parentId,
+          linkedProducts,
+          status: 'Active',
+        };
+      });
+
+      setCategories(mapped);
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
+      setError('Failed to load categories. Please check if the backend is running.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   // Filtrado reactivo de la lista
   const filteredCategories = categories.filter((cat) => {
@@ -93,50 +129,76 @@ export const ProductCategoriesView: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Eliminar categoría
-  const handleDeleteCategory = (id: string) => {
+  // Eliminar categoría en el backend
+  const handleDeleteCategory = async (id: string) => {
     if (window.confirm('¿Está seguro de que desea eliminar esta categoría?')) {
-      setCategories(categories.filter((cat) => cat.id !== id));
+      try {
+        const token = getAccessToken();
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch(`${API_BASE}/category/${id}`, {
+          method: 'DELETE',
+          headers
+        });
+        if (!res.ok) throw new Error('Error al eliminar la categoría');
+        
+        fetchCategories();
+      } catch (err: any) {
+        console.error(err);
+        alert(err.message || 'Error al eliminar la categoría');
+      }
     }
   };
 
-  // Guardar Formulario (Add o Edit)
-  const handleSaveCategory = (e: React.FormEvent) => {
+  // Guardar Formulario (Add o Edit) en el backend
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) {
       alert('Por favor, ingresa el nombre de la categoría.');
       return;
     }
 
-    if (modalMode === 'add') {
-      const newId = `CAT_${String(categories.length + 1).padStart(3, '0')}_${formName.slice(0, 3).toUpperCase()}`;
-      const newCat: Category = {
-        id: newId,
-        name: formName,
-        type: formParent === 'NULL' ? 'Root Category' : 'Sub-Category',
-        parentId: formParent,
-        linkedProducts: formLinkedProducts,
-        status: formStatus,
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
       };
-      setCategories([...categories, newCat]);
-    } else if (modalMode === 'edit' && editingCategoryId) {
-      setCategories(
-        categories.map((cat) =>
-          cat.id === editingCategoryId
-            ? {
-                ...cat,
-                name: formName,
-                type: formParent === 'NULL' ? 'Root Category' : 'Sub-Category',
-                parentId: formParent,
-                status: formStatus,
-                linkedProducts: formLinkedProducts,
-              }
-            : cat
-        )
-      );
-    }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
-    setIsModalOpen(false);
+      const parentIdNum = formParent === 'NULL' ? null : parseInt(formParent);
+
+      if (modalMode === 'add') {
+        const res = await fetch(`${API_BASE}/category`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: formName,
+            parentId: parentIdNum
+          })
+        });
+        if (!res.ok) throw new Error('Error al crear la categoría');
+      } else if (modalMode === 'edit' && editingCategoryId) {
+        const res = await fetch(`${API_BASE}/category/${editingCategoryId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            name: formName,
+            parentId: parentIdNum
+          })
+        });
+        if (!res.ok) throw new Error('Error al actualizar la categoría');
+      }
+
+      setIsModalOpen(false);
+      fetchCategories();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Error al guardar la categoría');
+    }
   };
 
   return (
@@ -175,115 +237,137 @@ export const ProductCategoriesView: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabla Principal */}
-      <div className="bg-white border border-[#e8e2d8] overflow-hidden rounded">
-        <div className="p-4 bg-[#222222] flex justify-between items-center">
-          <span className="text-label-caps font-bold text-white uppercase tracking-wider">
-            CATEGORY HIERARCHY
+      {isLoading ? (
+        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm">
+          <span className="material-symbols-outlined animate-spin text-primary text-4xl">
+            sync
           </span>
-          <span className="material-symbols-outlined text-white text-sm cursor-pointer">
-            more_vert
-          </span>
+          <p className="text-secondary text-body-md mt-2 font-sans">Loading category hierarchy...</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
-              <tr>
-                <th className="px-6 py-3 text-left text-label-caps font-bold text-[#5f5e5e]">
-                  Category Name
-                </th>
-                <th className="px-6 py-3 text-left text-label-caps font-bold text-[#5f5e5e]">
-                  Parent ID
-                </th>
-                <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e]">
-                  Linked Products
-                </th>
-                <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e]">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-label-caps font-bold text-[#5f5e5e]">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#e8e2d8]">
-              {filteredCategories.length === 0 ? (
+      ) : error ? (
+        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm">
+          <span className="material-symbols-outlined text-[#ba1a1a] text-4xl">
+            error
+          </span>
+          <p className="text-[#ba1a1a] font-bold mt-2 font-sans">{error}</p>
+          <button
+            onClick={fetchCategories}
+            className="mt-4 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-all font-sans"
+          >
+            Retry Connection
+          </button>
+        </div>
+      ) : (
+        /* Tabla Principal */
+        <div className="bg-white border border-[#e8e2d8] overflow-hidden rounded">
+          <div className="p-4 bg-[#222222] flex justify-between items-center">
+            <span className="text-label-caps font-bold text-white uppercase tracking-wider">
+              CATEGORY HIERARCHY
+            </span>
+            <span className="material-symbols-outlined text-white text-sm cursor-pointer">
+              more_vert
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-secondary italic">
-                    No categories found matching filters.
-                  </td>
+                  <th className="px-6 py-3 text-left text-label-caps font-bold text-[#5f5e5e]">
+                    Category Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-label-caps font-bold text-[#5f5e5e]">
+                    Parent ID
+                  </th>
+                  <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e]">
+                    Linked Products
+                  </th>
+                  <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e]">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-label-caps font-bold text-[#5f5e5e]">
+                    Actions
+                  </th>
                 </tr>
-              ) : (
-                filteredCategories.map((cat) => {
-                  const isSub = cat.type === 'Sub-Category';
-                  const isInactive = cat.status === 'Inactive';
-                  return (
-                    <tr
-                      key={cat.id}
-                      className={`category-row group transition-colors ${
-                        isInactive ? 'bg-[#f8f3eb]/40 opacity-75' : 'hover:bg-[#f8f3eb]'
-                      }`}
-                    >
-                      <td className={`px-6 py-4 flex items-center gap-3 ${isSub ? 'pl-12' : ''}`}>
-                        {!isSub ? (
-                          <div className="w-1 h-8 bg-[#ae001a] rounded-full"></div>
-                        ) : (
-                          <span className="material-symbols-outlined text-[#5f5e5e]/40">
-                            subdirectory_arrow_right
+              </thead>
+              <tbody className="divide-y divide-[#e8e2d8]">
+                {filteredCategories.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-secondary italic">
+                      No categories found matching filters.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCategories.map((cat) => {
+                    const isSub = cat.type === 'Sub-Category';
+                    const isInactive = cat.status === 'Inactive';
+                    return (
+                      <tr
+                        key={cat.id}
+                        className={`category-row group transition-colors ${
+                          isInactive ? 'bg-[#f8f3eb]/40 opacity-75' : 'hover:bg-[#f8f3eb]'
+                        }`}
+                      >
+                        <td className={`px-6 py-4 flex items-center gap-3 ${isSub ? 'pl-12' : ''}`}>
+                          {!isSub ? (
+                            <div className="w-1 h-8 bg-[#ae001a] rounded-full"></div>
+                          ) : (
+                            <span className="material-symbols-outlined text-[#5f5e5e]/40">
+                              subdirectory_arrow_right
+                            </span>
+                          )}
+                          <div>
+                            <p className="font-bold text-[#1d1c17]">{cat.name}</p>
+                            <p className="text-[11px] text-secondary uppercase tracking-wider">
+                              {cat.type}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 font-mono text-[13px] text-secondary">
+                          {cat.parentId}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="bg-[#ece8e0] px-3 py-1 rounded text-body-sm font-bold text-[#1d1c17]">
+                            {cat.linkedProducts}
                           </span>
-                        )}
-                        <div>
-                          <p className="font-bold text-[#1d1c17]">{cat.name}</p>
-                          <p className="text-[11px] text-secondary uppercase tracking-wider">
-                            {cat.type}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-[13px] text-secondary">
-                        {cat.parentId}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="bg-[#ece8e0] px-3 py-1 rounded text-body-sm font-bold text-[#1d1c17]">
-                          {cat.linkedProducts}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
-                            cat.status === 'Active'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-zinc-200 text-[#5f5e5e]'
-                          }`}
-                        >
-                          {cat.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => handleOpenEditModal(cat)}
-                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
-                            title="Editar categoría"
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span
+                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                              cat.status === 'Active'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-zinc-200 text-[#5f5e5e]'
+                            }`}
                           >
-                            <span className="material-symbols-outlined text-[20px]">edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategory(cat.id)}
-                            className="p-1 text-[#1d1c17] hover:text-[#ba1a1a] transition-colors"
-                            title="Eliminar categoría"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                            {cat.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenEditModal(cat)}
+                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                              title="Editar categoría"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">edit</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              className="p-1 text-[#1d1c17] hover:text-[#ba1a1a] transition-colors"
+                              title="Eliminar categoría"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Footer Quick Actions */}
       <div className="bg-[#2a2a2a] p-8 flex flex-col md:flex-row justify-between items-center gap-6 rounded shadow-lg mt-4">

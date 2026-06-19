@@ -238,17 +238,19 @@ body.restaurant-active {
   letter-spacing: 0.05em;
 }
 
-/* Scrollbars personalizadas del Restaurant Dashboard */
-.restaurant-active .custom-scrollbar::-webkit-scrollbar {
+/* Scrollbars personalizadas universales */
+.custom-scrollbar::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 
-.restaurant-active .custom-scrollbar::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.restaurant-active .custom-scrollbar::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background: #444444;
+  border-radius: 2px;
 }
 
 /* Forzar que el título del Sidebar sea siempre blanco y de tamaño apropiado contra su fondo oscuro */

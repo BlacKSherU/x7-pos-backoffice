@@ -88,7 +88,7 @@ export const navigationService = {
             categoryName: row[2],
             categoryIcon: row[3],
             categorySortOrder: parseInt(row[4]),
-            features: []
+            features: [] as NavFeature[]
           };
         })
         .filter((app): app is NavApplication => app !== null);

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   restaurantService,
   setSimulate401,
   getSimulate401,
   setSimulationPlanId,
   setSimulationRole,
-  getSimulationPlanId,
-  getSimulationRole
+  setAuthenticatedState
 } from '../../services/restaurantService';
 import type {
   UserProfile,
@@ -14,10 +14,10 @@ import type {
 } from '../../services/restaurantService';
 import { navigationService } from '../../services/navigationService';
 import type {
-  NavCategory,
-  NavApplication,
-  NavFeature
+  NavCategory
 } from '../../services/navigationService';
+import { GlobalHeader } from './GlobalHeader';
+import { GlobalFooter } from './GlobalFooter';
 import { SalesMetricCard } from './SalesMetricCard';
 import { TablesOccupancyCard } from './TablesOccupancyCard';
 import { KitchenPerformanceCard } from './KitchenPerformanceCard';
@@ -34,21 +34,62 @@ import {
 } from './QuickActionModals';
 import { SaasOverviewContent } from '../SaaSDashboard/SaasOverviewContent';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
-import logoX7 from '../../assets/logo-x7.png';
+
 import { ProductCategoriesView } from './ProductCategoriesView';
+import { ProductsDirectoryView } from './ProductsDirectoryView';
+import { clearAuthSession } from '../../lib/auth-storage';
 
 export const RestaurantDashboard: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   // Estados de carga e inicialización de sesión
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [tier, setTier] = useState<string>('');
   const [isAuthLocked, setIsAuthLocked] = useState<boolean>(false);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   // Estados de navegación SPA
   const [activeCategory, setActiveCategory] = useState<string>('saas'); // Categoria activa
   const [activeTab, setActiveTab] = useState<string>('saas-dashboard'); // Sub-item o vista activa
+
+  // Sincronizar ruta de navegador física con el estado de navegación interna SPA
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/legal/privacy-policy') {
+      setActiveCategory('legal');
+      setActiveTab('privacy-policy');
+    } else if (path === '/legal/terms-of-service') {
+      setActiveCategory('legal');
+      setActiveTab('terms-of-service');
+    } else if (path === '/support/help-center') {
+      setActiveCategory('support');
+      setActiveTab('help-center');
+    } else if (path === '/dashboard/products') {
+      setActiveCategory('inventory');
+      setActiveTab('products');
+    } else if (path === '/dashboard/categories') {
+      setActiveCategory('inventory');
+      setActiveTab('categories');
+    } else if (path === '/dashboard') {
+      const stateTab = location.state?.activeTab;
+      const stateCategory = location.state?.activeCategory;
+      if (stateTab && stateCategory) {
+        setActiveCategory(stateCategory);
+        setActiveTab(stateTab);
+      } else {
+        if (profile) {
+          if (profile.role === 'SaaS Owner') {
+            setActiveCategory('saas');
+            setActiveTab('saas-dashboard');
+          } else {
+            setActiveCategory('core');
+            setActiveTab('dashboard');
+          }
+        }
+      }
+    }
+  }, [location.pathname, profile?.role]);
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
-  const [isInventoryExpanded, setIsInventoryExpanded] = useState<boolean>(false);
 
   // Navegación Dinámica por Plan y Permisos
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
@@ -91,11 +132,8 @@ export const RestaurantDashboard: React.FC = () => {
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
   const [demo401Toggle, setDemo401Toggle] = useState<boolean>(getSimulate401());
   const [showDemoPanel, setShowDemoPanel] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
-  // Estados de SaaS unificados
-  const [searchText, setSearchText] = useState<string>('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
-  const [isSearching, setIsSearching] = useState<boolean>(false);
   const [apiFailedToggle, setApiFailedToggle] = useState<boolean>(getSimulateApiFailure());
 
   // Estados de Modales
@@ -109,10 +147,10 @@ export const RestaurantDashboard: React.FC = () => {
   const hydrateSession = async () => {
     try {
       setIsAuthLocked(false);
+      setAuthenticatedState(true);
       const userProfile = await restaurantService.getUserProfile();
       setProfile(userProfile);
-      const estTier = await restaurantService.getEstablishmentTier();
-      setTier(estTier);
+      await restaurantService.getEstablishmentTier();
 
       // Auto-inicializar vistas según el rol si no están inicializadas o son incompatibles
       if (userProfile.role === 'SaaS Owner') {
@@ -163,20 +201,7 @@ export const RestaurantDashboard: React.FC = () => {
     }
   }, [isAuthLocked, refreshTrigger]);
 
-  // Debounce de 300ms para la búsqueda global de SaaS (AC 1.3 de SaaS)
-  useEffect(() => {
-    if (searchText) {
-      setIsSearching(true);
-    }
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchText);
-      setIsSearching(false);
-    }, 300);
 
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchText]);
 
   // Activar clases dinámicas de layout en el root y body según la pestaña activa
   useEffect(() => {
@@ -232,11 +257,11 @@ export const RestaurantDashboard: React.FC = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  // Logout (AC 4.3)
   const handleLogout = async () => {
     try {
       await restaurantService.logout();
-      setIsAuthLocked(true);
+      clearAuthSession();
+      navigate('/login', { replace: true });
     } catch (err) {
       console.error(err);
     }
@@ -248,6 +273,58 @@ export const RestaurantDashboard: React.FC = () => {
 
   // Renderizado dinámico de vistas SPA (AC 4.2)
   const renderSPAView = () => {
+    if (activeTab === 'privacy-policy' || activeTab === 'terms-of-service' || activeTab === 'help-center') {
+      let title = 'Feature';
+      let route = '/provisional-stub';
+      if (activeTab === 'privacy-policy') {
+        title = 'Privacy Policy';
+        route = '/legal/privacy-policy';
+      } else if (activeTab === 'terms-of-service') {
+        title = 'Terms of Service';
+        route = '/legal/terms-of-service';
+      } else if (activeTab === 'help-center') {
+        title = 'Help Center';
+        route = '/support/help-center';
+      }
+
+      return (
+        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm text-left max-w-4xl mx-auto my-8">
+          <div className="flex items-center gap-4 border-b border-[#e8e2d8] pb-6 mb-6">
+            <span className="material-symbols-outlined text-primary text-5xl">
+              {activeTab === 'help-center' ? 'help' : 'gavel'}
+            </span>
+            <div>
+              <h2 className="text-h2 font-black text-[#222222] uppercase leading-none">
+                {title}
+              </h2>
+              <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mt-1.5">
+                Provisional SPA Route: <span className="text-primary">{route}</span>
+              </p>
+            </div>
+          </div>
+          
+          <div className="p-6 bg-[#f1ece4] border border-[#e8e2d8] rounded mb-6 text-left">
+            <p className="font-bold text-primary text-sm uppercase tracking-wider mb-2">Feature Coming Soon</p>
+            <p className="text-body-md text-[#5f5e5e] leading-relaxed">
+              Esta sección está bajo desarrollo activo por el equipo de ingeniería legal y de operaciones de <strong>X7 Point of Sale</strong>.
+              En una futura actualización, este espacio mostrará la documentación oficial de cumplimiento regulatorio y los términos vigentes.
+            </p>
+          </div>
+          
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                navigate('/dashboard');
+              }}
+              className="px-6 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-primary transition-all rounded shadow-md"
+            >
+              Volver al Dashboard
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     if (activeTab === 'saas-dashboard') {
       return (
         <div className="space-y-8 animate-fade-in text-left">
@@ -289,6 +366,10 @@ export const RestaurantDashboard: React.FC = () => {
 
     if (activeTab === 'categories') {
       return <ProductCategoriesView />;
+    }
+
+    if (activeTab === 'products') {
+      return <ProductsDirectoryView />;
     }
 
     if (activeTab !== 'dashboard') {
@@ -423,37 +504,14 @@ export const RestaurantDashboard: React.FC = () => {
     );
   };
 
-  const isSaaSTab = [
-    'saas-dashboard',
-    'subscription',
-    'companies',
-    'merchants',
-    'users',
-    'reports'
-  ].includes(activeTab);
+
 
   return (
     <div className="overflow-hidden min-h-screen relative bg-[#f1ece4]">
       {/* Sidebar Navigation */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-[#222222] border-r border-white/10 z-50 flex flex-col">
-        <div className="p-6 flex items-center gap-3">
-          <div className="flex items-center justify-center gap-3 flex-grow">
-            <img 
-              alt="X7 Point of Sale" 
-              className="w-auto object-contain h-[60px]" 
-              src={logoX7} 
-            />
-          </div>
-          <div className="text-left">
-            <h2 className="text-md font-black text-white tracking-tight leading-none">
-              POINT OF SALE
-            </h2>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#d51f2c]">
-              Backoffice
-            </span>
-          </div>
-        </div>
-
+      <aside className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-[#222222] border-r border-white/10 z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+        isSidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
+      }`}>
         {/* Sidebar Nav (AC 4.1) */}
         <nav className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-1 text-left">
           {navCategories.map((cat) => {
@@ -531,6 +589,13 @@ export const RestaurantDashboard: React.FC = () => {
                                     onClick={() => {
                                       setActiveCategory(cat.id);
                                       setActiveTab(feat.id);
+                                      if (feat.id === 'products') {
+                                        navigate('/dashboard/products');
+                                      } else if (feat.id === 'categories') {
+                                        navigate('/dashboard/categories');
+                                      } else {
+                                        navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
+                                      }
                                     }}
                                     className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
                                       isFeatActive
@@ -575,171 +640,39 @@ export const RestaurantDashboard: React.FC = () => {
       </aside>
 
       {/* Top Navigation Bar */}
-      <header className="fixed top-0 right-0 left-64 h-16 bg-[#f1ece4] border-b border-[#e8e2d8] z-40 flex justify-between items-center px-6">
-        {isSaaSTab ? (
-          /* Cabecera del SaaS Dashboard (Lado Izquierdo) */
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative w-full max-w-md">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#666666] text-lg">
-                search
-              </span>
-              <input
-                type="text"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className="w-full bg-white/50 border border-[#e8e2d8] rounded py-1.5 pl-10 pr-4 text-body-sm focus:ring-0 focus:border-[#222222] transition-all"
-                placeholder="Search merchants, users, or companies..."
-              />
-              {isSearching && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#666666] animate-pulse">
-                  ...
-                </span>
-              )}
-            </div>
-            {debouncedSearchQuery && (
-              <div className="bg-[#222222] text-white px-2 py-1 text-[10px] font-bold uppercase flex items-center gap-1.5 rounded animate-fade-in shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
-                Query: "{debouncedSearchQuery}"
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Cabecera del Restaurante (Lado Izquierdo) */
-          <>
-            {activeTab === 'categories' ? (
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col text-left">
-                  <nav className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e] mb-1 select-none">
-                    <span>Inventory</span>
-                    <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'wght' 700" }}>chevron_right</span>
-                    <span className="text-[#ae001a] font-bold">Categories</span>
-                  </nav>
-                  <h2 className="text-xl font-bold text-[#ae001a] leading-tight">Product Categories</h2>
-                </div>
-                {tier && (
-                  <div className="tier-badge-full flex items-center gap-1.5 shadow-sm bg-[#1d1c17] text-white px-3 py-1 rounded text-[11px] font-bold uppercase tracking-wider">
-                    <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      star
-                    </span>
-                    {tier}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-4">
-                <h2 className="font-sans text-sm font-medium tracking-tight text-[#222222]">
-                  {activeTab === 'dashboard' ? 'Restaurant Dashboard' : `${activeTab.toUpperCase()} Subsystem`}
-                </h2>
-                {/* Badge de Tier (AC 1.2) */}
-                {tier && (
-                  <div className="tier-badge-full flex items-center gap-1.5 shadow-sm">
-                    <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      star
-                    </span>
-                    {tier}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Lado Derecho de la Cabecera Genérica (Común para SaaS y Restaurante) */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 text-secondary">
-            {/* Botón de Notificaciones (AC 5.1) */}
-            <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors relative"
-              >
-                <span className="material-symbols-outlined">notifications</span>
-                {notifications.length > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-[#d51f2c] rounded-full border border-[#f1ece4]"></span>
-                )}
-              </button>
-
-              {/* Dropdown de Notificaciones */}
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-[#e8e2d8] shadow-2xl z-50 text-left rounded-sm">
-                  <div className="p-3 bg-[#222222] text-white text-xs font-bold uppercase rounded-t-sm flex justify-between items-center">
-                    <span>Notifications Queue</span>
-                    <span className="bg-[#d51f2c] px-1.5 py-0.5 text-[9px] rounded">
-                      {notifications.length} Unread
-                    </span>
-                  </div>
-                  <div className="divide-y divide-[#e8e2d8] max-h-60 overflow-y-auto custom-scrollbar">
-                    {notifications.length === 0 ? (
-                      <p className="p-4 text-xs text-secondary italic text-center">No notifications found.</p>
-                    ) : (
-                      notifications.map((n) => (
-                        <div key={n.id} className="p-3 hover:bg-[#f9f7f4] transition-colors">
-                          <p className="text-xs font-bold text-[#222222]">{n.title}</p>
-                          <p className="text-[11px] text-[#666666] mt-0.5">{n.message}</p>
-                          <span className="text-[9px] text-secondary mt-1 block text-right">{n.time}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {isSaaSTab && (
-              <button
-                onClick={() => setRefreshTrigger((prev) => prev + 1)}
-                className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors"
-                title="Refrescar Datos"
-              >
-                <span className="material-symbols-outlined">refresh</span>
-              </button>
-            )}
-
-            <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
-              <span className="material-symbols-outlined">help</span>
-            </button>
-            <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
-              <span className="material-symbols-outlined">settings</span>
-            </button>
-            <div className="h-8 w-px bg-[#e8e2d8] mx-2"></div>
-          </div>
-
-          {/* Información dinámica de usuario (AC 1.1) */}
-          {profile && (
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-body-sm font-semibold text-[#222222] leading-none">{profile.name}</p>
-                <p className="text-[11px] text-secondary">{profile.role}</p>
-              </div>
-              <img
-                alt="Profile Portrait"
-                className="w-9 h-9 rounded-full object-cover border border-[#e8e2d8] shadow-sm"
-                src={profile.portraitUrl}
-              />
-            </div>
-          )}
-        </div>
-      </header>
+      <GlobalHeader
+        activeTab={activeTab}
+        activeCategory={activeCategory}
+        refreshTrigger={refreshTrigger}
+        navCategories={navCategories}
+        notifications={notifications}
+        showNotifications={showNotifications}
+        setShowNotifications={setShowNotifications}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onLogoClick={() => {
+          if (profile?.role === 'SaaS Owner') {
+            setActiveCategory('saas');
+            setActiveTab('saas-dashboard');
+          } else {
+            setActiveCategory('core');
+            setActiveTab('dashboard');
+          }
+          navigate('/dashboard');
+        }}
+      />
 
       {/* Main Content Area */}
-      <main className="fixed top-16 bottom-12 left-64 right-0 overflow-y-auto bg-[#f1ece4] p-8 custom-scrollbar">
-        <div className="max-w-7xl mx-auto space-y-8">
-          {renderSPAView()}
+      <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto bg-[#f1ece4] p-8 custom-scrollbar transition-all duration-300 ease-in-out ${
+        isSidebarCollapsed ? 'left-0' : 'left-64'
+      }`}>
+        <div className="max-w-7xl mx-auto min-h-full flex flex-col justify-between">
+          <div className="flex-grow space-y-8 pb-8">
+            {renderSPAView()}
+          </div>
+          <GlobalFooter />
         </div>
       </main>
-
-      {/* Global Fixed Institutional Footer */}
-      <footer className="fixed bottom-0 right-0 left-64 h-12 bg-[#f1ece4] border-t border-[#e8e2d8] z-40 flex justify-between items-center px-8 text-secondary select-none">
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#5f5e5e]">
-          <span>© 2026 X7 Point of Sale. All rights reserved.</span>
-          <span className="material-symbols-outlined text-xs leading-none">chevron_right</span>
-        </div>
-        <div className="flex gap-6 text-xs font-semibold text-[#5f5e5e]">
-          <a href="#" onClick={(e) => { e.preventDefault(); alert('Privacy Policy simulation'); }} className="hover:underline underline">Privacy Policy</a>
-          <a href="#" onClick={(e) => { e.preventDefault(); alert('Terms of Service simulation'); }} className="hover:underline underline">Terms of Service</a>
-          <a href="#" onClick={(e) => { e.preventDefault(); alert('Help Center simulation'); }} className="hover:underline underline">Help Center</a>
-        </div>
-      </footer>
 
       {/* Floating Action Button (FAB - AC 5.3) */}
       {activeTab === 'dashboard' && (
@@ -762,10 +695,12 @@ export const RestaurantDashboard: React.FC = () => {
       <NewQuickOrderModal isOpen={isQuickOrderOpen} onClose={() => setIsQuickOrderOpen(false)} />
 
       {/* Modal Bloqueante de Login Gateway por 401 Unauthorized (AC 1.3) */}
-      <LoginGatewayModal isOpen={isAuthLocked} onLoginSuccess={handleLoginSuccess} />
+      <LoginGatewayModal isOpen={false} onLoginSuccess={handleLoginSuccess} />
 
       {/* Botón Flotante de Controles de Demo en la esquina inferior izquierda del canvas */}
-      <div className="fixed bottom-16 left-[272px] z-[9999]">
+      <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
+        isSidebarCollapsed ? 'left-6' : 'left-[272px]'
+      }`}>
         <button
           onClick={() => setShowDemoPanel(!showDemoPanel)}
           className="w-10 h-10 bg-[#222222] hover:bg-[#d51f2c] text-white rounded-full shadow-lg flex items-center justify-center border border-white/20 transition-all active:scale-95"

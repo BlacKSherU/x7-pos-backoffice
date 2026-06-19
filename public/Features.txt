@@ -12,6 +12,7 @@ subscription-plans|Subcription Plans|merchants|1|1
 subscription|Subscription Applications|merchants|1|1
 subscription-payments|Subscription payments|merchants|1|1
 users|Users|users|1|1
+dashboard|Restaurant Overview|dashboard-app|1|0
 receipt-items|Receipt items|billing-transactions|1|0
 receipt-orders|Receipts|billing-transactions|1|0
 receipt-taxes|Receipts taxes|billing-transactions|1|0
@@ -39,13 +40,13 @@ actual-cost-variance|Actual Cost Variance|food-costing|2|0
 recipe-ingredients|Recipe Ingredients|food-costing|2|0
 recipes|Recipes|food-costing|2|0
 theoretical-cost|Theoretical Cost|food-costing|2|0
-categories|Category Management|products-inventory|1|0
-modifiers|Modifiers Management|products-inventory|1|0
-products|Product Managment|products-inventory|1|0
-variants|Variants Management|products-inventory|1|0
-purchase-orders|Purchase Orders Management|products-inventory|2|0
-stock-movements|Stock and Stock Movements Management|products-inventory|2|0
-suppliers-management|Suppliers Management|products-inventory|2|0
+categories|Category|products-inventory|1|0
+modifiers|Modifiers|products-inventory|1|0
+products|Product|products-inventory|1|0
+variants|Variants|products-inventory|1|0
+purchase-orders|Purchase Orders|products-inventory|2|0
+stock-movements|Stock and Stock Movements|products-inventory|2|0
+suppliers-management|Suppliers|products-inventory|2|0
 tables|Tables|dining-system|1|0
 floor-plans|Floor plans|dining-system|2|0
 table-assignments|Table assignments|dining-system|2|0

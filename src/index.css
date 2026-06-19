@@ -11,6 +11,12 @@
   --color-error: #ba1a1a;
 
   --font-poppins: 'Poppins', sans-serif;
+  --spacing-sidebar-width: 260px;
+  --spacing-header-height: 4rem;
+  --spacing-xl: 32px;
+  
+  --color-border-subtle: #e8e2d8;
+  --color-text-muted: #5f5e5e;
 }
 
 body {

@@ -4,6 +4,7 @@ client-backoffice|Client Backoffice|Platform SaaS|grid_view|1
 companies|Companies|Platform SaaS|grid_view|1
 merchants|Merchants|Platform SaaS|grid_view|1
 users|Users|Platform SaaS|grid_view|1
+dashboard-app|Dashboard|CORE|settings_applications|2
 billing-transactions|Billing / Transactions|CORE|settings_applications|2
 business-partners|Business Partners|CORE|settings_applications|2
 accounts-payable|Accounts Payable|Finance & HR|payments|3
