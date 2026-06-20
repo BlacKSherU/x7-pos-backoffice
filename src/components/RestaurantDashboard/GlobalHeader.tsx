@@ -54,43 +54,62 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   let parentAppName = '';
   let activeFeatureName = '';
 
-  // Buscar coincidencia en navCategories
-  if (navCategories.length > 0) {
-    for (const cat of navCategories) {
-      for (const app of cat.applications) {
-        const feat = app.features.find(f => f.id === activeTab);
-        if (feat) {
-          parentAppName = app.name;
-          activeFeatureName = feat.name;
-          break;
-        }
-        if (app.id === activeTab) {
-          parentAppName = cat.name;
-          activeFeatureName = app.name;
-          break;
-        }
-      }
-      if (parentAppName) break;
-    }
-  }
-
-  // Forzar mapeo limpio para productos y categorías
-  if (activeTab === 'products') {
-    parentAppName = 'Product/Inventory System';
-    activeFeatureName = 'Products';
-  } else if (activeTab === 'categories') {
-    parentAppName = 'Product/Inventory System';
-    activeFeatureName = 'Categories';
-  } else if (!parentAppName || !activeFeatureName) {
+  if (profile?.role === 'SaaS Owner') {
+    parentAppName = 'Platform SaaS';
     if (activeTab === 'saas-dashboard') {
-      parentAppName = 'Platform SaaS';
       activeFeatureName = 'Overview';
-    } else if (activeTab === 'dashboard') {
-      parentAppName = 'Restaurant Operations';
-      activeFeatureName = 'Overview';
+    } else if (activeTab === 'subscription') {
+      activeFeatureName = 'Subscription System';
+    } else if (activeTab === 'companies') {
+      activeFeatureName = 'Companies registry';
+    } else if (activeTab === 'merchants') {
+      activeFeatureName = 'Merchants Registry';
+    } else if (activeTab === 'users') {
+      activeFeatureName = 'Users list';
+    } else if (activeTab === 'reports') {
+      activeFeatureName = 'System Reports';
     } else {
-      parentAppName = activeCategory ? activeCategory.toUpperCase() : 'SYSTEM';
       activeFeatureName = activeTab ? activeTab.replace(/-/g, ' ').toUpperCase() : 'VIEW';
+    }
+  } else {
+    // Buscar coincidencia en navCategories
+    if (navCategories.length > 0) {
+      for (const cat of navCategories) {
+        for (const app of cat.applications) {
+          const feat = app.features.find(f => f.id === activeTab);
+          if (feat) {
+            parentAppName = app.name;
+            activeFeatureName = feat.name;
+            break;
+          }
+          if (app.id === activeTab) {
+            parentAppName = cat.name;
+            activeFeatureName = app.name;
+            break;
+          }
+        }
+        if (parentAppName) break;
+      }
+    }
+
+    // Forzar mapeo limpio para productos y categorías
+    if (activeTab === 'products') {
+      parentAppName = 'Product/Inventory System';
+      activeFeatureName = 'Products';
+    } else if (activeTab === 'categories') {
+      parentAppName = 'Product/Inventory System';
+      activeFeatureName = 'Categories';
+    } else if (!parentAppName || !activeFeatureName) {
+      if (activeTab === 'saas-dashboard') {
+        parentAppName = 'Platform SaaS';
+        activeFeatureName = 'Overview';
+      } else if (activeTab === 'dashboard') {
+        parentAppName = 'Restaurant Operations';
+        activeFeatureName = 'Overview';
+      } else {
+        parentAppName = activeCategory ? activeCategory.toUpperCase() : 'SYSTEM';
+        activeFeatureName = activeTab ? activeTab.replace(/-/g, ' ').toUpperCase() : 'VIEW';
+      }
     }
   }
 
@@ -104,6 +123,19 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Categories';
   } else if (activeTab === 'products') {
     friendlyTitle = 'Products';
+  } else if (profile?.role === 'SaaS Owner') {
+    // Para SaaS Owner, hacer que el título coincida amigablemente con la sección seleccionada
+    if (activeTab === 'subscription') {
+      friendlyTitle = 'Subscription System';
+    } else if (activeTab === 'companies') {
+      friendlyTitle = 'Companies Registry';
+    } else if (activeTab === 'merchants') {
+      friendlyTitle = 'Merchants Registry';
+    } else if (activeTab === 'users') {
+      friendlyTitle = 'Users List';
+    } else if (activeTab === 'reports') {
+      friendlyTitle = 'System Reports';
+    }
   }
 
   // Fallback de iniciales para el avatar de usuario si no hay portraitUrl

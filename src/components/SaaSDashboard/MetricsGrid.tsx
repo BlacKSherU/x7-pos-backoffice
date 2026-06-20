@@ -120,9 +120,9 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ refreshTrigger }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
       {/* Total Merchants Card */}
-      <div className="bg-white border border-[#e8e2d8] p-lg flex flex-col justify-between min-h-[144px]">
+      <div className="bg-white border border-[#e8e2d8] p-6 flex flex-col justify-between min-h-[144px]">
         <div>
           <span className="text-label-caps text-[#666666]">Total Merchants</span>
           <div className="flex items-center gap-2 mt-2">
@@ -140,7 +140,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ refreshTrigger }) => {
       </div>
 
       {/* Quick Service Card */}
-      <div className="bg-white border border-[#e8e2d8] p-lg relative overflow-hidden min-h-[144px] flex flex-col justify-between">
+      <div className="bg-white border border-[#e8e2d8] p-6 relative overflow-hidden min-h-[144px] flex flex-col justify-between">
         <div>
           <span className="text-label-caps text-[#666666]">Quick Service</span>
           <h2 className="text-h2 font-black text-[#222222] mt-2">
@@ -156,14 +156,14 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ refreshTrigger }) => {
       </div>
 
       {/* Full Restaurant Card */}
-      <div className="bg-[#222222] border border-[#222222] p-lg relative overflow-hidden min-h-[144px] flex flex-col justify-between">
+      <div className="bg-[#222222] border border-[#222222] p-6 relative overflow-hidden min-h-[144px] flex flex-col justify-between">
         <div>
-          <span className="text-label-caps text-white/60">Full Restaurant</span>
-          <h2 className="text-h2 font-black text-white mt-2">
+          <span className="text-label-caps !text-white/60">Full Restaurant</span>
+          <h2 className="text-h2 font-black !text-white mt-2">
             {metrics.fullRestaurant.count.toLocaleString()}
           </h2>
         </div>
-        <p className="text-body-sm text-white/50 mt-auto">
+        <p className="text-body-sm !text-white/50 mt-auto">
           Active Terminals: {metrics.fullRestaurant.terminals.toLocaleString()}
         </p>
         <div className="absolute -right-2 -bottom-2 opacity-10 pointer-events-none">
@@ -172,14 +172,14 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ refreshTrigger }) => {
       </div>
 
       {/* Enterprise Card */}
-      <div className="bg-[#d51f2c] border border-[#d51f2c] p-lg relative overflow-hidden min-h-[144px] flex flex-col justify-between">
+      <div className="bg-[#d51f2c] border border-[#d51f2c] p-6 relative overflow-hidden min-h-[144px] flex flex-col justify-between">
         <div>
-          <span className="text-label-caps text-white/60">Enterprise</span>
-          <h2 className="text-h2 font-black text-white mt-2">
+          <span className="text-label-caps !text-white/60">Enterprise</span>
+          <h2 className="text-h2 font-black !text-white mt-2">
             {metrics.enterprise.count.toLocaleString()}
           </h2>
         </div>
-        <p className="text-body-sm text-white/50 mt-auto">
+        <p className="text-body-sm !text-white/50 mt-auto">
           Active Terminals: {metrics.enterprise.terminals.toLocaleString()}
         </p>
         <div className="absolute -right-2 -bottom-2 opacity-20 pointer-events-none">

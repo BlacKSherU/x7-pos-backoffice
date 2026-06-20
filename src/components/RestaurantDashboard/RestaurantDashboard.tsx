@@ -113,6 +113,9 @@ export const RestaurantDashboard: React.FC = () => {
 
   // Auto-expandir la categoría y aplicación activas si corresponden al tab activo
   useEffect(() => {
+    if (profile?.role === 'SaaS Owner') {
+      return;
+    }
     if (navCategories.length > 0 && activeTab) {
       navCategories.forEach(cat => {
         cat.applications.forEach(app => {
@@ -125,7 +128,7 @@ export const RestaurantDashboard: React.FC = () => {
         });
       });
     }
-  }, [activeTab, navCategories]);
+  }, [activeTab, navCategories, profile?.role]);
 
   // Estados de UI
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
@@ -514,109 +517,158 @@ export const RestaurantDashboard: React.FC = () => {
       }`}>
         {/* Sidebar Nav (AC 4.1) */}
         <nav className="flex-1 overflow-y-auto custom-scrollbar sidebar-scroll py-4 space-y-1 text-left">
-          {navCategories.map((cat) => {
-            const isCatExpanded = !!expandedCategories[cat.id];
-            
-            // Determinar si alguna característica dentro de esta categoría está activa
-            const hasActiveTab = cat.applications.some(app => 
-              app.features.some(f => f.id === activeTab)
-            );
-            const isCatActive = activeCategory === cat.id || hasActiveTab;
+          {profile?.role === 'SaaS Owner' ? (
+            <div>
+              {/* Categoría Platform SaaS */}
+              <div
+                onClick={() => setActiveCategory(activeCategory === 'saas' ? '' : 'saas')}
+                className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
+                  activeCategory === 'saas'
+                    ? 'border-[#d51f2c] bg-white/10 text-white font-semibold'
+                    : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px] text-[#d51f2c]">dashboard</span>
+                <span className="font-sans text-[13px] tracking-tight">Platform SaaS</span>
+              </div>
 
-            return (
-              <div key={cat.id} className="w-full text-left">
-                {/* Nivel 1: Categoría */}
-                <div
-                  onClick={() => {
-                    setExpandedCategories(prev => ({
-                      ...prev,
-                      [cat.id]: !prev[cat.id]
-                    }));
-                    setActiveCategory(cat.id);
-                  }}
-                  className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
-                    isCatActive
-                      ? 'border-[#d51f2c] bg-white/10 text-white font-semibold'
-                      : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <span 
-                    className={`material-symbols-outlined text-[20px] transition-colors duration-200 ${
-                      isCatActive ? 'text-[#d51f2c]' : 'text-white/70'
+              {activeCategory === 'saas' && (
+                <div className="mt-1 ml-10 border-l border-white/10 flex flex-col space-y-1">
+                  {[
+                    { id: 'saas-dashboard', label: 'Dashboard' },
+                    { id: 'subscription', label: 'Subscription System' },
+                    { id: 'companies', label: 'Companies registry' },
+                    { id: 'merchants', label: 'Merchants Registry' },
+                    { id: 'users', label: 'Users list' },
+                    { id: 'reports', label: 'System Reports' },
+                  ].map((sub) => {
+                    const isActive = activeTab === sub.id;
+                    return (
+                      <div
+                        key={sub.id}
+                        onClick={() => {
+                          setActiveCategory('saas');
+                          setActiveTab(sub.id);
+                          navigate('/dashboard', { state: { activeTab: sub.id, activeCategory: 'saas' } });
+                        }}
+                        className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
+                          isActive
+                            ? 'bg-white/50 text-[#222222] font-semibold border-l-2 border-[#222222] -ml-[2px]'
+                            : 'text-white/60 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        {sub.label}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            navCategories.map((cat) => {
+              const isCatExpanded = !!expandedCategories[cat.id];
+              
+              // Determinar si alguna característica dentro de esta categoría está activa
+              const hasActiveTab = cat.applications.some(app => 
+                app.features.some(f => f.id === activeTab)
+              );
+              const isCatActive = activeCategory === cat.id || hasActiveTab;
+
+              return (
+                <div key={cat.id} className="w-full text-left">
+                  {/* Nivel 1: Categoría */}
+                  <div
+                    onClick={() => {
+                      setExpandedCategories(prev => ({
+                        ...prev,
+                        [cat.id]: !prev[cat.id]
+                      }));
+                      setActiveCategory(cat.id);
+                    }}
+                    className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
+                      isCatActive
+                        ? 'border-[#d51f2c] bg-white/10 text-white font-semibold'
+                        : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    {cat.icon}
-                  </span>
-                  <span className="font-sans text-[13px] tracking-tight">{cat.name}</span>
-                </div>
-
-                {/* Nivel 2: Aplicaciones */}
-                {isCatExpanded && (
-                  <div className="mt-1 flex flex-col space-y-1">
-                    {cat.applications.map((app) => {
-                      const isAppExpanded = !!expandedApps[app.id];
-                      const isAppSelected = app.features.some(f => f.id === activeTab);
-
-                      return (
-                        <div key={app.id} className="w-full text-left">
-                          <div
-                            onClick={() => {
-                              setExpandedApps(prev => ({
-                                ...prev,
-                                [app.id]: !prev[app.id]
-                              }));
-                            }}
-                            className={`ml-10 py-2 px-3 text-[13px] flex items-center gap-2 cursor-pointer hover:bg-white/5 transition-colors font-sans duration-200 ${
-                              isAppSelected ? 'text-[#d51f2c] font-semibold' : 'text-white/70 hover:text-white'
-                            }`}
-                          >
-                            <span 
-                              className={`w-1 h-1 rounded-full ${
-                                isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/50'
-                              }`}
-                            ></span>
-                            <span>{app.name}</span>
-                          </div>
-
-                          {/* Nivel 3: Características */}
-                          {isAppExpanded && (
-                            <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
-                              {app.features.map((feat) => {
-                                const isFeatActive = activeTab === feat.id;
-                                return (
-                                  <div
-                                    key={feat.id}
-                                    onClick={() => {
-                                      setActiveCategory(cat.id);
-                                      setActiveTab(feat.id);
-                                      if (feat.id === 'products') {
-                                        navigate('/dashboard/products');
-                                      } else if (feat.id === 'categories') {
-                                        navigate('/dashboard/categories');
-                                      } else {
-                                        navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
-                                      }
-                                    }}
-                                    className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
-                                      isFeatActive
-                                        ? 'bg-white/50 text-[#222222] font-semibold border-l-2 border-[#222222] -ml-[2px]'
-                                        : 'text-white/60 hover:text-white hover:bg-white/5'
-                                    }`}
-                                  >
-                                    {feat.name}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <span 
+                      className={`material-symbols-outlined text-[20px] transition-colors duration-200 ${
+                        isCatActive ? 'text-[#d51f2c]' : 'text-white/70'
+                      }`}
+                    >
+                      {cat.icon}
+                    </span>
+                    <span className="font-sans text-[13px] tracking-tight">{cat.name}</span>
                   </div>
-                )}
-              </div>
-            );
-          })}
+
+                  {/* Nivel 2: Aplicaciones */}
+                  {isCatExpanded && (
+                    <div className="mt-1 flex flex-col space-y-1">
+                      {cat.applications.map((app) => {
+                        const isAppExpanded = !!expandedApps[app.id];
+                        const isAppSelected = app.features.some(f => f.id === activeTab);
+
+                        return (
+                          <div key={app.id} className="w-full text-left">
+                            <div
+                              onClick={() => {
+                                setExpandedApps(prev => ({
+                                  ...prev,
+                                  [app.id]: !prev[app.id]
+                                }));
+                              }}
+                              className={`ml-10 py-2 px-3 text-[13px] flex items-center gap-2 cursor-pointer hover:bg-white/5 transition-colors font-sans duration-200 ${
+                                isAppSelected ? 'text-[#d51f2c] font-semibold' : 'text-white/70 hover:text-white'
+                              }`}
+                            >
+                              <span 
+                                className={`w-1 h-1 rounded-full ${
+                                  isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/50'
+                                }`}
+                              ></span>
+                              <span>{app.name}</span>
+                            </div>
+
+                            {/* Nivel 3: Características */}
+                            {isAppExpanded && (
+                              <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
+                                {app.features.map((feat) => {
+                                  const isFeatActive = activeTab === feat.id;
+                                  return (
+                                    <div
+                                      key={feat.id}
+                                      onClick={() => {
+                                        setActiveCategory(cat.id);
+                                        setActiveTab(feat.id);
+                                        if (feat.id === 'products') {
+                                          navigate('/dashboard/products');
+                                        } else if (feat.id === 'categories') {
+                                          navigate('/dashboard/categories');
+                                        } else {
+                                          navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
+                                        }
+                                      }}
+                                      className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
+                                        isFeatActive
+                                          ? 'bg-white/50 text-[#222222] font-semibold border-l-2 border-[#222222] -ml-[2px]'
+                                          : 'text-white/60 hover:text-white hover:bg-white/5'
+                                      }`}
+                                    >
+                                      {feat.name}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </nav>
 
 
