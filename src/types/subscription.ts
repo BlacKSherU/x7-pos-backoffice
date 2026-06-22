@@ -22,3 +22,11 @@ export interface UpdateSubscriptionPlanDto {
   billingCycle: 'daily' | 'weekly' | 'monthly' | 'yearly';
   status: 'active' | 'inactive';
 }
+
+export interface Application {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  status: 'active' | 'inactive';
+}

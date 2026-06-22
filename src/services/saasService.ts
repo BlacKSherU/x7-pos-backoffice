@@ -1,4 +1,4 @@
-import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto } from '../types/subscription';
+import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application } from '../types/subscription';
 import { getSaasToken, clearSaasToken } from '../lib/saas-auth-storage';
 
 async function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -250,5 +250,29 @@ export const saasService = {
       { method: 'DELETE' },
     );
     return { ...response.data, price: Number(response.data.price) };
+  },
+
+  async getApplications(): Promise<Application[]> {
+    const response = await saasApiFetch<{
+      data: Application[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+    }>('applications');
+    return response.data;
+  },
+
+  async toggleApplicationInactive(app: Application): Promise<Application> {
+    const response = await saasApiFetch<{ data: Application }>(
+      `applications/${app.id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: app.name,
+          description: app.description,
+          category: app.category,
+          status: 'inactive',
+        }),
+      },
+    );
+    return response.data;
   },
 };
