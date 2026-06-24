@@ -262,7 +262,7 @@ export const saasService = {
 
   async updateApplication(
     app: Application,
-    updates: { name: string; description: string; category: string },
+    updates: { name: string; description: string; category: string; status: 'active' | 'inactive' },
   ): Promise<Application> {
     const response = await saasApiFetch<{ data: Application }>(
       `applications/${app.id}`,
@@ -272,7 +272,7 @@ export const saasService = {
           name: updates.name,
           description: updates.description,
           category: updates.category,
-          status: app.status,
+          status: updates.status,
         }),
       },
     );

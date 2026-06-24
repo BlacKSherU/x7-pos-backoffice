@@ -10,13 +10,16 @@ interface EditAppDialogProps {
   app: Application;
   submitting: boolean;
   onClose: () => void;
-  onSave: (updates: { name: string; description: string; category: string }) => void;
+  onSave: (updates: { name: string; description: string; category: string; status: 'active' | 'inactive' }) => void;
 }
 
 const EditAppDialog: React.FC<EditAppDialogProps> = ({ app, submitting, onClose, onSave }) => {
   const [name, setName] = React.useState(app.name);
   const [description, setDescription] = React.useState(app.description);
   const [category, setCategory] = React.useState(app.category);
+  const [status, setStatus] = React.useState<'active' | 'inactive'>(
+    app.status === 'deleted' ? 'active' : app.status,
+  );
 
   const isValid = name.trim() !== '' && category.trim() !== '';
 
@@ -72,6 +75,24 @@ const EditAppDialog: React.FC<EditAppDialogProps> = ({ app, submitting, onClose,
               placeholder="e.g. POS Core, Utility, Kitchen Display"
             />
           </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="edit-status"
+              className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]"
+            >
+              Status
+            </label>
+            <select
+              id="edit-status"
+              aria-label="Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] outline-none transition-all"
+            >
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button"
@@ -83,7 +104,7 @@ const EditAppDialog: React.FC<EditAppDialogProps> = ({ app, submitting, onClose,
             </button>
             <button
               type="button"
-              onClick={() => onSave({ name: name.trim(), description: description.trim(), category: category.trim() })}
+              onClick={() => onSave({ name: name.trim(), description: description.trim(), category: category.trim(), status })}
               disabled={submitting || !isValid}
               className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
             >
@@ -385,7 +406,7 @@ export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> =
     setStatusFilter('All Status');
   };
 
-  const handleEditSave = async (updates: { name: string; description: string; category: string }) => {
+  const handleEditSave = async (updates: { name: string; description: string; category: string; status: 'active' | 'inactive' }) => {
     if (!editingApp) return;
     setEditSubmitting(true);
     try {

@@ -605,3 +605,45 @@ describe('PlatformApplicationsView — register application', () => {
     });
   });
 });
+
+describe('PlatformApplicationsView — edit application status', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getApplications).mockResolvedValue(MOCK_APPS);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('Edit modal renders a Status select pre-populated with the app current status', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Reporting Suite')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Reporting Suite' }));
+
+    const statusSelect = screen.getByRole('combobox', { name: /^status$/i });
+    expect(statusSelect).toBeInTheDocument();
+    expect((statusSelect as HTMLSelectElement).value).toBe('inactive');
+  });
+
+  it('saving the edit modal calls updateApplication with the selected status', async () => {
+    const updated = { ...MOCK_APPS[2], status: 'active' as const };
+    vi.mocked(saasService.updateApplication).mockResolvedValue(updated);
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Reporting Suite')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Reporting Suite' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /^status$/i }), 'active');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(saasService.updateApplication).toHaveBeenCalledWith(
+        MOCK_APPS[2],
+        expect.objectContaining({ status: 'active' }),
+      );
+    });
+  });
+});
