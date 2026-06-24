@@ -1,0 +1,27 @@
+Application_Id|Name|Category_Name|Category_Icon|Category_SortOrder
+central-backoffice|Central Backoffice|Platform SaaS|grid_view|1
+client-backoffice|Client Backoffice|Platform SaaS|grid_view|1
+companies|Companies|Platform SaaS|grid_view|1
+merchants|Merchants|Platform SaaS|grid_view|1
+users|Users|Platform SaaS|grid_view|1
+dashboard-app|Dashboard|CORE|settings_applications|2
+billing-transactions|Billing / Transactions|CORE|settings_applications|2
+business-partners|Business Partners|CORE|settings_applications|2
+accounts-payable|Accounts Payable|Finance & HR|payments|3
+hr|HR|Finance & HR|payments|3
+payrolls|Payrolls|Finance & HR|payments|3
+food-costing|Food Costing|Inventory|inventory_2|4
+products-inventory|Product/Inventory System|Inventory|inventory_2|4
+dining-system|Dining System|Restaurant Operations|restaurant|5
+kitchen-display-system|Kitchen Display System|Restaurant Operations|restaurant|5
+pos|POS|Restaurant Operations|restaurant|5
+cash-drawers|Cash Drawers|Restaurant Operations|restaurant|5
+shifts|Shifts|Restaurant Operations|restaurant|5
+tips|Tips|Restaurant Operations|restaurant|5
+reservations|Reservations|Restaurant Operations|restaurant|5
+table-turnover|Table Turnover Optimization|Restaurant Operations|restaurant|5
+delivery-management|Delivery Management|Commerce|storefront|6
+online-ordering|Online Ordering System|Commerce|storefront|6
+qr-code|QR Code System|Commerce|storefront|6
+loyalty-system|Loyalty System|Growth|trending_up|7
+marketing-system|Marketing System|Growth|trending_up|7

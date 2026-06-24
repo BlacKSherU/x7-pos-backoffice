@@ -1,0 +1,4 @@
+Plan_id|Plan_Name
+1|Quick Service
+2|Full Restaurant
+3|Enterprise
