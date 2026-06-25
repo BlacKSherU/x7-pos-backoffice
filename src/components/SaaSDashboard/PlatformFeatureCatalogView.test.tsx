@@ -566,3 +566,52 @@ describe('PlatformFeatureCatalogView — Edit Feature service', () => {
     expect(saasService.updateFeature).toBeDefined();
   });
 });
+
+describe('PlatformFeatureCatalogView — Edit Feature modal', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getFeatures).mockResolvedValue(MOCK_FEATURES);
+  });
+
+  async function openEditModal() {
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    const editBtn = screen.getAllByRole('button', { name: /edit advanced analytics/i })[0];
+    await userEvent.click(editBtn);
+  }
+
+  it('renders the Actions column header', async () => {
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => {
+      expect(screen.getByText('Actions')).toBeInTheDocument();
+    });
+  });
+
+  it('renders an Edit button for each feature row', async () => {
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => {
+      const editBtns = screen.getAllByRole('button', { name: /edit/i }).filter(
+        (b) => b.getAttribute('aria-label')?.startsWith('Edit '),
+      );
+      expect(editBtns).toHaveLength(3);
+    });
+  });
+
+  it('clicking Edit opens the modal with EDIT FEATURE header', async () => {
+    await openEditModal();
+    expect(screen.getByText('EDIT FEATURE')).toBeInTheDocument();
+  });
+
+  it('modal is pre-filled with the feature current values', async () => {
+    await openEditModal();
+    expect(screen.getByDisplayValue('Advanced Analytics')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Provides advanced data analytics capabilities.')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('user')).toBeInTheDocument();
+  });
+
+  it('clicking Cancel closes the modal without saving', async () => {
+    await openEditModal();
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByText('EDIT FEATURE')).not.toBeInTheDocument();
+    expect(saasService.updateFeature).not.toHaveBeenCalled();
+  });
+});

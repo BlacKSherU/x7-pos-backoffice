@@ -146,6 +146,126 @@ const CreateFeatureDialog: React.FC<CreateFeatureDialogProps> = ({ submitting, o
   );
 };
 
+interface EditFeatureDialogProps {
+  feature: PlatformFeature;
+  submitting: boolean;
+  onClose: () => void;
+  onSave: (dto: { name: string; description: string; Unit: string }) => void;
+}
+
+const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitting, onClose, onSave }) => {
+  const [name, setName] = React.useState(feature.name);
+  const [description, setDescription] = React.useState(feature.description);
+  const [unit, setUnit] = React.useState(feature.Unit);
+
+  const nameExceeded = name.length > 100;
+  const unitExceeded = unit.length > 50;
+  const isValid =
+    name.trim() !== '' &&
+    description.trim() !== '' &&
+    unit.trim() !== '' &&
+    !nameExceeded &&
+    !unitExceeded;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-lg shadow-2xl">
+        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+            EDIT FEATURE
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/50 hover:text-white transition-colors"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="p-6 space-y-5">
+          <div className="space-y-1.5">
+            <div className="flex justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                Name
+              </label>
+              <span className={`text-[11px] ${nameExceeded ? 'text-[#ae001a] font-bold' : 'text-[#5f5e5e]'}`}>
+                {name.length}/100
+              </span>
+            </div>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={`w-full px-3 py-2 border bg-[#fef9f1] text-sm text-[#1d1c17] focus:ring-1 outline-none transition-all ${
+                nameExceeded
+                  ? 'border-[#ae001a] focus:border-[#ae001a] focus:ring-[#ae001a]'
+                  : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-[#ae001a]'
+              }`}
+              placeholder="Feature name"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none transition-all resize-none"
+              placeholder="Feature description"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                Unit
+              </label>
+              <span className={`text-[11px] ${unitExceeded ? 'text-[#ae001a] font-bold' : 'text-[#5f5e5e]'}`}>
+                {unit.length}/50
+              </span>
+            </div>
+            <input
+              type="text"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              className={`w-full px-3 py-2 border bg-[#fef9f1] text-sm text-[#1d1c17] focus:ring-1 outline-none transition-all ${
+                unitExceeded
+                  ? 'border-[#ae001a] focus:border-[#ae001a] focus:ring-[#ae001a]'
+                  : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-[#ae001a]'
+              }`}
+              placeholder="e.g. unit, user, gb"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onSave({ name: name.trim(), description: description.trim(), Unit: unit.trim() })}
+              disabled={submitting || !isValid}
+              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {submitting && (
+                <span className="material-symbols-outlined text-base animate-spin">
+                  progress_activity
+                </span>
+              )}
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function fuzzyMatch(query: string, target: string): boolean {
   let qi = 0;
   for (let i = 0; i < target.length && qi < query.length; i++) {
@@ -164,6 +284,8 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
   const [isCreating, setIsCreating] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [editingFeature, setEditingFeature] = useState<PlatformFeature | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   useEffect(() => {
     saasService.getFeatures()
@@ -220,16 +342,7 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <span className="material-symbols-outlined text-[#d51f2c] text-4xl animate-spin">
-          progress_activity
-        </span>
-        <span className="ml-3 text-[#5f5e5e] text-sm font-medium">Loading feature catalog...</span>
-      </div>
-    );
-  }
+  const handleEditSave = async (_dto: { name: string; description: string; Unit: string }) => {};
 
   if (error) {
     return (
@@ -243,27 +356,12 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
     );
   }
 
-  if (features.length === 0) {
-    return (
-      <div className="bg-white border border-[#e8e2d8] p-16 flex flex-col items-center text-center">
-        <span className="material-symbols-outlined text-[#d51f2c] text-6xl">featured_play_list</span>
-        <p className="text-[#5f5e5e] mt-4 max-w-sm text-sm leading-relaxed">
-          No feature definitions found. Click 'Create Feature' to establish your first system
-          capability flag.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <>
-      {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
-
-    <div className="space-y-0 border border-[#e8e2d8] overflow-hidden">
-      {/* Filter strip */}
-      <div className="bg-white border-b border-[#e8e2d8] px-6 py-3 flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5f5e5e] text-[18px]">
+    <div className="flex flex-col gap-6">
+      {/* Filter Strip Card */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-5 flex flex-row justify-between items-center gap-4">
+        <div className="relative flex-1">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5f5e5e] text-lg">
             search
           </span>
           <input
@@ -271,119 +369,198 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="Search features..."
-            className="w-full pl-9 pr-3 py-1.5 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none transition-all"
+            className="w-full pl-10 pr-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded-xl text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none transition-all font-[Poppins]"
             aria-label="Search features"
           />
         </div>
-        <select
-          value={unitFilter}
-          onChange={(e) => setUnitFilter(e.target.value)}
-          className="border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] px-3 py-1.5 focus:border-[#ae001a] outline-none"
-          aria-label="Filter by measurement unit"
-        >
-          <option value="">All Units</option>
-          {unitOptions.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] px-3 py-1.5 focus:border-[#ae001a] outline-none"
-          aria-label="Filter by status"
-        >
-          <option value="All Status">All Status</option>
-          <option value="active">active</option>
-          <option value="inactive">inactive</option>
-        </select>
-        {hasActiveFilter && (
-          <button
-            type="button"
-            onClick={() => {
-              setSearchText('');
-              setUnitFilter('');
-              setStatusFilter('All Status');
-            }}
-            className="text-[11px] font-bold uppercase tracking-widest text-[#ae001a] hover:underline"
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <select
+            value={unitFilter}
+            onChange={(e) => setUnitFilter(e.target.value)}
+            className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded-xl text-sm focus:border-[#ae001a] outline-none font-[Poppins]"
+            aria-label="Filter by measurement unit"
           >
-            Clear Filters
-          </button>
-        )}
-        {!isCreating && (
-          <button
-            type="button"
-            aria-label="Create Feature"
-            onClick={() => setIsCreating(true)}
-            className="ml-auto px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+            <option value="">All Units</option>
+            {unitOptions.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded-xl text-sm focus:border-[#ae001a] outline-none font-[Poppins]"
+            aria-label="Filter by status"
           >
-            <span aria-hidden="true" className="material-symbols-outlined text-base">add</span>
-            + CREATE FEATURE
-          </button>
-        )}
-      </div>
-
-      {/* Header block */}
-      <div className="bg-[#222222] px-6 py-4">
-        <h2 className="text-[13px] font-black uppercase tracking-widest text-white">
-          PLATFORM FEATURE CATALOG MASTER
-        </h2>
-        <p className="text-white/50 text-[11px] mt-0.5">
-          Feature flags and entitlement definitions for this platform.
-        </p>
-        <div className="grid grid-cols-[2fr_3fr_1fr_1fr] gap-4 mt-4 px-0">
-          {['FEATURE IDENTITY', 'SCOPE DEFINITION', 'UNIT', 'STATUS'].map((col) => (
-            <span
-              key={col}
-              className="text-[10px] font-bold uppercase tracking-widest text-white/40"
+            <option value="All Status">All Status</option>
+            <option value="active">active</option>
+            <option value="inactive">inactive</option>
+          </select>
+          {hasActiveFilter && (
+            <button
+              type="button"
+              onClick={() => { setSearchText(''); setUnitFilter(''); setStatusFilter('All Status'); }}
+              className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest rounded-xl hover:bg-[#f2ede5] transition-colors"
             >
-              {col}
-            </span>
-          ))}
+              Clear Filters
+            </button>
+          )}
+          {!isCreating && (
+            <button
+              type="button"
+              aria-label="Create Feature"
+              onClick={() => setIsCreating(true)}
+              className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-base">add</span>
+              + CREATE FEATURE
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filtered rows or inline no-results */}
-      {filteredFeatures.length === 0 ? (
-        <div className="px-6 py-10 text-center bg-white border-b border-[#e8e2d8]">
-          <p className="text-sm text-[#5f5e5e]">
-            No platform features match your active filters
+      {/* Table Card — shown during loading or when data exists */}
+      {(loading || features.length > 0) && (
+        <div className="bg-white border border-[#e8e2d8] overflow-hidden">
+          <div className="px-4 py-3 bg-[#222222] flex justify-between items-center">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+              PLATFORM FEATURE CATALOG MASTER
+            </span>
+            <span className="text-white/50 text-xs">
+              {loading ? 'Loading...' : `${filteredFeatures.length} features`}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
+                <tr>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Feature Identity
+                  </th>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Scope Definition
+                  </th>
+                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Unit
+                  </th>
+                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e8e2d8]">
+                {loading ? (
+                  [1, 2, 3].map((i) => (
+                    <tr key={i}>
+                      <td className="px-6 py-4">
+                        <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32" />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-48" />
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-16 mx-auto" />
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-12 mx-auto" />
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-12 mx-auto" />
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredFeatures.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-10 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <span className="material-symbols-outlined text-[#5f5e5e] text-4xl">search_off</span>
+                        <p className="text-sm text-[#5f5e5e]">
+                          No platform features match your active filters
+                        </p>
+                        {hasActiveFilter && (
+                          <button
+                            type="button"
+                            onClick={() => { setSearchText(''); setUnitFilter(''); setStatusFilter('All Status'); }}
+                            className="text-[#ae001a] text-sm font-semibold hover:underline"
+                          >
+                            Clear filters
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredFeatures.map((feature) => (
+                    <tr
+                      key={feature.id}
+                      className="group hover:bg-[#f8f3eb] transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-1 h-10 rounded-full flex-shrink-0 ${
+                              feature.status === 'active' ? 'bg-[#ae001a]' : 'bg-[#c8c6c5]'
+                            }`}
+                          />
+                          <div>
+                            <p className="font-bold text-[#1d1c17]">{feature.name}</p>
+                            <code className="font-mono text-[11px] text-[#5f5e5e] bg-[#f2ede5] px-1.5 py-0.5 rounded">
+                              feature_{feature.id}
+                            </code>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 max-w-[280px]">
+                        <p className="text-sm text-[#5f5e5e] line-clamp-2">{feature.description}</p>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-[10px] font-bold uppercase text-[#5f5e5e] border border-[#e8e2d8] bg-[#f2ede5] px-2 py-0.5 rounded font-mono">
+                          [{feature.Unit.toLowerCase()}]
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {feature.status === 'active' ? (
+                          <span className="bg-green-500/10 text-green-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
+                            active
+                          </span>
+                        ) : (
+                          <span className="bg-[#5f5e5e]/20 text-[#5f5e5e] text-[10px] font-bold uppercase px-2 py-0.5 rounded">
+                            inactive
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          type="button"
+                          aria-label={`Edit ${feature.name}`}
+                          onClick={() => setEditingFeature(feature)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 px-3 py-1 border border-[#e8e2d8] text-[#1d1c17] text-[10px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] hover:border-[#ae001a] hover:text-[#ae001a]"
+                        >
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state — only when data is truly absent (not a filter issue) */}
+      {!loading && features.length === 0 && (
+        <div className="bg-white border border-[#e8e2d8] p-16 flex flex-col items-center text-center">
+          <span className="material-symbols-outlined text-[#d51f2c] text-6xl">featured_play_list</span>
+          <p className="text-[#5f5e5e] mt-4 max-w-sm text-sm leading-relaxed">
+            No feature definitions found. Click &apos;Create Feature&apos; to establish your first
+            system capability flag.
           </p>
         </div>
-      ) : (
-        filteredFeatures.map((feature) => (
-          <div
-            key={feature.id}
-            className="grid grid-cols-[2fr_3fr_1fr_1fr] gap-4 border-b border-[#e8e2d8] px-6 py-4 bg-white hover:bg-[#f9f7f4] transition-colors items-center"
-          >
-            <div className="min-w-0">
-              <p className="font-bold text-[#1d1c17] text-sm leading-tight">{feature.name}</p>
-              <code className="text-[11px] text-[#5f5e5e] font-mono">feature_{feature.id}</code>
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm text-[#5f5e5e] leading-snug">{feature.description}</p>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest border border-[#222222] px-2 py-0.5 text-[#222222] font-mono">
-                [{feature.Unit.toLowerCase()}]
-              </span>
-            </div>
-            <div>
-              {feature.status === 'active' ? (
-                <span className="bg-emerald-500 text-white text-[10px] font-bold uppercase px-2 py-0.5">
-                  active
-                </span>
-              ) : (
-                <span className="bg-[#444444] text-white text-[10px] font-bold uppercase px-2 py-0.5">
-                  inactive
-                </span>
-              )}
-            </div>
-          </div>
-        ))
       )}
-    </div>
 
       {/* Quick Launch */}
       <div className="bg-[#2a2a2a] rounded-xl p-8 flex flex-col md:flex-row justify-between items-center gap-6">
@@ -442,6 +619,18 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
           onSave={handleCreateSave}
         />
       )}
-    </>
+
+      {editingFeature && (
+        <EditFeatureDialog
+          feature={editingFeature}
+          submitting={editSubmitting}
+          onClose={() => setEditingFeature(null)}
+          onSave={handleEditSave}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
+    </div>
   );
 };
