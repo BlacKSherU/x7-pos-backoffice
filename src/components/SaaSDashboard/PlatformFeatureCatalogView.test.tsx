@@ -696,3 +696,106 @@ describe('PlatformFeatureCatalogView — Edit Feature submit', () => {
     });
   });
 });
+
+describe('PlatformFeatureCatalogView — Logical Delete', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getFeatures).mockResolvedValue(MOCK_FEATURES);
+  });
+
+  it('renders a trash button for each non-deleted feature', async () => {
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => {
+      const trashBtns = screen
+        .getAllByRole('button')
+        .filter((b) => b.getAttribute('aria-label')?.startsWith('Delete '));
+      expect(trashBtns).toHaveLength(3);
+    });
+  });
+
+  it('does not render a trash button for a deleted feature', async () => {
+    const featuresWithDeleted: PlatformFeature[] = [
+      ...MOCK_FEATURES,
+      { id: 4, name: 'Legacy Module', description: 'Old module.', Unit: 'unit', status: 'deleted' },
+    ];
+    vi.mocked(saasService.getFeatures).mockResolvedValue(featuresWithDeleted);
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Legacy Module'));
+    expect(
+      screen.queryByRole('button', { name: 'Delete Legacy Module' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clicking trash opens the DELETE FEATURE confirmation modal', async () => {
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Advanced Analytics' }));
+    await waitFor(() => {
+      expect(screen.getByText('DELETE FEATURE')).toBeInTheDocument();
+      expect(screen.getByText(/Deleting.*Advanced Analytics/)).toBeInTheDocument();
+    });
+  });
+
+  it('on success: modal closes, row shows deleted badge, toast shown', async () => {
+    const deletedFeature: PlatformFeature = { ...MOCK_FEATURES[0], status: 'deleted' };
+    vi.mocked(saasService.deleteFeature).mockResolvedValue(deletedFeature);
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Advanced Analytics' }));
+    await userEvent.click(screen.getByRole('button', { name: /delete feature/i }));
+    await waitFor(() => {
+      expect(screen.queryByText('DELETE FEATURE')).not.toBeInTheDocument();
+      const deletedBadge = screen.getByText('deleted', { selector: 'span' });
+      expect(deletedBadge).toHaveClass('text-red-600');
+      expect(screen.getByText('Feature deleted successfully')).toBeInTheDocument();
+    });
+  });
+
+  it('SESSION_EXPIRED: modal closes, session-expired toast shown', async () => {
+    vi.mocked(saasService.deleteFeature).mockRejectedValue(new Error('SESSION_EXPIRED'));
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Advanced Analytics' }));
+    await userEvent.click(screen.getByRole('button', { name: /delete feature/i }));
+    await waitFor(() => {
+      expect(screen.queryByText('DELETE FEATURE')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Session expired. Please refresh the page to sign in again.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('generic API error: modal closes, error toast shown', async () => {
+    vi.mocked(saasService.deleteFeature).mockRejectedValue(new Error('Cannot delete active feature'));
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Advanced Analytics' }));
+    await userEvent.click(screen.getByRole('button', { name: /delete feature/i }));
+    await waitFor(() => {
+      expect(screen.queryByText('DELETE FEATURE')).not.toBeInTheDocument();
+      expect(screen.getByText('Cannot delete active feature')).toBeInTheDocument();
+    });
+  });
+
+  it('Delete Feature button is disabled while submitting', async () => {
+    vi.mocked(saasService.deleteFeature).mockReturnValue(new Promise(() => {}));
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Advanced Analytics' }));
+    await userEvent.click(screen.getByRole('button', { name: /delete feature/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /deleting/i })).toBeDisabled();
+    });
+  });
+
+  it('edit button is disabled for a deleted feature', async () => {
+    const featuresWithDeleted: PlatformFeature[] = [
+      ...MOCK_FEATURES,
+      { id: 4, name: 'Legacy Module', description: 'Old module.', Unit: 'unit', status: 'deleted' },
+    ];
+    vi.mocked(saasService.getFeatures).mockResolvedValue(featuresWithDeleted);
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Legacy Module'));
+    const editBtn = screen.getByRole('button', { name: 'Edit Legacy Module' });
+    expect(editBtn).toBeDisabled();
+  });
+});
