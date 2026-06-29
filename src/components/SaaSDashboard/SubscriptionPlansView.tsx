@@ -20,7 +20,7 @@ const formatPrice = (price: number): string =>
   `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface SubscriptionPlansViewProps {
-  onNavigate?: (view: string) => void;
+  onNavigate?: (view: string, plan?: SubscriptionPlan) => void;
 }
 
 export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ onNavigate }) => {
@@ -444,6 +444,16 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                        {plan.status !== 'deleted' && (
+                          <button
+                            type="button"
+                            aria-label={`View applications for ${plan.name}`}
+                            onClick={() => onNavigate?.('subscription-plan-applications', plan)}
+                            className="p-1 hover:text-[#ae001a] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-xl">grid_view</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Edit ${plan.name}`}

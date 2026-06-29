@@ -7,10 +7,13 @@ import { isSaasAuthenticated } from '../../lib/saas-auth-storage';
 import logoX7 from '../../assets/logo-x7.png';
 import { PlatformApplicationsView } from './PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from './PlatformFeatureCatalogView';
+import { PlanApplicationsView } from './PlanApplicationsView';
+import type { SubscriptionPlan } from '../../types/subscription';
 
 export const SaaSDashboard: React.FC = () => {
   const [saasAuthenticated, setSaasAuthenticated] = useState(isSaasAuthenticated);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [searchText, setSearchText] = useState<string>('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -67,7 +70,8 @@ export const SaaSDashboard: React.FC = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  const handleNavigateView = (view: string) => {
+  const handleNavigateView = (view: string, plan?: SubscriptionPlan) => {
+    if (plan) setSelectedPlan(plan);
     setActiveTab(view);
   };
 
@@ -83,6 +87,15 @@ export const SaaSDashboard: React.FC = () => {
 
     if (activeTab === 'subscription-features') {
       return <PlatformFeatureCatalogView onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'subscription-plan-applications' && selectedPlan) {
+      return (
+        <PlanApplicationsView
+          plan={selectedPlan}
+          onNavigate={handleNavigateView}
+        />
+      );
     }
 
     if (
@@ -328,18 +341,25 @@ export const SaaSDashboard: React.FC = () => {
             <div>
               {(activeTab === 'subscription-applications' ||
               activeTab === 'subscription-live-installs' ||
-              activeTab === 'subscription-features') && (
+              activeTab === 'subscription-features' ||
+              activeTab === 'subscription-plan-applications') && (
                 <nav className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e] mb-1">
                   <span>SaaS Admin</span>
                   <span className="text-[#d51f2c]">›</span>
-                  <span>Platform Architecture</span>
+                  <span>
+                    {activeTab === 'subscription-plan-applications'
+                      ? 'Subscription Architecture'
+                      : 'Platform Architecture'}
+                  </span>
                   <span className="text-[#d51f2c]">›</span>
                   <span className="text-[#1d1c17]">
-                    {activeTab === 'subscription-applications'
-                      ? 'Applications'
-                      : activeTab === 'subscription-live-installs'
-                        ? 'Live Installs'
-                        : 'Feature Catalog'}
+                    {activeTab === 'subscription-plan-applications'
+                      ? 'Plan Applications'
+                      : activeTab === 'subscription-applications'
+                        ? 'Applications'
+                        : activeTab === 'subscription-live-installs'
+                          ? 'Live Installs'
+                          : 'Feature Catalog'}
                   </span>
                 </nav>
               )}
@@ -351,6 +371,7 @@ export const SaaSDashboard: React.FC = () => {
                   : activeTab === 'subscription-features' ? 'Feature Catalog'
                   : activeTab === 'subscription-payments' ? 'Payments'
                   : activeTab === 'subscription-live-installs' ? 'Live Installs'
+                  : activeTab === 'subscription-plan-applications' ? 'Plan Applications'
                   : activeTab}
               </h1>
               <p className="text-body-md text-[#666666] mt-1">
@@ -366,7 +387,9 @@ export const SaaSDashboard: React.FC = () => {
                           ? 'Track payment logs and incoming cash movements from active merchants.'
                           : activeTab === 'subscription-live-installs'
                             ? 'Monitor live merchant profiles mapped to individual applications.'
-                            : `Visualización interactiva y gestión para /${activeTab}.`}
+                            : activeTab === 'subscription-plan-applications'
+                              ? `Applications bundled into the "${selectedPlan?.name}" subscription tier.`
+                              : `Visualización interactiva y gestión para /${activeTab}.`}
               </p>
             </div>
             {activeTab === 'dashboard' && (
