@@ -1,4 +1,4 @@
-import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication } from '../types/subscription';
+import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto } from '../types/subscription';
 import { getSaasToken, clearSaasToken } from '../lib/saas-auth-storage';
 
 async function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -351,6 +351,14 @@ export const saasService = {
       data: PlanApplication[];
       pagination: { total: number; page: number; limit: number; totalPages: number };
     }>(`plan-applications?subscriptionPlanId=${planId}&limit=100`);
+    return response.data;
+  },
+
+  async createPlanApplication(dto: CreatePlanApplicationDto): Promise<PlanApplication> {
+    const response = await saasApiFetch<{ data: PlanApplication }>(
+      'plan-applications',
+      { method: 'POST', body: JSON.stringify(dto) },
+    );
     return response.data;
   },
 };

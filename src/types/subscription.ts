@@ -23,6 +23,13 @@ export interface UpdateSubscriptionPlanDto {
   status: 'active' | 'inactive';
 }
 
+export interface CreatePlanApplicationDto {
+  subscriptionPlanId: number;
+  applicationId: number;
+  limits: string;
+  status: 'active';
+}
+
 export interface Application {
   id: number;
   name: string;
