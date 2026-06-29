@@ -38,3 +38,11 @@ export interface PlatformFeature {
   Unit: string;
   status: string;
 }
+
+export interface PlanApplication {
+  id: number;
+  subscriptionPlan: { id: number; name: string };
+  application: { id: number; name: string; category: string };
+  limits: string;
+  status: string;
+}
