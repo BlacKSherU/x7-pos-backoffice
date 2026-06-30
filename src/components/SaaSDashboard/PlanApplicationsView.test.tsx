@@ -715,3 +715,74 @@ describe('PlanApplicationsView — edit submit disabled', () => {
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
   });
 });
+
+describe('PlanApplicationsView — quick launch panel', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('renders the Quick Launch panel with heading when apps are present', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => {
+      expect(screen.getByText('Quick Launch')).toBeInTheDocument();
+    });
+  });
+
+  it('renders the Quick Launch panel with heading in the empty state', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue([]);
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+      expect(screen.getByText('Quick Launch')).toBeInTheDocument();
+    });
+  });
+
+  it('renders all four Quick Launch buttons', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'APPLICATIONS CATALOG' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'MASTER FEATURE FLAGS' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'EMERGENCY SUPPORT' })).toBeInTheDocument();
+    });
+  });
+
+  it('calls onNavigate with "subscription" when SUBSCRIPTION PLANS is clicked', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    const onNavigate = vi.fn();
+    render(<PlanApplicationsView plan={MOCK_PLAN} onNavigate={onNavigate} />);
+    await waitFor(() => screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' }));
+    await userEvent.click(screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' }));
+    expect(onNavigate).toHaveBeenCalledWith('subscription');
+  });
+
+  it('calls onNavigate with "subscription-applications" when APPLICATIONS CATALOG is clicked', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    const onNavigate = vi.fn();
+    render(<PlanApplicationsView plan={MOCK_PLAN} onNavigate={onNavigate} />);
+    await waitFor(() => screen.getByRole('button', { name: 'APPLICATIONS CATALOG' }));
+    await userEvent.click(screen.getByRole('button', { name: 'APPLICATIONS CATALOG' }));
+    expect(onNavigate).toHaveBeenCalledWith('subscription-applications');
+  });
+
+  it('calls onNavigate with "subscription-features" when MASTER FEATURE FLAGS is clicked', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    const onNavigate = vi.fn();
+    render(<PlanApplicationsView plan={MOCK_PLAN} onNavigate={onNavigate} />);
+    await waitFor(() => screen.getByRole('button', { name: 'MASTER FEATURE FLAGS' }));
+    await userEvent.click(screen.getByRole('button', { name: 'MASTER FEATURE FLAGS' }));
+    expect(onNavigate).toHaveBeenCalledWith('subscription-features');
+  });
+
+  it('does not call onNavigate when EMERGENCY SUPPORT is clicked', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    const onNavigate = vi.fn();
+    render(<PlanApplicationsView plan={MOCK_PLAN} onNavigate={onNavigate} />);
+    await waitFor(() => screen.getByRole('button', { name: 'EMERGENCY SUPPORT' }));
+    await userEvent.click(screen.getByRole('button', { name: 'EMERGENCY SUPPORT' }));
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+});
