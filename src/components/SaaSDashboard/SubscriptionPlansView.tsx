@@ -1,3 +1,4 @@
+//src/components/SaaSDashboard/SubscriptionPlansView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { saasService } from '../../services/saasService';
 import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto } from '../../types/subscription';
@@ -19,7 +20,11 @@ const EMPTY_FORM = {
 const formatPrice = (price: number): string =>
   `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export const SubscriptionPlansView: React.FC = () => {
+interface SubscriptionPlansViewProps {
+  onNavigate?: (view: string, plan?: SubscriptionPlan) => void;
+}
+
+export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ onNavigate }) => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -440,6 +445,16 @@ export const SubscriptionPlansView: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                        {plan.status !== 'deleted' && (
+                          <button
+                            type="button"
+                            aria-label={`View applications for ${plan.name}`}
+                            onClick={() => onNavigate?.('subscription-plan-applications', plan)}
+                            className="p-1 hover:text-[#ae001a] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-xl">grid_view</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Edit ${plan.name}`}
@@ -482,14 +497,14 @@ export const SubscriptionPlansView: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button type="button" className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            BILLING OVERVIEW
+          <button type="button" onClick={() => onNavigate?.('subscription-applications')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
+            PLATFORM APPLICATIONS
           </button>
-          <button type="button" className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            EXPORT PLANS
+          <button type="button" onClick={() => onNavigate?.('subscription-features')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
+            FEATURE CATALOG
           </button>
-          <button type="button" className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            RUN REVENUE REPORT
+          <button type="button" onClick={() => onNavigate?.('subscription-payments')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
+            SUBSCRIPTION PAYMENTS
           </button>
           <button type="button" className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-6 py-3 rounded hover:bg-[#930015] hover:-translate-y-0.5 transition-all">
             EMERGENCY SUPPORT
