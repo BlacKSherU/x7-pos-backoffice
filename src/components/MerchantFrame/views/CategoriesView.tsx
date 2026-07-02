@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../lib/auth-storage';
+import { QuickLaunchPanel } from '../shared/QuickLaunchPanel';
 
 interface Category {
   id: string;
@@ -354,41 +355,33 @@ export const CategoriesView: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer Quick Actions */}
-      <div className="bg-[#2a2a2a] p-8 flex flex-col md:flex-row justify-between items-center gap-6 rounded shadow-lg mt-4">
-        <div className="text-center md:text-left">
-          <h3 className="text-white font-bold text-lg">Quick Launch</h3>
-          <p className="text-white/60 text-body-sm">
-            Operational tools and instant management functions.
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-center gap-4">
-          <button
-            onClick={() => alert('Products List simulation')}
-            className="quick-launch-btn px-6 py-3 bg-white text-[#1d1c17] font-bold text-label-caps border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-all"
-          >
-            PRODUCTS LIST
-          </button>
-          <button
-            onClick={() => alert('Products Dashboard simulation')}
-            className="quick-launch-btn px-6 py-3 bg-white text-[#1d1c17] font-bold text-label-caps border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-all"
-          >
-            PRODUCTS DASHBOARD
-          </button>
-          <button
-            onClick={() => alert('Running Categories Report...')}
-            className="quick-launch-btn px-6 py-3 bg-white text-[#1d1c17] font-bold text-label-caps border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-all"
-          >
-            RUN CATEGORIES REPORT
-          </button>
-          <button
-            onClick={() => alert('Emergency Support simulation')}
-            className="px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#d2272f] transition-colors rounded"
-          >
-            EMERGENCY SUPPORT
-          </button>
-        </div>
-      </div>
+      <QuickLaunchPanel
+        className="mt-4 shadow-lg"
+        description="Operational tools and instant management functions."
+        actions={[
+          {
+            id: 'products-list',
+            label: 'PRODUCTS LIST',
+            onClick: () => alert('Products List simulation'),
+          },
+          {
+            id: 'products-dashboard',
+            label: 'PRODUCTS DASHBOARD',
+            onClick: () => alert('Products Dashboard simulation'),
+          },
+          {
+            id: 'categories-report',
+            label: 'RUN CATEGORIES REPORT',
+            onClick: () => alert('Running Categories Report...'),
+          },
+          {
+            id: 'emergency-support',
+            label: 'EMERGENCY SUPPORT',
+            variant: 'danger',
+            onClick: () => alert('Emergency Support simulation'),
+          },
+        ]}
+      />
 
       {/* Modal Interactivo de Add / Edit Category */}
       {isModalOpen && createPortal(

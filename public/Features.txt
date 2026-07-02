@@ -3,6 +3,9 @@ saas-dashboard|Aun por definir|central-backoffice|1|1
 reports|Aun por definir|client-backoffice|1|1
 companies-dashboard|Companies Configuration Dashboard|companies|1|1
 merchants-provisioning|Merchants & Tenants Provisioning|merchants|1|1
+company-profile|Company Profile|companies|1|0
+company-configurations|Company Configurations|companies|1|0
+merchant-directory|Merchant Directory|merchants|1|0
 apps-config|Applications Configuration|subscription-system|1|1
 features-control|Features Control & Flags|subscription-system|1|1
 merchant-subs-link|Merchant Subscriptions Link|subscription-system|1|1

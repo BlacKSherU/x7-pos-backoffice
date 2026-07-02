@@ -81,6 +81,15 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   } else if (activeTab === 'categories') {
     parentAppName = 'Product/Inventory System';
     activeFeatureName = 'Categories';
+  } else if (activeTab === 'merchant-directory') {
+    parentAppName = 'Platform SaaS';
+    activeFeatureName = 'Merchants';
+  } else if (activeTab === 'company-profile') {
+    parentAppName = 'Platform SaaS';
+    activeFeatureName = 'Company Profile';
+  } else if (activeTab === 'company-configurations') {
+    parentAppName = 'Platform SaaS';
+    activeFeatureName = 'Company Configurations';
   } else if (activeTab === 'saas-dashboard') {
     parentAppName = 'Platform SaaS';
     activeFeatureName = 'Overview';
@@ -88,7 +97,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     parentAppName = 'CORE';
     activeFeatureName = 'Restaurant Overview';
   } else if (!parentAppName || !activeFeatureName) {
-    // Fallback genérico
     parentAppName = activeCategory ? activeCategory.toUpperCase() : 'SYSTEM';
     activeFeatureName = activeTab ? activeTab.replace(/-/g, ' ').toUpperCase() : 'VIEW';
   }
@@ -104,6 +112,24 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Categories';
   } else if (activeTab === 'products') {
     friendlyTitle = 'Products';
+  } else if (activeTab === 'merchant-directory') {
+    friendlyTitle = 'Merchant Directory';
+  } else if (activeTab === 'company-profile') {
+    friendlyTitle = 'Company Profile';
+  } else if (activeTab === 'company-configurations') {
+    friendlyTitle = 'Company Configurations';
+  } else if (profile?.role === 'SaaS Owner') {
+    if (activeTab === 'subscription') {
+      friendlyTitle = 'Subscription System';
+    } else if (activeTab === 'companies') {
+      friendlyTitle = 'Companies Registry';
+    } else if (activeTab === 'merchants') {
+      friendlyTitle = 'Merchants Registry';
+    } else if (activeTab === 'users') {
+      friendlyTitle = 'Users List';
+    } else if (activeTab === 'reports') {
+      friendlyTitle = 'System Reports';
+    }
   }
 
   // Fallback de iniciales para el avatar de usuario si no hay portraitUrl

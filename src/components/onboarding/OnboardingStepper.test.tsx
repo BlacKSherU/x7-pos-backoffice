@@ -24,4 +24,9 @@ describe('OnboardingStepper', () => {
     const checks = screen.getAllByText('check');
     expect(checks.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('renders a larger active step circle', () => {
+    const { container } = render(<OnboardingStepper currentStep={2} />);
+    expect(container.querySelector('.w-11.h-11')).toBeTruthy();
+  });
 });

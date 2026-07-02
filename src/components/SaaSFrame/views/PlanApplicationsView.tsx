@@ -426,7 +426,6 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
     });
   }, [planApplications, searchQuery, statusFilter]);
 
-  const hasActiveFilters = searchQuery !== '' || statusFilter !== '';
   const isFilteredEmpty = !loading && !fetchError && planApplications.length > 0 && filteredApplications.length === 0;
 
   if (loadingPlans) {

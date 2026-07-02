@@ -1,0 +1,47 @@
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { QuickLaunchPanel } from './QuickLaunchPanel';
+
+describe('QuickLaunchPanel', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('renders title, description, and action buttons in a shared layout', () => {
+    const onPrimary = vi.fn();
+    const onDanger = vi.fn();
+
+    render(
+      <QuickLaunchPanel
+        description="Corporate administrative shortcuts."
+        actions={[
+          { id: 'primary', label: 'PRIMARY ACTION', onClick: onPrimary },
+          { id: 'danger', label: 'EMERGENCY SUPPORT', variant: 'danger', onClick: onDanger },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Quick Launch')).toBeInTheDocument();
+    expect(
+      screen.getByText('Corporate administrative shortcuts.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /primary action/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /emergency support/i })).toBeInTheDocument();
+  });
+
+  it('fires action callbacks when buttons are clicked', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+
+    render(
+      <QuickLaunchPanel
+        description="Test shortcuts."
+        actions={[{ label: 'OPEN MODULE', onClick }]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /open module/i }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});

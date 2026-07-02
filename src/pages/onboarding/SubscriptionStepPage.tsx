@@ -145,13 +145,15 @@ export function SubscriptionStepPage() {
       </div>
 
       {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="surface-paper rounded-lg h-96 animate-pulse bg-stone-100"
-            />
-          ))}
+        <div className="mb-8 -mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
+          <div className="mx-auto flex w-max flex-row justify-center gap-5 md:w-full md:flex-wrap">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="surface-paper h-72 w-[240px] shrink-0 animate-pulse rounded-lg bg-stone-100"
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -173,15 +175,17 @@ export function SubscriptionStepPage() {
 
       {!loading && !loadError && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch mb-8">
-            {tiers.map((tier) => (
-              <PlanCard
-                key={tier.id}
-                isSelected={selection === tier.id}
-                onSelect={() => handleSelect(tier.id)}
-                tier={tier}
-              />
-            ))}
+          <div className="mb-8 -mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
+            <div className="mx-auto flex w-max flex-row justify-center gap-5 md:w-full md:flex-wrap">
+              {tiers.map((tier) => (
+                <PlanCard
+                  key={tier.id}
+                  isSelected={selection === tier.id}
+                  onSelect={() => handleSelect(tier.id)}
+                  tier={tier}
+                />
+              ))}
+            </div>
           </div>
 
           <div className="surface-paper rounded-lg p-6 flex flex-col md:flex-row items-center justify-between gap-4 border border-border">
