@@ -1,116 +1,117 @@
 Feature_Id|Name|Application_Id|Plan_Id|Is_SaaS
-saas-dashboard|Central Backoffice|central-backoffice|1|1
-reports|Client Backoffice|client-backoffice|1|1
-companies|Companies|companies|1|1
-merchants|Merchants|merchants|1|1
-applications-list|Applications|merchants|1|1
-features-list|Features|merchants|1|1
-merchant-subscriptions|Merchant Subscriptions|merchants|1|1
-plan-applications|Plan applications|merchants|1|1
-plan-features|Plan features|merchants|1|1
-subscription-plans|Subcription Plans|merchants|1|1
-subscription|Subscription Applications|merchants|1|1
-subscription-payments|Subscription payments|merchants|1|1
-users|Users|users|1|1
-dashboard|Restaurant Overview|dashboard-app|1|0
-receipt-items|Receipt items|billing-transactions|1|0
-receipt-orders|Receipts|billing-transactions|1|0
-receipt-taxes|Receipts taxes|billing-transactions|1|0
-customers|Customers|business-partners|1|0
-journal-entries|Journal Entries|accounts-payable|2|0
-journal-entries-lines|Journal Entries lines|accounts-payable|2|0
-ledger-accounts|Ledger Accounts|accounts-payable|2|0
-suppliers|Suppliers|accounts-payable|2|0
+saas-dashboard|Aun por definir|central-backoffice|1|1
+reports|Aun por definir|client-backoffice|1|1
+companies-dashboard|Companies Configuration Dashboard|companies|1|1
+merchants-provisioning|Merchants & Tenants Provisioning|merchants|1|1
+apps-config|Applications Configuration|subscription-system|1|1
+features-control|Features Control & Flags|subscription-system|1|1
+merchant-subs-link|Merchant Subscriptions Link|subscription-system|1|1
+plan-apps-rules|Plan Applications Rules|subscription-system|1|1
+plan-features-mapping|Plan Features Mapping|subscription-system|1|1
+sub-plans-core|Subscription Plans Core|subscription-system|1|1
+sub-apps-mapping|Subscription Applications Mapping|subscription-system|1|1
+sub-payments-billing|Subscription Payments Billing|subscription-system|1|0
+users-auth-profiles|Users & Authorization Profiles|users|1|1
+receipt-items|Receipt items engine|billing-transactions|1|0
+receipt-orders|Receipts Processing|billing-transactions|1|0
+receipt-taxes|Receipts taxes allocation|billing-transactions|1|0
+merchant-overtime-rules|Merchant Overtime Rules|configuration|2|0
+merchant-payroll-rules|Merchant Payroll Rules|configuration|2|0
+merchant-tax-rules|Merchant Tax Rules|configuration|2|0
+merchant-tips-rules|Merchant Tips Rules|configuration|2|0
+journal-entries|Journal Entries Engine|financial-engine|2|0
+journal-entries-lines|Journal Entries lines ledger|financial-engine|2|0
+ledger-accounts|Ledger Accounts setup|financial-engine|2|0
+customers|Customers Hub (CRM)|business-partners|1|0
+suppliers|Suppliers Base|business-partners|2|0
 supplier-credit-notes|Supplier Credit Notes|accounts-payable|2|0
-supplier-invoice-items|Supplier Invoice Items|accounts-payable|2|0
-supplier-invoices|Supplier Invoices|accounts-payable|2|0
-supplier-payment-items|Supplier Payment Items|accounts-payable|2|0
-supplier-payments|Supplier Payments|accounts-payable|2|0
+supplier-invoice-items|Supplier Invoice Items Tracker|accounts-payable|2|0
+supplier-invoices|Supplier Invoices Control|accounts-payable|2|0
+supplier-payment-items|Supplier Payment Items Ledger|accounts-payable|2|0
+supplier-payments|Supplier Payments Hub|accounts-payable|2|0
 supplier-payments-allocation|Supplier Payments Allocation|accounts-payable|2|0
-collaborators|Collaborators|hr|2|0
+collaborators|Collaborators Database|hr|2|0
 collaborators-contracts|Collaborators Contracts|hr|2|0
-collaborators-time-entries|Collaborators Time Entries|hr|2|0
-merchant-overtime-rules|Merchant Overtime Rules|payrolls|2|0
-merchant-payroll-rules|Merchant Payroll Rules|payrolls|2|0
-payroll-adjustments|Payroll Adjustments|payrolls|2|0
-payroll-entries|Payroll Entries|payrolls|2|0
-payroll-runs|Payroll Runs|payrolls|2|0
-payroll-tax-detail|Payroll Tax Detail|payrolls|2|0
+collaborators-time-entries|Collaborators Time Entries Control|hr|2|0
+payroll-adjustments|Payroll Adjustments System|payrolls|2|0
+payroll-entries|Payroll Entries Log|payrolls|2|0
+payroll-runs|Payroll Runs Engine|payrolls|2|0
+payroll-tax-detail|Payroll Tax Detail Analytic|payrolls|2|0
 actual-cost-variance|Actual Cost Variance|food-costing|2|0
-recipe-ingredients|Recipe Ingredients|food-costing|2|0
-recipes|Recipes|food-costing|2|0
-theoretical-cost|Theoretical Cost|food-costing|2|0
-categories|Category|products-inventory|1|0
-modifiers|Modifiers|products-inventory|1|0
-products|Product|products-inventory|1|0
-variants|Variants|products-inventory|1|0
-purchase-orders|Purchase Orders|products-inventory|2|0
-stock-movements|Stock and Stock Movements|products-inventory|2|0
-suppliers-management|Suppliers|products-inventory|2|0
-tables|Tables|dining-system|1|0
-floor-plans|Floor plans|dining-system|2|0
-table-assignments|Table assignments|dining-system|2|0
-table-zones|Table Zones|dining-system|2|0
-kitchen-order-items|Kitchen Order Items|kitchen-display-system|1|0
-kitchen-orders|Kitchen Orders|kitchen-display-system|1|0
+recipe-ingredients|Recipe Ingredients Breakdown|food-costing|2|0
+recipes|Recipes Composition|food-costing|2|0
+theoretical-cost|Theoretical Cost Model|food-costing|2|0
+categories|Category Management|products-inventory|1|0
+modifiers|Modifiers Management|products-inventory|1|0
+products|Product Management Matrix|products-inventory|1|0
+purchase-orders|Purchase Orders Management|products-inventory|2|0
+stock-movements|Stock and Stock Movements Management|products-inventory|2|0
+suppliers-management|Suppliers Management Link|products-inventory|2|0
+variants|Variants Management|products-inventory|1|0
+floor-plans|Floor plans designer|dining-system|2|0
+table-assignments|Table assignments matrix|dining-system|2|0
+table-zones|Table Zones config|dining-system|2|0
+tables|Tables Architecture|dining-system|1|0
 kitchen-display-devices|Kitchen Display Devices|kitchen-display-system|2|0
 kitchen-event-log|Kitchen Event Log|kitchen-display-system|2|0
-kitchen-stations|Kitchen Stations|kitchen-display-system|2|0
-order-discounts|Order Discounts|pos|1|0
-order-items|Order Items|pos|1|0
-order-payments|Order Payments|pos|1|0
-order-taxes|Order Taxes|pos|1|0
-orders|Orders|pos|1|0
-order-item-modifiers|Order Item Modifiers|pos|1|0
-cash-drawers|Cash Drawers|cash-drawers|1|0
-cash-transactions|Cash Transactions|cash-drawers|1|0
-cash-drawer-history|Cash Drawer History|cash-drawers|2|0
-shifts|Shifts|shifts|1|0
-shift-assignment|Shift Assignment|shifts|2|0
-tip-movements|Tip movements|tips|2|0
-tip-pool-members|Tip pool members|tips|2|0
-tip-settlements|Tip settlements|tips|2|0
-tips|Tips|tips|2|0
-tips-allocations|Tips Allocations|tips|2|0
-tips-pools|Tips pools|tips|2|0
-reservations|Reservations|reservations|2|0
-reservation-guests|Reservation Guests|reservations|2|0
-reservation-notes|Reservation Notes|reservations|2|0
+kitchen-order-items|Kitchen Order Items tracking|kitchen-display-system|1|0
+kitchen-orders|Kitchen Orders Queue|kitchen-display-system|1|0
+kitchen-stations|Kitchen Stations routing|kitchen-display-system|2|0
+order-discounts|Order Discounts module|pos|1|0
+order-items|Order Items entry|pos|1|0
+order-payments|Order Payments terminal|pos|1|0
+order-taxes|Order Taxes calculations|pos|1|0
+orders|Orders Hub Core|pos|1|0
+order-item-modifiers|Order Item Modifiers logic|pos|1|0
+cash-drawer-history|Cash Drawer History logs|cash-drawers|1|0
+cash-drawers|Cash Drawers sessions|cash-drawers|1|0
+cash-transactions|Cash Transactions journal|cash-drawers|1|0
+shift-assignment|Shift Assignment matrix|shifts|2|0
+shifts|Shifts Scheduler|shifts|2|0
+tip-movements|Tip movements history|tips|2|0
+tip-pool-members|Tip pool members layout|tips|2|0
+tip-settlements|Tip settlements engine|tips|2|0
+tips|Tips Ledger Core|tips|2|0
+tips-allocations|Tips Allocations formulas|tips|2|0
+tips-pools|Tips pools rules|tips|2|0
+reservations|Reservations Calendar Book|reservations|2|0
+reservation-guests|Reservation Guests CRM profiles|reservations|3|0
+reservation-notes|Reservation Notes logs|reservations|2|0
 reservation-status-history|Reservation Status History|reservations|2|0
-reservation-tables|Reservation Tables|reservations|2|0
-table-turnover|Table Turnover Optimization|table-turnover|2|0
-delivery-assignments|Delivery Assignments|delivery-management|2|0
-delivery-drivers|Delivery Drivers|delivery-management|2|0
-delivery-fees|Delivery Fees|delivery-management|2|0
-delivery-tracking|Delivery Tracking|delivery-management|2|0
-delivery-zones|Delivery Zones|delivery-management|2|0
-online-order-items|Online Order Items|online-ordering|1|0
-online-orders|Online Orders|online-ordering|1|0
-online-payments|Online Payments|online-ordering|1|0
-online-delivery-info|Online Delivery Info|online-ordering|2|0
-online-menu-categories|Online Menu Categories|online-ordering|2|0
-online-menu-items|Online Menu Items|online-ordering|2|0
-online-menus|Online Menus|online-ordering|2|0
-online-stores|Online Stores|online-ordering|2|0
-qr-code-locations|QR Code Locations|qr-code|2|0
-qr-code-menu-items|QR Code Menu Items|qr-code|2|0
+reservation-tables|Reservation Tables Assignment|reservations|2|0
+table-turnover|Aun por definir|table-turnover|2|0
+delivery-assignments|Delivery Assignments matrix|delivery-management|2|0
+delivery-drivers|Delivery Drivers console|delivery-management|2|0
+delivery-fees|Delivery Fees tier rules|delivery-management|2|0
+delivery-tracking|Delivery Tracking Map|delivery-management|2|0
+delivery-zones|Delivery Zones Geofencing|delivery-management|2|0
+online-delivery-info|Online Delivery Info configurations|online-ordering|2|0
+online-menu-categories|Online Menu Categories structure|online-ordering|2|0
+online-menu-items|Online Menu Items catalog|online-ordering|2|0
+online-menus|Online Menus custom publish|online-ordering|2|0
+online-order-items|Online Order Items cart|online-ordering|1|0
+online-orders|Online Orders dispatch engine|online-ordering|1|0
+online-payments|Online Payments Gateway integrations|online-ordering|2|0
+online-stores|Online Stores Web Portal templates|online-ordering|2|0
+qr-code-locations|QR Code Locations anchors|qr-code|2|0
+qr-code-menu-items|QR Code Menu Items routing|qr-code|2|0
 qr-code-menu-sections|QR Code Menu Sections|qr-code|2|0
-qr-code-menus|QR Code Menus|qr-code|2|0
-qr-code-orders|QR Code Orders|qr-code|2|0
-qr-order-items|QR Order Items|qr-code|2|0
-loyalty-customers|Loyalty costumers|loyalty-system|3|0
-loyalty-coupons|Loyalty coupons|loyalty-system|3|0
-loyalty-point-transactions|Loyalty point transactions|loyalty-system|3|0
-loyalty-programs|Loyalty Programs|loyalty-system|3|0
-loyalty-rewards|Loyalty rewards|loyalty-system|3|0
-loyalty-rewards-redemptions|Loyalty rewards redemptions|loyalty-system|3|0
-loyalty-tiers|Loyalty tiers|loyalty-system|3|0
-marketing-automation|Marketing Automation|marketing-system|3|0
-marketing-automation-action|Marketing Automation Action|marketing-system|3|0
-marketing-campaign|Marketing Campaign|marketing-system|3|0
-marketing-campaign-audience|Marketing Campaign Audience|marketing-system|3|0
-marketing-coupon|Marketing Coupon|marketing-system|3|0
-marketing-coupon-redemption|Marketing Coupon Redemption|marketing-system|3|0
-marketing-message-log|Marketing Message Log|marketing-system|3|0
-marketing-segment|Marketing Segment|marketing-system|3|0
-marketing-segment-rule|Marketing Segment Rule|marketing-system|3|0
+qr-code-menus|QR Code Menus deployment|qr-code|2|0
+qr-code-orders|QR Code Orders dispatch link|qr-code|2|0
+qr-order-items|QR Order Items parsing|qr-code|2|0
+loyalty-customers|Loyalty customers profiles|loyalty-system|3|0
+loyalty-coupons|Loyalty coupons engine|loyalty-system|3|0
+loyalty-point-transactions|Loyalty point transactions ledger|loyalty-system|3|0
+loyalty-programs|Loyalty Programs parameters|loyalty-system|3|0
+loyalty-rewards|Loyalty rewards catalogue|loyalty-system|3|0
+loyalty-rewards-redemptions|Loyalty rewards redemptions engine|loyalty-system|3|0
+loyalty-tiers|Loyalty tiers structure|loyalty-system|3|0
+marketing-automation|Marketing Automation CRM workflows|marketing-system|3|0
+marketing-automation-action|Marketing Automation Trigger Actions|marketing-system|3|0
+marketing-campaign|Marketing Campaign manager|marketing-system|3|0
+marketing-campaign-audience|Marketing Campaign Audience lists|marketing-system|3|0
+marketing-coupon|Marketing Coupon definitions|marketing-system|3|0
+marketing-coupon-redemption|Marketing Coupon Redemption logs|marketing-system|3|0
+marketing-message-log|Marketing Message Dispatch Logs|marketing-system|3|0
+marketing-segment|Marketing Dynamic Segments|marketing-system|3|0
+marketing-segment-rule|Marketing Segment Rule builder|marketing-system|3|0

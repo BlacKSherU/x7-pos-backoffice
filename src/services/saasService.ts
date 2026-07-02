@@ -1,4 +1,5 @@
-import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto } from '../types/subscription';
+//src/services/saasService.ts
+import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto, UpdatePlanApplicationDto } from '../types/subscription';
 import { getSaasToken, clearSaasToken } from '../lib/saas-auth-storage';
 
 async function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -250,5 +251,123 @@ export const saasService = {
       { method: 'DELETE' },
     );
     return { ...response.data, price: Number(response.data.price) };
+  },
+
+  async getApplications(): Promise<Application[]> {
+    const response = await saasApiFetch<{
+      data: Application[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+    }>('applications');
+    return response.data;
+  },
+
+  async updateApplication(
+    app: Application,
+    updates: { name: string; description: string; category: string; status: 'active' | 'inactive' },
+  ): Promise<Application> {
+    const response = await saasApiFetch<{ data: Application }>(
+      `applications/${app.id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description,
+          category: updates.category,
+          status: updates.status,
+        }),
+      },
+    );
+    return response.data;
+  },
+
+  async deleteApplication(id: number): Promise<Application> {
+    const response = await saasApiFetch<{ data: Application }>(
+      `applications/${id}`,
+      { method: 'DELETE' },
+    );
+    return response.data;
+  },
+
+  async createApplication(dto: {
+    name: string;
+    description: string;
+    category: string;
+    status: 'active' | 'inactive';
+  }): Promise<Application> {
+    const response = await saasApiFetch<{ data: Application }>(
+      'applications',
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+    return response.data;
+  },
+
+  async getFeatures(): Promise<PlatformFeature[]> {
+    const response = await saasApiFetch<{
+      data: PlatformFeature[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+    }>('features');
+    return response.data;
+  },
+
+  async createFeature(dto: {
+    name: string;
+    description: string;
+    Unit: string;
+    status: string;
+  }): Promise<PlatformFeature> {
+    const response = await saasApiFetch<{ data: PlatformFeature }>(
+      'features',
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+    return response.data;
+  },
+
+  async updateFeature(
+    id: number,
+    dto: { name: string; description: string; Unit: string; status: string },
+  ): Promise<PlatformFeature> {
+    const response = await saasApiFetch<{ data: PlatformFeature }>(
+      `features/${id}`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+    return response.data;
+  },
+
+  async deleteFeature(id: number): Promise<PlatformFeature> {
+    const response = await saasApiFetch<{ data: PlatformFeature }>(
+      `features/${id}`,
+      { method: 'DELETE' },
+    );
+    return response.data;
+  },
+
+  async getPlanApplications(planId: number): Promise<PlanApplication[]> {
+    const response = await saasApiFetch<{
+      data: PlanApplication[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+    }>(`plan-applications?subscriptionPlanId=${planId}&limit=100`);
+    return response.data;
+  },
+
+  async createPlanApplication(dto: CreatePlanApplicationDto): Promise<PlanApplication> {
+    const response = await saasApiFetch<{ data: PlanApplication }>(
+      'plan-applications',
+      { method: 'POST', body: JSON.stringify(dto) },
+    );
+    return response.data;
+  },
+
+  async updatePlanApplication(id: number, dto: UpdatePlanApplicationDto): Promise<PlanApplication> {
+    const response = await saasApiFetch<{ data: PlanApplication }>(
+      `plan-applications/${id}`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+    return response.data;
   },
 };

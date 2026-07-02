@@ -73,8 +73,18 @@ export const navigationService = {
             // SaaS Owner ve únicamente características marcadas como SaaS
             return f.isSaaS;
           } else {
-            // Merchant ve características no-SaaS que entren en su Plan_id
-            return !f.isSaaS && f.planId <= userPlanId;
+            // Merchant ve características si no son exclusivas del SaaS Owner (e.g., config del core de saas) y entran en su plan
+            const exclusiveSaaS = [
+              'saas-dashboard',
+              'companies-dashboard',
+              'apps-config',
+              'features-control',
+              'plan-apps-rules',
+              'plan-features-mapping',
+              'sub-plans-core',
+              'sub-apps-mapping'
+            ];
+            return !exclusiveSaaS.includes(f.id) && f.planId === userPlanId;
           }
         });
 

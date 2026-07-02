@@ -1,11 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { RestaurantDashboard } from './components/RestaurantDashboard/RestaurantDashboard';
+import { MerchantFrame } from './components/MerchantFrame/MerchantFrame';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { LoginPage } from './pages/LoginPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ResetPasswordSuccessPage } from './pages/ResetPasswordSuccessPage';
-import SaaSDashboard from './components/SaaSDashboard/SaaSDashboard';
+import SaaSFrame from './components/SaaSFrame/SaaSFrame';
 import { CompanyStepPage } from './pages/onboarding/CompanyStepPage';
 import { MerchantStepPage } from './pages/onboarding/MerchantStepPage';
 import { OnboardingRoutes } from './pages/onboarding/OnboardingRoutes';
@@ -41,7 +41,7 @@ export default function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <RestaurantDashboard />
+              <MerchantFrame />
             </ProtectedRoute>
           }
         />
@@ -49,7 +49,7 @@ export default function App() {
           path="/dashboard/products"
           element={
             <ProtectedRoute>
-              <RestaurantDashboard />
+              <MerchantFrame />
             </ProtectedRoute>
           }
         />
@@ -57,7 +57,31 @@ export default function App() {
           path="/dashboard/categories"
           element={
             <ProtectedRoute>
-              <RestaurantDashboard />
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/company-configurations"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/company-profile"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/merchants"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
             </ProtectedRoute>
           }
         />
@@ -65,7 +89,7 @@ export default function App() {
           path="/legal/privacy-policy"
           element={
             <ProtectedRoute>
-              <RestaurantDashboard />
+              <MerchantFrame />
             </ProtectedRoute>
           }
         />
@@ -73,7 +97,7 @@ export default function App() {
           path="/legal/terms-of-service"
           element={
             <ProtectedRoute>
-              <RestaurantDashboard />
+              <MerchantFrame />
             </ProtectedRoute>
           }
         />
@@ -81,14 +105,11 @@ export default function App() {
           path="/support/help-center"
           element={
             <ProtectedRoute>
-              <RestaurantDashboard />
+              <MerchantFrame />
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/saas-admin"
-          element={<SaaSDashboard />}
-        />
+        <Route path="/saas-admin" element={<SaaSFrame />} />
         <Route path="*" element={<Navigate replace to="/login" />} />
       </Routes>
     </BrowserRouter>

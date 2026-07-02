@@ -67,3 +67,22 @@ body {
   font-weight: 700;
   text-transform: uppercase;
 }
+
+/* Estilizar scrollbars globales de forma fina y premium */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(95, 94, 94, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(174, 0, 26, 0.6);
+}
