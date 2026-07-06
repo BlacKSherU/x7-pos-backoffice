@@ -134,7 +134,8 @@ describe('SubscriptionPlansView — table rendering', () => {
   it('renders inactive status badge', async () => {
     renderView();
     await waitFor(() => {
-      expect(screen.getByText('inactive')).toBeInTheDocument();
+      const inactiveBadges = screen.getAllByText('inactive');
+      expect(inactiveBadges.length).toBeGreaterThan(0);
     });
   });
 
@@ -145,13 +146,6 @@ describe('SubscriptionPlansView — table rendering', () => {
     const legacyCell = screen.getByText('Legacy Basic');
     const row = legacyCell.closest('tr');
     expect(row).toHaveClass('opacity-75');
-  });
-
-  it('renders deleted status badge', async () => {
-    renderView();
-    await waitFor(() => {
-      expect(screen.getByText('deleted')).toBeInTheDocument();
-    });
   });
 
   it('deleted plan rows have opacity-75 class', async () => {
@@ -274,14 +268,6 @@ describe('SubscriptionPlansView — filter strip', () => {
     expect(options).toContain('yearly');
   });
 
-  it('status filter includes deleted option', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-
-    const select = screen.getByTestId('filter-status') as HTMLSelectElement;
-    const options = Array.from(select.options).map((o) => o.value);
-    expect(options).toContain('deleted');
-  });
 });
 
 describe('SubscriptionPlansView — empty data state', () => {
@@ -384,7 +370,6 @@ describe('SubscriptionPlansView — edit plan', () => {
         description: 'Entry-level plan for quick service restaurants.',
         price: 49.99,
         billingCycle: 'monthly',
-        status: 'active',
       });
     });
   });
@@ -462,139 +447,94 @@ describe('SubscriptionPlansView — edit plan', () => {
   });
 });
 
-describe('SubscriptionPlansView — delete plan', () => {
+describe('SubscriptionPlansView — status toggle', () => {
   beforeEach(() => {
-    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue(MOCK_PLANS);
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue([
+      { id: 1, name: 'Gold Plan', description: 'Full tier', price: 99.99, billingCycle: 'monthly', status: 'active' },
+      { id: 2, name: 'Silver Plan', description: 'Mid tier', price: 49.99, billingCycle: 'monthly', status: 'inactive' },
+    ]);
   });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it('renders a Delete button for each active plan', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-    const deleteButtons = screen.getAllByRole('button', { name: /^Delete /i });
-    expect(deleteButtons).toHaveLength(4); // 3 active + 1 inactive
+  it('shows a Deactivate button for an active plan and an Activate button for an inactive plan', async () => {
+    render(<SubscriptionPlansView />);
+    await waitFor(() => expect(screen.getByText('Gold Plan')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Deactivate Gold Plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Activate Silver Plan' })).toBeInTheDocument();
   });
 
-  it('does NOT render a Delete button for deleted plans', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Archived Gold')).toBeInTheDocument());
-    expect(
-      screen.queryByRole('button', { name: 'Delete Archived Gold' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('clicking Delete Starter opens DeletePlanDialog with correct copy', async () => {
+  it('deactivates an active plan after confirming', async () => {
     const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
-
-    expect(screen.getByText('DELETE PLAN')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Deleting "Starter" will permanently prevent it from being used in any new subscriptions. The record is retained for historical analytics.',
-      ),
-    ).toBeInTheDocument();
+    vi.mocked(saasService.updateSubscriptionPlan).mockResolvedValue({
+      id: 1, name: 'Gold Plan', description: 'Full tier', price: 99.99, billingCycle: 'monthly', status: 'inactive',
+    });
+    render(<SubscriptionPlansView />);
+    await waitFor(() => expect(screen.getByText('Gold Plan')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Deactivate Gold Plan' }));
+    await user.click(screen.getByRole('button', { name: /^deactivate$/i }));
+    await waitFor(() =>
+      expect(saasService.updateSubscriptionPlan).toHaveBeenCalledWith(1, { status: 'inactive' }),
+    );
   });
 
-  it('clicking Cancel closes the dialog', async () => {
+  it('activates an inactive plan after confirming', async () => {
     const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
-    expect(screen.getByText('DELETE PLAN')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /cancel/i }));
-    expect(screen.queryByText('DELETE PLAN')).not.toBeInTheDocument();
-  });
-
-  it('edit button is disabled for deleted plans', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Archived Gold')).toBeInTheDocument());
-
-    const editButton = screen.getByRole('button', { name: 'Edit Archived Gold' });
-    expect(editButton).toBeDisabled();
+    vi.mocked(saasService.updateSubscriptionPlan).mockResolvedValue({
+      id: 2, name: 'Silver Plan', description: 'Mid tier', price: 49.99, billingCycle: 'monthly', status: 'active',
+    });
+    render(<SubscriptionPlansView />);
+    await waitFor(() => expect(screen.getByText('Silver Plan')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Activate Silver Plan' }));
+    await user.click(screen.getByRole('button', { name: /^activate$/i }));
+    await waitFor(() =>
+      expect(saasService.updateSubscriptionPlan).toHaveBeenCalledWith(2, { status: 'active' }),
+    );
   });
 });
 
-describe('SubscriptionPlansView — delete plan confirm', () => {
+describe('SubscriptionPlansView — Edit no longer touches status', () => {
   beforeEach(() => {
-    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue(MOCK_PLANS);
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue([
+      { id: 1, name: 'Gold Plan', description: 'Full tier', price: 99.99, billingCycle: 'monthly', status: 'active' },
+    ]);
   });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it('confirming delete calls deleteSubscriptionPlan with the plan id', async () => {
-    const deletedPlan = { ...MOCK_PLANS[0], status: 'deleted' as const };
-    vi.mocked(saasService.deleteSubscriptionPlan).mockResolvedValue(deletedPlan);
+  it('does not render a Status field in the Edit dialog', async () => {
     const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
-    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
-
-    await waitFor(() => {
-      expect(saasService.deleteSubscriptionPlan).toHaveBeenCalledWith(1);
-    });
+    render(<SubscriptionPlansView />);
+    await waitFor(() => expect(screen.getByText('Gold Plan')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Edit Gold Plan' }));
+    expect(screen.queryByLabelText('Status')).not.toBeInTheDocument();
   });
 
-  it('successful delete updates row in-place and shows success toast', async () => {
-    const deletedPlan = { ...MOCK_PLANS[0], status: 'deleted' as const };
-    vi.mocked(saasService.deleteSubscriptionPlan).mockResolvedValue(deletedPlan);
+  it('saves without a status field in the payload', async () => {
     const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
-    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
-
-    await waitFor(() => {
-      expect(screen.queryByText('DELETE PLAN')).not.toBeInTheDocument();
-      expect(screen.getByText('Plan deleted successfully')).toBeInTheDocument();
+    vi.mocked(saasService.updateSubscriptionPlan).mockResolvedValue({
+      id: 1, name: 'Gold Plan Renamed', description: 'Full tier', price: 99.99, billingCycle: 'monthly', status: 'active',
     });
-  });
-
-  it('SESSION_EXPIRED closes dialog and shows session-expired toast', async () => {
-    vi.mocked(saasService.deleteSubscriptionPlan).mockRejectedValue(
-      new Error('SESSION_EXPIRED'),
+    render(<SubscriptionPlansView />);
+    await waitFor(() => expect(screen.getByText('Gold Plan')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Edit Gold Plan' }));
+    const nameInput = screen.getByDisplayValue('Gold Plan');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Gold Plan Renamed');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() =>
+      expect(saasService.updateSubscriptionPlan).toHaveBeenCalledWith(1, {
+        name: 'Gold Plan Renamed',
+        description: 'Full tier',
+        price: 99.99,
+        billingCycle: 'monthly',
+      }),
     );
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
-    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
-
-    await waitFor(() => {
-      expect(screen.queryByText('DELETE PLAN')).not.toBeInTheDocument();
-      expect(
-        screen.getByText('Session expired. Please refresh the page to sign in again.'),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it('other API error closes dialog and shows error toast', async () => {
-    vi.mocked(saasService.deleteSubscriptionPlan).mockRejectedValue(
-      new Error('Plan has active subscriptions'),
-    );
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
-    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
-
-    await waitFor(() => {
-      expect(screen.queryByText('DELETE PLAN')).not.toBeInTheDocument();
-      expect(screen.getByText('Plan has active subscriptions')).toBeInTheDocument();
-    });
   });
 });

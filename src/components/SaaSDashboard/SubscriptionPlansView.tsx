@@ -1,7 +1,8 @@
 //src/components/SaaSDashboard/SubscriptionPlansView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { saasService } from '../../services/saasService';
-import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto } from '../../types/subscription';
+import type { SubscriptionPlan, CreateSubscriptionPlanDto } from '../../types/subscription';
+import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from './StatusToggle';
 
 const BILLING_CYCLES: CreateSubscriptionPlanDto['billingCycle'][] = [
   'daily',
@@ -47,13 +48,12 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
     description: '',
     price: '',
     billingCycle: 'monthly' as CreateSubscriptionPlanDto['billingCycle'],
-    status: 'active' as 'active' | 'inactive',
   });
   const [editFormError, setEditFormError] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  const [deletingPlan, setDeletingPlan] = useState<SubscriptionPlan | null>(null);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [togglingPlan, setTogglingPlan] = useState<SubscriptionPlan | null>(null);
+  const [toggleSubmitting, setToggleSubmitting] = useState(false);
 
   useEffect(() => {
     saasService
@@ -83,7 +83,7 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
             p.description.toLowerCase().includes(searchTerm.toLowerCase()),
         )
         .filter((p) => billingCycle === 'All Cycles' || p.billingCycle === billingCycle)
-        .filter((p) => statusFilter === 'All Status' || p.status === statusFilter),
+        .filter((p) => statusFilter === 'All Status' || normalizeStatus(p.status) === statusFilter),
     [plans, searchTerm, billingCycle, statusFilter],
   );
 
@@ -111,7 +111,6 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
       description: plan.description,
       price: plan.price.toString(),
       billingCycle: plan.billingCycle,
-      status: plan.status === 'deleted' ? 'active' : plan.status,
     });
     setEditFormError('');
   };
@@ -121,24 +120,28 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
     setEditFormError('');
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!deletingPlan) return;
-    setDeleteSubmitting(true);
+  const handleToggleConfirm = async () => {
+    if (!togglingPlan) return;
+    const nextStatus = normalizeStatus(togglingPlan.status) === 'active' ? 'inactive' : 'active';
+    setToggleSubmitting(true);
     try {
-      const updated = await saasService.deleteSubscriptionPlan(deletingPlan.id);
+      const updated = await saasService.updateSubscriptionPlan(togglingPlan.id, { status: nextStatus });
       setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setDeletingPlan(null);
-      setToast({ message: 'Plan deleted successfully', type: 'success' });
+      setTogglingPlan(null);
+      setToast({
+        message: nextStatus === 'active' ? 'Plan activated successfully' : 'Plan deactivated successfully',
+        type: 'success',
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete plan';
-      setDeletingPlan(null);
+      const msg = err instanceof Error ? err.message : 'Failed to update plan status';
+      setTogglingPlan(null);
       if (msg === 'SESSION_EXPIRED') {
         setToast({ message: 'Session expired. Please refresh the page to sign in again.', type: 'error' });
       } else {
         setToast({ message: msg, type: 'error' });
       }
     } finally {
-      setDeleteSubmitting(false);
+      setToggleSubmitting(false);
     }
   };
 
@@ -163,8 +166,7 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
         description,
         price,
         billingCycle: editForm.billingCycle,
-        status: editForm.status,
-      } as UpdateSubscriptionPlanDto);
+      });
       setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       closeEditModal();
       setToast({ message: 'Subscription plan updated successfully', type: 'success' });
@@ -257,12 +259,13 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
 
         {showModal && <AddPlanModal form={form} setForm={setForm} formError={formError} submitting={submitting} onClose={closeModal} onSubmit={handleSubmit} />}
         {editingPlan && <EditPlanModal form={editForm} setForm={setEditForm} formError={editFormError} submitting={editSubmitting} onClose={closeEditModal} onSubmit={handleEditSubmit} />}
-        {deletingPlan && (
-          <DeletePlanDialog
-            plan={deletingPlan}
-            submitting={deleteSubmitting}
-            onClose={() => setDeletingPlan(null)}
-            onConfirm={handleDeleteConfirm}
+        {togglingPlan && (
+          <ConfirmStatusToggleDialog
+            entityName={togglingPlan.name}
+            direction={normalizeStatus(togglingPlan.status) === 'active' ? 'deactivate' : 'activate'}
+            submitting={toggleSubmitting}
+            onClose={() => setTogglingPlan(null)}
+            onConfirm={handleToggleConfirm}
           />
         )}
         {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
@@ -311,7 +314,6 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
             <option value="All Status">All Status</option>
             <option value="active">active</option>
             <option value="inactive">inactive</option>
-            <option value="deleted">deleted</option>
           </select>
           <button
             type="button"
@@ -429,55 +431,47 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      {plan.status === 'active' ? (
+                      {normalizeStatus(plan.status) === 'active' ? (
                         <span className="bg-green-500/10 text-green-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                           active
                         </span>
-                      ) : plan.status === 'inactive' ? (
+                      ) : (
                         <span className="bg-[#5f5e5e]/20 text-[#5f5e5e] text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                           inactive
-                        </span>
-                      ) : (
-                        <span className="bg-red-500/10 text-red-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
-                          deleted
                         </span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                        {plan.status !== 'deleted' && (
-                          <button
-                            type="button"
-                            aria-label={`View applications for ${plan.name}`}
-                            onClick={() => onNavigate?.('subscription-plan-applications', plan)}
-                            className="p-1 hover:text-[#ae001a] transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-xl">grid_view</span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          aria-label={`View applications for ${plan.name}`}
+                          onClick={() => onNavigate?.('subscription-plan-applications', plan)}
+                          className="p-1 hover:text-[#ae001a] transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-xl">grid_view</span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`View features for ${plan.name}`}
+                          onClick={() => onNavigate?.('subscription-plan-features', plan)}
+                          className="p-1 hover:text-[#ae001a] transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-xl">tune</span>
+                        </button>
                         <button
                           type="button"
                           aria-label={`Edit ${plan.name}`}
                           onClick={() => openEditModal(plan)}
-                          disabled={plan.status === 'deleted'}
-                          className={`p-1 transition-colors ${
-                            plan.status === 'deleted'
-                              ? 'opacity-50 cursor-not-allowed'
-                              : 'hover:text-[#ae001a]'
-                          }`}
+                          className="p-1 transition-colors hover:text-[#ae001a]"
                         >
                           <span className="material-symbols-outlined text-xl">edit</span>
                         </button>
-                        {plan.status !== 'deleted' && (
-                          <button
-                            type="button"
-                            aria-label={`Delete ${plan.name}`}
-                            onClick={() => setDeletingPlan(plan)}
-                            className="p-1 hover:text-red-600 transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-xl">delete</span>
-                          </button>
-                        )}
+                        <StatusToggleButton
+                          status={plan.status}
+                          entityLabel={plan.name}
+                          onClick={() => setTogglingPlan(plan)}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -564,13 +558,13 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
         />
       )}
 
-      {/* Delete Plan Dialog */}
-      {deletingPlan && (
-        <DeletePlanDialog
-          plan={deletingPlan}
-          submitting={deleteSubmitting}
-          onClose={() => setDeletingPlan(null)}
-          onConfirm={handleDeleteConfirm}
+      {togglingPlan && (
+        <ConfirmStatusToggleDialog
+          entityName={togglingPlan.name}
+          direction={normalizeStatus(togglingPlan.status) === 'active' ? 'deactivate' : 'activate'}
+          submitting={toggleSubmitting}
+          onClose={() => setTogglingPlan(null)}
+          onConfirm={handleToggleConfirm}
         />
       )}
 
@@ -741,7 +735,6 @@ interface EditModalProps {
     description: string;
     price: string;
     billingCycle: CreateSubscriptionPlanDto['billingCycle'];
-    status: 'active' | 'inactive';
   };
   setForm: React.Dispatch<React.SetStateAction<EditModalProps['form']>>;
   formError: string;
@@ -850,24 +843,6 @@ const EditPlanModal: React.FC<EditModalProps> = ({
           </div>
         </div>
 
-        {/* Status */}
-        <div>
-          <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e] block mb-1.5">
-            Status
-          </label>
-          <select
-            aria-label="Status"
-            value={form.status}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, status: e.target.value as 'active' | 'inactive' }))
-            }
-            className="w-full px-3 py-2.5 border border-[#e8e2d8] bg-[#fef9f1] text-sm focus:border-[#ae001a] outline-none"
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-
         {/* Error */}
         {formError && (
           <div className="bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex items-center gap-2">
@@ -926,65 +901,6 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => (
     >
       <span className="material-symbols-outlined text-base">close</span>
     </button>
-  </div>
-);
-
-interface DeletePlanDialogProps {
-  plan: SubscriptionPlan;
-  submitting: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}
-
-const DeletePlanDialog: React.FC<DeletePlanDialogProps> = ({
-  plan,
-  submitting,
-  onClose,
-  onConfirm,
-}) => (
-  <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-    <div className="bg-white w-full max-w-md shadow-2xl">
-      <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
-        <span className="text-[11px] font-bold uppercase tracking-widest text-white">
-          DELETE PLAN
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-white/50 hover:text-white transition-colors"
-        >
-          <span className="material-symbols-outlined">close</span>
-        </button>
-      </div>
-      <div className="p-6 space-y-5">
-        <p className="text-sm text-[#1d1c17]">
-          {`Deleting "${plan.name}" will permanently prevent it from being used in any new subscriptions. The record is retained for historical analytics.`}
-        </p>
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={submitting}
-            className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {submitting && (
-              <span className="material-symbols-outlined text-base animate-spin">
-                progress_activity
-              </span>
-            )}
-            {submitting ? 'Deleting...' : 'Delete Plan'}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 );
 

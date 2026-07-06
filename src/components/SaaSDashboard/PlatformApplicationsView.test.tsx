@@ -101,7 +101,8 @@ describe('PlatformApplicationsView — table rendering', () => {
   it('renders inactive status badge', async () => {
     renderView();
     await waitFor(() => {
-      expect(screen.getByText('inactive')).toBeInTheDocument();
+      const inactiveBadges = screen.getAllByText('inactive');
+      expect(inactiveBadges.length).toBeGreaterThan(0);
     });
   });
 
@@ -223,126 +224,6 @@ describe('PlatformApplicationsView — filter strip', () => {
 
     expect(screen.getByText('POS Terminal')).toBeInTheDocument();
     expect(screen.getByText('Kitchen Display')).toBeInTheDocument();
-  });
-});
-
-describe('PlatformApplicationsView — delete application', () => {
-  beforeEach(() => {
-    vi.mocked(saasService.getApplications).mockResolvedValue(MOCK_APPS);
-  });
-  afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-  });
-
-  it('renders a Delete button for each active app', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Delete POS Terminal' })).toBeInTheDocument();
-  });
-
-  it('renders a Delete button for each inactive app', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Reporting Suite')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Delete Reporting Suite' })).toBeInTheDocument();
-  });
-
-  it('does NOT render a Delete button for deleted apps', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Legacy Bridge')).toBeInTheDocument());
-    expect(
-      screen.queryByRole('button', { name: 'Delete Legacy Bridge' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('clicking Delete opens the confirmation dialog with correct copy', async () => {
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete POS Terminal' }));
-
-    expect(screen.getByText('DELETE APPLICATION')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Deleting "POS Terminal" will permanently prevent it from being distributed to new subscribers. The record is retained for historical analytics.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('clicking Cancel closes the confirmation dialog', async () => {
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete POS Terminal' }));
-    expect(screen.getByText('DELETE APPLICATION')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /cancel/i }));
-    expect(screen.queryByText('DELETE APPLICATION')).not.toBeInTheDocument();
-  });
-
-  it('confirming calls deleteApplication with the correct app id', async () => {
-    const deleted = { ...MOCK_APPS[0], status: 'deleted' as const };
-    vi.mocked(saasService.deleteApplication).mockResolvedValue(deleted);
-
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete POS Terminal' }));
-    await user.click(screen.getByRole('button', { name: /delete application/i }));
-
-    await waitFor(() => {
-      expect(saasService.deleteApplication).toHaveBeenCalledWith(MOCK_APPS[0].id);
-    });
-  });
-
-  it('successful delete updates row in-place to deleted badge and shows success toast', async () => {
-    const deleted = { ...MOCK_APPS[0], status: 'deleted' as const };
-    vi.mocked(saasService.deleteApplication).mockResolvedValue(deleted);
-
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete POS Terminal' }));
-    await user.click(screen.getByRole('button', { name: /delete application/i }));
-
-    await waitFor(() => {
-      expect(screen.queryByText('DELETE APPLICATION')).not.toBeInTheDocument();
-      expect(screen.getByText('Application deleted successfully')).toBeInTheDocument();
-    });
-  });
-
-  it('SESSION_EXPIRED closes dialog and shows session-expired toast', async () => {
-    vi.mocked(saasService.deleteApplication).mockRejectedValue(new Error('SESSION_EXPIRED'));
-
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Delete POS Terminal' }));
-    await user.click(screen.getByRole('button', { name: /delete application/i }));
-
-    await waitFor(() => {
-      expect(screen.queryByText('DELETE APPLICATION')).not.toBeInTheDocument();
-      expect(
-        screen.getByText('Session expired. Please refresh the page to sign in again.'),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it('Edit button is disabled for deleted apps', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Legacy Bridge')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Edit Legacy Bridge' })).toBeDisabled();
-  });
-
-  it('renders deleted status badge for deleted apps', async () => {
-    renderView();
-    await waitFor(() => expect(screen.getByText('Legacy Bridge')).toBeInTheDocument());
-    expect(screen.getAllByText('deleted').length).toBeGreaterThan(0);
   });
 });
 
@@ -607,44 +488,29 @@ describe('PlatformApplicationsView — register application', () => {
   });
 });
 
-describe('PlatformApplicationsView — edit application status', () => {
-  beforeEach(() => {
-    vi.mocked(saasService.getApplications).mockResolvedValue(MOCK_APPS);
-  });
+describe('PlatformApplicationsView — status toggle', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it('Edit modal renders a Status select pre-populated with the app current status', async () => {
+  it('deactivates an active application after confirming', async () => {
     const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Reporting Suite')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Edit Reporting Suite' }));
-
-    const statusSelect = screen.getByRole('combobox', { name: /^status$/i });
-    expect(statusSelect).toBeInTheDocument();
-    expect((statusSelect as HTMLSelectElement).value).toBe('inactive');
-  });
-
-  it('saving the edit modal calls updateApplication with the selected status', async () => {
-    const updated = { ...MOCK_APPS[2], status: 'active' as const };
-    vi.mocked(saasService.updateApplication).mockResolvedValue(updated);
-
-    const user = userEvent.setup();
-    renderView();
-    await waitFor(() => expect(screen.getByText('Reporting Suite')).toBeInTheDocument());
-
-    await user.click(screen.getByRole('button', { name: 'Edit Reporting Suite' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: /^status$/i }), 'active');
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
-
-    await waitFor(() => {
-      expect(saasService.updateApplication).toHaveBeenCalledWith(
-        MOCK_APPS[2],
-        expect.objectContaining({ status: 'active' }),
-      );
+    vi.mocked(saasService.getApplications).mockResolvedValue([
+      { id: 1, name: 'POS Core', description: 'Core module', category: 'Core Systems', status: 'active' },
+    ]);
+    vi.mocked(saasService.updateApplication).mockResolvedValue({
+      id: 1, name: 'POS Core', description: 'Core module', category: 'Core Systems', status: 'inactive',
     });
+    render(<PlatformApplicationsView />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Deactivate POS Core' }));
+    await user.click(screen.getByRole('button', { name: /^deactivate$/i }));
+    await waitFor(() =>
+      expect(saasService.updateApplication).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 1 }),
+        { status: 'inactive' },
+      ),
+    );
   });
 });

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { saasService } from '../../services/saasService';
 import type { PlatformFeature } from '../../types/subscription';
+import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from './StatusToggle';
 
 interface PlatformFeatureCatalogViewProps {
   onNavigate?: (view: string) => void;
@@ -151,14 +152,13 @@ interface EditFeatureDialogProps {
   feature: PlatformFeature;
   submitting: boolean;
   onClose: () => void;
-  onSave: (dto: { name: string; description: string; Unit: string; status: string }) => void;
+  onSave: (dto: { name: string; description: string; Unit: string }) => void;
 }
 
 const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitting, onClose, onSave }) => {
   const [name, setName] = React.useState(feature.name);
   const [description, setDescription] = React.useState(feature.description);
   const [unit, setUnit] = React.useState(feature.Unit);
-  const [status, setStatus] = React.useState(feature.status);
 
   const nameExceeded = name.length > 100;
   const unitExceeded = unit.length > 50;
@@ -239,24 +239,6 @@ const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitti
               placeholder="e.g. unit, user, gb"
             />
           </div>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="edit-feature-status"
-              className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]"
-            >
-              Status
-            </label>
-            <select
-              id="edit-feature-status"
-              aria-label="Status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] outline-none transition-all"
-            >
-              <option value="active">active</option>
-              <option value="inactive">inactive</option>
-            </select>
-          </div>
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button"
@@ -268,7 +250,7 @@ const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitti
             </button>
             <button
               type="button"
-              onClick={() => onSave({ name: name.trim(), description: description.trim(), Unit: unit.trim(), status })}
+              onClick={() => onSave({ name: name.trim(), description: description.trim(), Unit: unit.trim() })}
               disabled={submitting || !isValid}
               className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
             >
@@ -285,62 +267,6 @@ const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitti
     </div>
   );
 };
-
-interface DeleteFeatureDialogProps {
-  feature: PlatformFeature;
-  submitting: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}
-
-const DeleteFeatureDialog: React.FC<DeleteFeatureDialogProps> = ({ feature, submitting, onClose, onConfirm }) => (
-  <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-    <div className="bg-white w-full max-w-md shadow-2xl">
-      <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
-        <span className="text-[11px] font-bold uppercase tracking-widest text-white">
-          DELETE FEATURE
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={submitting}
-          className="text-white/50 hover:text-white transition-colors disabled:opacity-50"
-        >
-          <span className="material-symbols-outlined">close</span>
-        </button>
-      </div>
-      <div className="p-6 space-y-5">
-        <p className="text-sm text-[#1d1c17] leading-relaxed">
-          Deleting &ldquo;{feature.name}&rdquo; will prevent it from being assigned to new subscription
-          plans. The record is retained for historical reference.
-        </p>
-        <div className="flex justify-end gap-3 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={submitting}
-            className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {submitting && (
-              <span className="material-symbols-outlined text-base animate-spin">
-                progress_activity
-              </span>
-            )}
-            {submitting ? 'Deleting...' : 'Delete Feature'}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
 function fuzzyMatch(query: string, target: string): boolean {
   let qi = 0;
@@ -362,8 +288,8 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [editingFeature, setEditingFeature] = useState<PlatformFeature | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [deletingFeature, setDeletingFeature] = useState<PlatformFeature | null>(null);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [togglingFeature, setTogglingFeature] = useState<PlatformFeature | null>(null);
+  const [toggleSubmitting, setToggleSubmitting] = useState(false);
 
   useEffect(() => {
     saasService.getFeatures()
@@ -393,7 +319,7 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
         }
       }
       if (unitFilter && f.Unit !== unitFilter) return false;
-      if (statusFilter !== 'All Status' && f.status !== statusFilter) return false;
+      if (statusFilter !== 'All Status' && normalizeStatus(f.status) !== statusFilter) return false;
       return true;
     });
   }, [features, searchText, unitFilter, statusFilter]);
@@ -420,7 +346,7 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
     }
   };
 
-  const handleEditSave = async (dto: { name: string; description: string; Unit: string; status: string }) => {
+  const handleEditSave = async (dto: { name: string; description: string; Unit: string }) => {
     if (!editingFeature) return;
     setEditSubmitting(true);
     try {
@@ -441,24 +367,28 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!deletingFeature) return;
-    setDeleteSubmitting(true);
+  const handleToggleConfirm = async () => {
+    if (!togglingFeature) return;
+    const nextStatus = normalizeStatus(togglingFeature.status) === 'active' ? 'inactive' : 'active';
+    setToggleSubmitting(true);
     try {
-      const updated = await saasService.deleteFeature(deletingFeature.id);
+      const updated = await saasService.updateFeature(togglingFeature.id, { status: nextStatus });
       setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-      setDeletingFeature(null);
-      setToast({ message: 'Feature deleted successfully', type: 'success' });
+      setTogglingFeature(null);
+      setToast({
+        message: nextStatus === 'active' ? 'Feature activated successfully' : 'Feature deactivated successfully',
+        type: 'success',
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete feature';
-      setDeletingFeature(null);
+      const msg = err instanceof Error ? err.message : 'Failed to update feature status';
+      setTogglingFeature(null);
       if (msg === 'SESSION_EXPIRED') {
         setToast({ message: 'Session expired. Please refresh the page to sign in again.', type: 'error' });
       } else {
         setToast({ message: msg, type: 'error' });
       }
     } finally {
-      setDeleteSubmitting(false);
+      setToggleSubmitting(false);
     }
   };
 
@@ -512,7 +442,6 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
             <option value="All Status">All Status</option>
             <option value="active">active</option>
             <option value="inactive">inactive</option>
-            <option value="deleted">deleted</option>
           </select>
           {hasActiveFilter && (
             <button
@@ -640,13 +569,9 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {feature.status === 'active' ? (
+                        {normalizeStatus(feature.status) === 'active' ? (
                           <span className="bg-green-500/10 text-green-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                             active
-                          </span>
-                        ) : feature.status === 'deleted' ? (
-                          <span className="bg-red-500/10 text-red-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
-                            deleted
                           </span>
                         ) : (
                           <span className="bg-[#5f5e5e]/20 text-[#5f5e5e] text-[10px] font-bold uppercase px-2 py-0.5 rounded">
@@ -660,25 +585,15 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
                             type="button"
                             aria-label={`Edit ${feature.name}`}
                             onClick={() => setEditingFeature(feature)}
-                            disabled={feature.status === 'deleted'}
-                            className={`p-1 transition-colors ${
-                              feature.status === 'deleted'
-                                ? 'opacity-50 cursor-not-allowed'
-                                : 'hover:text-[#ae001a]'
-                            }`}
+                            className="p-1 transition-colors hover:text-[#ae001a]"
                           >
                             <span className="material-symbols-outlined text-xl">edit</span>
                           </button>
-                          {feature.status !== 'deleted' && (
-                            <button
-                              type="button"
-                              aria-label={`Delete ${feature.name}`}
-                              onClick={() => setDeletingFeature(feature)}
-                              className="p-1 hover:text-red-600 transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-xl">delete</span>
-                            </button>
-                          )}
+                          <StatusToggleButton
+                            status={feature.status}
+                            entityLabel={feature.name}
+                            onClick={() => setTogglingFeature(feature)}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -769,12 +684,13 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
         />
       )}
 
-      {deletingFeature && (
-        <DeleteFeatureDialog
-          feature={deletingFeature}
-          submitting={deleteSubmitting}
-          onClose={() => setDeletingFeature(null)}
-          onConfirm={handleDeleteConfirm}
+      {togglingFeature && (
+        <ConfirmStatusToggleDialog
+          entityName={togglingFeature.name}
+          direction={normalizeStatus(togglingFeature.status) === 'active' ? 'deactivate' : 'activate'}
+          submitting={toggleSubmitting}
+          onClose={() => setTogglingFeature(null)}
+          onConfirm={handleToggleConfirm}
         />
       )}
 

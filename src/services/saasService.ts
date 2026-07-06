@@ -1,5 +1,5 @@
 //src/services/saasService.ts
-import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto, UpdatePlanApplicationDto } from '../types/subscription';
+import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto, UpdatePlanApplicationDto, PlanFeature, CreatePlanFeatureDto, UpdatePlanFeatureDto } from '../types/subscription';
 import { getSaasToken, clearSaasToken } from '../lib/saas-auth-storage';
 
 async function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -263,18 +263,13 @@ export const saasService = {
 
   async updateApplication(
     app: Application,
-    updates: { name: string; description: string; category: string; status: 'active' | 'inactive' },
+    updates: Partial<{ name: string; description: string; category: string; status: 'active' | 'inactive' }>,
   ): Promise<Application> {
     const response = await saasApiFetch<{ data: Application }>(
       `applications/${app.id}`,
       {
         method: 'PATCH',
-        body: JSON.stringify({
-          name: updates.name,
-          description: updates.description,
-          category: updates.category,
-          status: updates.status,
-        }),
+        body: JSON.stringify(updates),
       },
     );
     return response.data;
@@ -330,7 +325,7 @@ export const saasService = {
 
   async updateFeature(
     id: number,
-    dto: { name: string; description: string; Unit: string; status: string },
+    dto: Partial<{ name: string; description: string; Unit: string; status: string }>,
   ): Promise<PlatformFeature> {
     const response = await saasApiFetch<{ data: PlatformFeature }>(
       `features/${id}`,
@@ -367,6 +362,38 @@ export const saasService = {
     const response = await saasApiFetch<{ data: PlanApplication }>(
       `plan-applications/${id}`,
       { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+    return response.data;
+  },
+
+  async getPlanFeatures(planId: number): Promise<PlanFeature[]> {
+    const response = await saasApiFetch<{
+      data: PlanFeature[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+    }>(`plan-features?subscriptionPlanId=${planId}&limit=100`);
+    return response.data;
+  },
+
+  async createPlanFeature(dto: CreatePlanFeatureDto): Promise<PlanFeature> {
+    const response = await saasApiFetch<{ data: PlanFeature }>(
+      'plan-features',
+      { method: 'POST', body: JSON.stringify(dto) },
+    );
+    return response.data;
+  },
+
+  async updatePlanFeature(id: number, dto: UpdatePlanFeatureDto): Promise<PlanFeature> {
+    const response = await saasApiFetch<{ data: PlanFeature }>(
+      `plan-features/${id}`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+    return response.data;
+  },
+
+  async deletePlanFeature(id: number): Promise<PlanFeature> {
+    const response = await saasApiFetch<{ data: PlanFeature }>(
+      `plan-features/${id}`,
+      { method: 'DELETE' },
     );
     return response.data;
   },

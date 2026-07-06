@@ -1,153 +1,43 @@
-//src/components/SaaSDashboard/PlanApplicationsView.tsx
+//src/components/SaaSDashboard/PlanFeaturesView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { saasService } from '../../services/saasService';
-import type { PlanApplication, SubscriptionPlan, Application } from '../../types/subscription';
+import type { PlanFeature, SubscriptionPlan, PlatformFeature } from '../../types/subscription';
 import { StatusToggleButton, ConfirmStatusToggleDialog } from './StatusToggle';
 
-interface EditPlanApplicationDialogProps {
-  pa: PlanApplication;
-  submitting: boolean;
-  onClose: () => void;
-  onSave: (dto: { limits: string }) => void;
+function isValidLimitValue(raw: string): boolean {
+  return /^\d+(\.\d{1,2})?$/.test(raw.trim()) && Number(raw) > 0;
 }
 
-const EditPlanApplicationDialog: React.FC<EditPlanApplicationDialogProps> = ({
-  pa,
-  submitting,
-  onClose,
-  onSave,
-}) => {
-  const [limits, setLimits] = React.useState(pa.limits);
-
-  const limitsExceeded = limits.length > 50;
-  const noChanges = limits === pa.limits;
-  const isValid = limits.trim() !== '' && !limitsExceeded && !noChanges;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-lg shadow-2xl">
-        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-white">
-            EDIT PLAN-APPLICATION
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-white/50 hover:text-white transition-colors"
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div className="p-6 space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-              Subscription Plan
-            </label>
-            <input
-              type="text"
-              readOnly
-              title="Subscription Plan"
-              value={pa.subscriptionPlan.name}
-              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#ece8e0] text-sm text-[#5f5e5e] cursor-not-allowed outline-none"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-              Application
-            </label>
-            <input
-              type="text"
-              readOnly
-              title="Application"
-              value={pa.application.name}
-              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#ece8e0] text-sm text-[#5f5e5e] cursor-not-allowed outline-none"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-                Usage Limits
-              </label>
-              <span
-                className={`text-[11px] ${limitsExceeded ? 'text-[#ae001a] font-bold' : 'text-[#5f5e5e]'}`}
-              >
-                {limits.length}/50
-              </span>
-            </div>
-            <textarea
-              value={limits}
-              onChange={(e) => setLimits(e.target.value)}
-              rows={3}
-              placeholder="e.g. Up to 5 terminals, 100 users/month"
-              className={`w-full px-3 py-2 border bg-[#fef9f1] text-sm text-[#1d1c17] focus:ring-1 outline-none transition-all resize-none ${
-                limitsExceeded
-                  ? 'border-[#ae001a] focus:border-[#ae001a] focus:ring-[#ae001a]'
-                  : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-[#ae001a]'
-              }`}
-            />
-          </div>
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => onSave({ limits: limits.trim() })}
-              disabled={!isValid || submitting}
-              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {submitting && (
-                <span className="material-symbols-outlined text-base animate-spin">
-                  progress_activity
-                </span>
-              )}
-              {submitting ? 'Saving…' : 'SAVE CHANGES'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-interface AssociateAppDialogProps {
+interface MapFeatureDialogProps {
   plan: SubscriptionPlan;
-  availableApps: Application[];
-  loadingApps: boolean;
+  availableFeatures: PlatformFeature[];
+  loadingFeatures: boolean;
   submitting: boolean;
   onClose: () => void;
-  onSave: (dto: { applicationId: number; limits: string }) => void;
+  onSave: (dto: { featureId: number; limitValue: number }) => void;
 }
 
-const AssociateAppDialog: React.FC<AssociateAppDialogProps> = ({
+const MapFeatureDialog: React.FC<MapFeatureDialogProps> = ({
   plan,
-  availableApps,
-  loadingApps,
+  availableFeatures,
+  loadingFeatures,
   submitting,
   onClose,
   onSave,
 }) => {
-  const [selectedAppId, setSelectedAppId] = React.useState<number | ''>('');
-  const [limits, setLimits] = React.useState('');
+  const [selectedFeatureId, setSelectedFeatureId] = React.useState<number | ''>('');
+  const [limitValue, setLimitValue] = React.useState('');
 
-  const limitsExceeded = limits.length > 50;
-  const isValid =
-    selectedAppId !== '' &&
-    limits.trim() !== '' &&
-    !limitsExceeded &&
-    !loadingApps;
+  const parsedLimit = Number(limitValue);
+  const limitIsValid = isValidLimitValue(limitValue);
+  const isValid = selectedFeatureId !== '' && limitIsValid && !loadingFeatures;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-lg shadow-2xl">
         <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
           <span className="text-[11px] font-bold uppercase tracking-widest text-white">
-            ASSOCIATE APPLICATION
+            MAP FEATURE
           </span>
           <button
             type="button"
@@ -172,30 +62,30 @@ const AssociateAppDialog: React.FC<AssociateAppDialogProps> = ({
           </div>
           <div className="space-y-1.5">
             <label
-              htmlFor="associate-app-select"
+              htmlFor="map-feature-select"
               className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]"
             >
-              Application
+              Feature
             </label>
             <select
-              id="associate-app-select"
-              value={selectedAppId}
+              id="map-feature-select"
+              value={selectedFeatureId}
               onChange={(e) =>
-                setSelectedAppId(e.target.value === '' ? '' : Number(e.target.value))
+                setSelectedFeatureId(e.target.value === '' ? '' : Number(e.target.value))
               }
-              disabled={loadingApps}
+              disabled={loadingFeatures}
               className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] outline-none transition-all disabled:opacity-50"
             >
-              {loadingApps ? (
-                <option value="">Loading applications…</option>
-              ) : availableApps.length === 0 ? (
-                <option value="">All applications already associated</option>
+              {loadingFeatures ? (
+                <option value="">Loading features…</option>
+              ) : availableFeatures.length === 0 ? (
+                <option value="">All features already mapped</option>
               ) : (
                 <>
-                  <option value="">Select an application…</option>
-                  {availableApps.map((app) => (
-                    <option key={app.id} value={app.id}>
-                      {app.name} ({app.category})
+                  <option value="">Select a feature…</option>
+                  {availableFeatures.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} ({f.Unit})
                     </option>
                   ))}
                 </>
@@ -203,27 +93,27 @@ const AssociateAppDialog: React.FC<AssociateAppDialogProps> = ({
             </select>
           </div>
           <div className="space-y-1.5">
-            <div className="flex justify-between">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-                Usage Limits
-              </label>
-              <span
-                className={`text-[11px] ${limitsExceeded ? 'text-[#ae001a] font-bold' : 'text-[#5f5e5e]'}`}
-              >
-                {limits.length}/50
-              </span>
-            </div>
-            <textarea
-              value={limits}
-              onChange={(e) => setLimits(e.target.value)}
-              rows={3}
-              placeholder="e.g. Up to 5 terminals, 100 users/month"
-              className={`w-full px-3 py-2 border bg-[#fef9f1] text-sm text-[#1d1c17] focus:ring-1 outline-none transition-all resize-none ${
-                limitsExceeded
-                  ? 'border-[#ae001a] focus:border-[#ae001a] focus:ring-[#ae001a]'
-                  : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-[#ae001a]'
-              }`}
+            <label
+              htmlFor="map-feature-limit"
+              className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]"
+            >
+              Assigned Cap
+            </label>
+            <input
+              id="map-feature-limit"
+              type="number"
+              min="0"
+              step="0.01"
+              value={limitValue}
+              onChange={(e) => setLimitValue(e.target.value)}
+              placeholder="e.g. 10.00"
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] outline-none transition-all"
             />
+            {limitValue.trim() !== '' && !limitIsValid && (
+              <p className="text-xs text-red-600 mt-1">
+                Enter a positive number with up to two decimal places.
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-1">
             <button
@@ -237,7 +127,7 @@ const AssociateAppDialog: React.FC<AssociateAppDialogProps> = ({
             <button
               type="button"
               onClick={() =>
-                onSave({ applicationId: selectedAppId as number, limits: limits.trim() })
+                onSave({ featureId: selectedFeatureId as number, limitValue: parsedLimit })
               }
               disabled={!isValid || submitting}
               className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -247,7 +137,7 @@ const AssociateAppDialog: React.FC<AssociateAppDialogProps> = ({
                   progress_activity
                 </span>
               )}
-              {submitting ? 'Associating…' : 'ASSOCIATE'}
+              {submitting ? 'Mapping…' : 'MAP'}
             </button>
           </div>
         </div>
@@ -256,36 +146,152 @@ const AssociateAppDialog: React.FC<AssociateAppDialogProps> = ({
   );
 };
 
-interface PlanApplicationsViewProps {
+interface EditPlanFeatureDialogProps {
+  pf: PlanFeature;
+  submitting: boolean;
+  onClose: () => void;
+  onSave: (dto: { limitValue: number }) => void;
+}
+
+const EditPlanFeatureDialog: React.FC<EditPlanFeatureDialogProps> = ({
+  pf,
+  submitting,
+  onClose,
+  onSave,
+}) => {
+  const [limitValue, setLimitValue] = React.useState(String(pf.limit_value));
+
+  const parsedLimit = Number(limitValue);
+  const limitIsValid = isValidLimitValue(limitValue);
+  const noChanges = parsedLimit === pf.limit_value;
+  const isValid = limitIsValid && !noChanges;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-lg shadow-2xl">
+        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+            EDIT PLAN-FEATURE
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/50 hover:text-white transition-colors"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="p-6 space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+              Subscription Plan
+            </label>
+            <input
+              type="text"
+              readOnly
+              title="Subscription Plan"
+              value={pf.subscriptionPlan.name}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#ece8e0] text-sm text-[#5f5e5e] cursor-not-allowed outline-none"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+              Feature
+            </label>
+            <input
+              type="text"
+              readOnly
+              title="Feature"
+              value={pf.feature.name}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#ece8e0] text-sm text-[#5f5e5e] cursor-not-allowed outline-none"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="edit-feature-limit"
+              className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]"
+            >
+              Assigned Cap
+            </label>
+            <input
+              id="edit-feature-limit"
+              type="number"
+              min="0"
+              step="0.01"
+              value={limitValue}
+              onChange={(e) => setLimitValue(e.target.value)}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] outline-none transition-all"
+            />
+            {limitValue.trim() !== '' && !limitIsValid && (
+              <p className="text-xs text-red-600 mt-1">
+                Enter a positive number with up to two decimal places.
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onSave({ limitValue: parsedLimit })}
+              disabled={!isValid || submitting}
+              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {submitting && (
+                <span className="material-symbols-outlined text-base animate-spin">
+                  progress_activity
+                </span>
+              )}
+              {submitting ? 'Saving…' : 'SAVE CHANGES'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function fuzzyMatch(query: string, target: string): boolean {
+  let qi = 0;
+  for (let i = 0; i < target.length && qi < query.length; i++) {
+    if (target[i].toLowerCase() === query[qi].toLowerCase()) qi++;
+  }
+  return qi === query.length;
+}
+
+interface PlanFeaturesViewProps {
   plan: SubscriptionPlan;
   onNavigate?: (view: string) => void;
 }
 
-export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
-  plan,
-  onNavigate,
-}) => {
-  const [planApplications, setPlanApplications] = useState<PlanApplication[]>([]);
+export const PlanFeaturesView: React.FC<PlanFeaturesViewProps> = ({ plan, onNavigate }) => {
+  const [planFeatures, setPlanFeatures] = useState<PlanFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [showAssociateModal, setShowAssociateModal] = useState(false);
-  const [availableApps, setAvailableApps] = useState<Application[]>([]);
-  const [loadingApps, setLoadingApps] = useState(false);
-  const [associateSubmitting, setAssociateSubmitting] = useState(false);
-  const [editingPA, setEditingPA] = useState<PlanApplication | null>(null);
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [availableFeatures, setAvailableFeatures] = useState<PlatformFeature[]>([]);
+  const [loadingFeatures, setLoadingFeatures] = useState(false);
+  const [mapSubmitting, setMapSubmitting] = useState(false);
+  const [editingPF, setEditingPF] = useState<PlanFeature | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [togglingPA, setTogglingPA] = useState<PlanApplication | null>(null);
+  const [togglingPF, setTogglingPF] = useState<PlanFeature | null>(null);
   const [toggleSubmitting, setToggleSubmitting] = useState(false);
 
   useEffect(() => {
     saasService
-      .getPlanApplications(plan.id)
-      .then(setPlanApplications)
+      .getPlanFeatures(plan.id)
+      .then(setPlanFeatures)
       .catch((err) => {
-        const msg = err instanceof Error ? err.message : 'Failed to load plan applications';
+        const msg = err instanceof Error ? err.message : 'Failed to load plan features';
         setFetchError(true);
         if (msg === 'SESSION_EXPIRED') {
           setToast({
@@ -305,34 +311,43 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
     return () => clearTimeout(t);
   }, [toast]);
 
-  const openAssociateModal = () => {
-    setShowAssociateModal(true);
-    setLoadingApps(true);
+  const openMapModal = () => {
+    setShowMapModal(true);
+    setLoadingFeatures(true);
     saasService
-      .getApplications()
-      .then((apps) => {
-        const associatedIds = new Set(planApplications.map((pa) => pa.application.id));
-        setAvailableApps(apps.filter((a) => !associatedIds.has(a.id)));
+      .getFeatures()
+      .then((features) => {
+        const mappedIds = new Set(planFeatures.map((pf) => pf.feature.id));
+        setAvailableFeatures(features.filter((f) => f.status === 'active' && !mappedIds.has(f.id)));
       })
-      .catch(() => setAvailableApps([]))
-      .finally(() => setLoadingApps(false));
+      .catch(() => setAvailableFeatures([]))
+      .finally(() => setLoadingFeatures(false));
   };
 
-  const handleAssociate = async (dto: { applicationId: number; limits: string }) => {
-    setAssociateSubmitting(true);
+  const handleMap = async (dto: { featureId: number; limitValue: number }) => {
+    setMapSubmitting(true);
     try {
-      const newPA = await saasService.createPlanApplication({
+      const newPF = await saasService.createPlanFeature({
         subscriptionPlan: plan.id,
-        application: dto.applicationId,
-        limits: dto.limits,
+        feature: dto.featureId,
+        limit_value: dto.limitValue,
         status: 'active',
       });
-      setPlanApplications((prev) => [newPA, ...prev]);
-      setShowAssociateModal(false);
-      setToast({ message: 'Application associated successfully', type: 'success' });
+      const selectedFeature = availableFeatures.find((f) => f.id === dto.featureId);
+      const patchedPF: PlanFeature = {
+        ...newPF,
+        feature: {
+          ...newPF.feature,
+          unit: selectedFeature?.Unit ?? newPF.feature.unit,
+          description: selectedFeature?.description ?? newPF.feature.description,
+        },
+      };
+      setPlanFeatures((prev) => [patchedPF, ...prev]);
+      setShowMapModal(false);
+      setToast({ message: 'Feature mapped successfully', type: 'success' });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to associate application';
-      setShowAssociateModal(false);
+      const msg = err instanceof Error ? err.message : 'Failed to map feature';
+      setShowMapModal(false);
       if (msg === 'SESSION_EXPIRED') {
         setToast({
           message: 'Session expired. Please refresh the page to sign in again.',
@@ -342,20 +357,30 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
         setToast({ message: msg, type: 'error' });
       }
     } finally {
-      setAssociateSubmitting(false);
+      setMapSubmitting(false);
     }
   };
 
-  const handleEdit = async (dto: { limits: string }) => {
+  const handleEdit = async (dto: { limitValue: number }) => {
     setEditSubmitting(true);
     try {
-      const updated = await saasService.updatePlanApplication(editingPA!.id, dto);
-      setPlanApplications((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setEditingPA(null);
-      setToast({ message: 'Plan-application updated successfully', type: 'success' });
+      const updated = await saasService.updatePlanFeature(editingPF!.id, {
+        limit_value: dto.limitValue,
+      });
+      const patchedUpdated: PlanFeature = {
+        ...updated,
+        feature: {
+          ...updated.feature,
+          unit: editingPF!.feature.unit,
+          description: editingPF!.feature.description,
+        },
+      };
+      setPlanFeatures((prev) => prev.map((p) => (p.id === patchedUpdated.id ? patchedUpdated : p)));
+      setEditingPF(null);
+      setToast({ message: 'Plan-feature updated successfully', type: 'success' });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to update plan-application';
-      setEditingPA(null);
+      const msg = err instanceof Error ? err.message : 'Failed to update plan-feature';
+      setEditingPF(null);
       if (msg === 'SESSION_EXPIRED') {
         setToast({
           message: 'Session expired. Please refresh the page to sign in again.',
@@ -370,20 +395,28 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
   };
 
   const handleToggleConfirm = async () => {
-    if (!togglingPA) return;
-    const nextStatus = togglingPA.status === 'active' ? 'inactive' : 'active';
+    if (!togglingPF) return;
+    const nextStatus = togglingPF.status === 'active' ? 'inactive' : 'active';
     setToggleSubmitting(true);
     try {
-      const updated = await saasService.updatePlanApplication(togglingPA.id, { status: nextStatus });
-      setPlanApplications((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setTogglingPA(null);
+      const updated = await saasService.updatePlanFeature(togglingPF.id, { status: nextStatus });
+      const patchedUpdated: PlanFeature = {
+        ...updated,
+        feature: {
+          ...updated.feature,
+          unit: togglingPF.feature.unit,
+          description: togglingPF.feature.description,
+        },
+      };
+      setPlanFeatures((prev) => prev.map((p) => (p.id === patchedUpdated.id ? patchedUpdated : p)));
+      setTogglingPF(null);
       setToast({
-        message: nextStatus === 'active' ? 'Plan-application activated successfully' : 'Plan-application deactivated successfully',
+        message: nextStatus === 'active' ? 'Feature entitlement activated successfully' : 'Feature entitlement deactivated successfully',
         type: 'success',
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to update plan-application status';
-      setTogglingPA(null);
+      const msg = err instanceof Error ? err.message : 'Failed to update feature entitlement status';
+      setTogglingPF(null);
       if (msg === 'SESSION_EXPIRED') {
         setToast({
           message: 'Session expired. Please refresh the page to sign in again.',
@@ -397,53 +430,52 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
     }
   };
 
-  const filteredApplications = useMemo(() => {
-    const term = searchQuery.toLowerCase();
-    return planApplications.filter((pa) => {
+  const filteredFeatures = useMemo(() => {
+    const term = searchQuery.trim();
+    return planFeatures.filter((pf) => {
       const matchesSearch =
         !term ||
-        pa.application.name.toLowerCase().includes(term) ||
-        pa.limits.toLowerCase().includes(term);
-      const matchesStatus = !statusFilter || pa.status === statusFilter;
+        fuzzyMatch(term, pf.feature.name) ||
+        fuzzyMatch(term, String(pf.feature.id)) ||
+        fuzzyMatch(term, pf.feature.description ?? '');
+      const matchesStatus = !statusFilter || pf.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [planApplications, searchQuery, statusFilter]);
+  }, [planFeatures, searchQuery, statusFilter]);
 
-  const hasActiveFilters = searchQuery !== '' || statusFilter !== '';
-  const isFilteredEmpty = !loading && !fetchError && planApplications.length > 0 && filteredApplications.length === 0;
+  const isFilteredEmpty =
+    !loading && !fetchError && planFeatures.length > 0 && filteredFeatures.length === 0;
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Dark Title Card */}
+      {/* Dark Title Banner (AC2) */}
       <div className="bg-[#222222] px-6 py-4">
         <span className="text-[11px] font-bold uppercase tracking-widest text-white">
-          APPLICATIONS BOUND TO PLAN: {plan.name}
+          FEATURE ENTITLEMENTS BOUND TO PLAN: {plan.name}
         </span>
       </div>
 
-      {/* Empty State (no apps at all) */}
-      {!loading && !fetchError && planApplications.length === 0 && (
+      {/* Empty State (AC4) */}
+      {!loading && !fetchError && planFeatures.length === 0 && (
         <div
           data-testid="empty-state"
           className="flex flex-col items-center justify-center py-24 gap-6"
         >
-          <span className="material-symbols-outlined text-[#5f5e5e] text-[72px]">
-            app_registration
-          </span>
+          <span className="material-symbols-outlined text-[#5f5e5e] text-[72px]">tune</span>
           <div className="text-center">
-            <h3 className="text-xl font-bold text-[#1d1c17]">No Applications Linked</h3>
+            <h3 className="text-xl font-bold text-[#1d1c17]">No Features Mapped</h3>
             <p className="text-sm text-[#5f5e5e] mt-2 max-w-md text-center">
-              This subscription plan currently has no applications linked.
-              Click &apos;Associate Application&apos; to bundle your first software module.
+              This subscription plan currently has no features or limits mapped.
+              Click &apos;Map Feature&apos; to establish your first entitlement rule.
             </p>
           </div>
           <button
             type="button"
-            onClick={openAssociateModal}
+            onClick={openMapModal}
             className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
           >
             <span className="material-symbols-outlined text-base">add_link</span>
-            ASSOCIATE APPLICATION
+            MAP FEATURE
           </button>
           <button
             type="button"
@@ -456,18 +488,17 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
       )}
 
       {/* Table */}
-      {(loading || planApplications.length > 0) && (
+      {(loading || planFeatures.length > 0) && (
         <div className="bg-white border border-[#e8e2d8] overflow-hidden">
           <div className="px-4 py-3 bg-[#222222] flex justify-between items-center">
             <span className="text-[11px] font-bold uppercase tracking-widest text-white">
-              BOUND APPLICATIONS
+              BOUND FEATURES
             </span>
             <span className="text-white/50 text-xs">
-              {loading ? '...' : `${planApplications.length} entries`}
+              {loading ? '...' : `${planFeatures.length} entries`}
             </span>
           </div>
 
-          {/* Filter Controls Row (AC 1) */}
           {!loading && (
             <div className="px-4 py-3 border-b border-[#e8e2d8] bg-[#f8f3eb] flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
@@ -476,7 +507,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                 </span>
                 <input
                   type="text"
-                  placeholder="Search by application or constraints…"
+                  placeholder="Search by name, ID, or description…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm border border-[#e8e2d8] bg-white text-[#1d1c17] placeholder:text-[#5f5e5e] focus:outline-none focus:border-[#ae001a]"
@@ -484,62 +515,60 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <label
-                  htmlFor="status-filter"
+                  htmlFor="pf-status-filter"
                   className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e] whitespace-nowrap"
                 >
-                  Relationship Status
+                  Entitlement Status
                 </label>
                 <select
-                  id="status-filter"
+                  id="pf-status-filter"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="text-sm border border-[#e8e2d8] bg-white text-[#1d1c17] px-3 py-2 focus:outline-none focus:border-[#ae001a]"
                 >
                   <option value="">All</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="active">Active only</option>
+                  <option value="inactive">Inactive only</option>
                 </select>
               </div>
               <button
                 type="button"
-                onClick={openAssociateModal}
+                onClick={openMapModal}
                 className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
               >
                 <span className="material-symbols-outlined text-base">add_link</span>
-                ASSOCIATE APPLICATION
+                MAP FEATURE
               </button>
             </div>
           )}
 
-          {/* Empty filter result (AC 4) */}
           {isFilteredEmpty && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <span className="material-symbols-outlined text-[#5f5e5e] text-[48px]">
                 filter_alt_off
               </span>
               <p className="text-sm font-semibold text-[#5f5e5e]">
-                No application associations match your active filters
+                No feature entitlements match your active filtering parameters
               </p>
             </div>
           )}
 
-          {/* Data grid */}
           {!isFilteredEmpty && (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                   <tr>
                     <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-                      Linked Application &amp; ID
+                      Feature Identity
                     </th>
                     <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-                      Software Category
+                      Measurement Unit
                     </th>
-                    <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-                      Usage Restrictions
+                    <th className="px-6 py-3 text-right text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                      Assigned Cap
                     </th>
                     <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-                      Association Status
+                      Entitlement Status
                     </th>
                     <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
                       Actions
@@ -554,10 +583,10 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                             <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-40" />
                           </td>
                           <td className="px-6 py-4">
-                            <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-24" />
+                            <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-16" />
                           </td>
                           <td className="px-6 py-4">
-                            <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-48" />
+                            <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20 ml-auto" />
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-14 mx-auto" />
@@ -565,33 +594,31 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                           <td className="px-6 py-4" />
                         </tr>
                       ))
-                    : filteredApplications.map((pa) => (
+                    : filteredFeatures.map((pf) => (
                         <tr
-                          key={pa.id}
-                          className="group hover:bg-[#f8f3eb] transition-colors"
+                          key={pf.id}
+                          className={`group hover:bg-[#f8f3eb] transition-colors ${
+                            pf.status !== 'active' ? 'opacity-75' : ''
+                          }`}
                         >
                           <td className="px-6 py-4">
-                            <p className="font-bold text-[#1d1c17]">{pa.application.name}</p>
+                            <p className="font-bold text-[#1d1c17]">{pf.feature.name}</p>
                             <code className="font-mono text-[11px] text-[#5f5e5e] bg-[#f2ede5] px-1.5 py-0.5 rounded">
-                              {pa.application.id}
+                              {pf.feature.id}
                             </code>
                           </td>
                           <td className="px-6 py-4">
-                            {pa.application.category !== pa.application.name ? (
-                              <span className="bg-[#f2ede5] border border-[#e8e2d8] text-[#1d1c17] text-[10px] font-bold uppercase px-2 py-0.5 rounded">
-                                {pa.application.category}
-                              </span>
-                            ) : (
-                              <span className="bg-[#f2ede5] border border-[#e8e2d8] text-[#1d1c17] text-[10px] font-bold uppercase px-2 py-0.5 rounded" aria-label={pa.application.category}>
-                                {pa.application.category.toUpperCase()}
-                              </span>
-                            )}
+                            <span className="font-mono text-xs text-[#5f5e5e]">
+                              [{pf.feature.unit}]
+                            </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm text-[#5f5e5e]">{pa.limits}</p>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-sm font-semibold text-[#1d1c17]">
+                              {Number(pf.limit_value).toFixed(2)}
+                            </span>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            {pa.status === 'active' ? (
+                            {pf.status === 'active' ? (
                               <span className="bg-green-500/10 text-green-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                                 active
                               </span>
@@ -605,16 +632,16 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                             <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 type="button"
-                                aria-label={`Edit ${pa.application.name}`}
-                                onClick={() => setEditingPA(pa)}
+                                aria-label={`Edit ${pf.feature.name}`}
+                                onClick={() => setEditingPF(pf)}
                                 className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors"
                               >
                                 <span className="material-symbols-outlined text-[20px]">edit</span>
                               </button>
                               <StatusToggleButton
-                                status={pa.status}
-                                entityLabel={pa.application.name}
-                                onClick={() => setTogglingPA(pa)}
+                                status={pf.status}
+                                entityLabel={pf.feature.name}
+                                onClick={() => setTogglingPF(pf)}
                               />
                             </div>
                           </td>
@@ -631,9 +658,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
       <div className="bg-[#2a2a2a] rounded-xl p-8 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
           <h3 className="!text-white font-bold text-base">Quick Launch</h3>
-          <p className="text-white/60 text-sm">
-            Navigation shortcuts for plan management.
-          </p>
+          <p className="text-white/60 text-sm">Navigation shortcuts for plan management.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <button
@@ -666,7 +691,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer (AC1) */}
       <footer className="flex flex-col md:flex-row justify-between items-center border-t border-[#e8e2d8] pt-5 mt-2 mb-8">
         <button
           type="button"
@@ -684,39 +709,39 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
       {!fetchError && (
         <button
           type="button"
-          aria-label="Open associate-application form"
-          onClick={openAssociateModal}
+          aria-label="Open map-feature form"
+          onClick={openMapModal}
           className="fixed bottom-8 right-8 w-14 h-14 bg-[#ae001a] text-white rounded-full flex items-center justify-center shadow-xl hover:bg-[#930015] transition-all transform hover:scale-110 active:scale-95 z-50"
         >
           <span className="material-symbols-outlined text-3xl">add</span>
         </button>
       )}
 
-      {/* Associate Application Modal */}
-      {showAssociateModal && (
-        <AssociateAppDialog
+      {/* Modals */}
+      {showMapModal && (
+        <MapFeatureDialog
           plan={plan}
-          availableApps={availableApps}
-          loadingApps={loadingApps}
-          submitting={associateSubmitting}
-          onClose={() => setShowAssociateModal(false)}
-          onSave={handleAssociate}
+          availableFeatures={availableFeatures}
+          loadingFeatures={loadingFeatures}
+          submitting={mapSubmitting}
+          onClose={() => setShowMapModal(false)}
+          onSave={handleMap}
         />
       )}
-      {editingPA && (
-        <EditPlanApplicationDialog
-          pa={editingPA}
+      {editingPF && (
+        <EditPlanFeatureDialog
+          pf={editingPF}
           submitting={editSubmitting}
-          onClose={() => setEditingPA(null)}
+          onClose={() => setEditingPF(null)}
           onSave={handleEdit}
         />
       )}
-      {togglingPA && (
+      {togglingPF && (
         <ConfirmStatusToggleDialog
-          entityName={togglingPA.application.name}
-          direction={togglingPA.status === 'active' ? 'deactivate' : 'activate'}
+          entityName={togglingPF.feature.name}
+          direction={togglingPF.status === 'active' ? 'deactivate' : 'activate'}
           submitting={toggleSubmitting}
-          onClose={() => setTogglingPA(null)}
+          onClose={() => setTogglingPF(null)}
           onConfirm={handleToggleConfirm}
         />
       )}
@@ -745,4 +770,4 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
   );
 };
 
-export default PlanApplicationsView;
+export default PlanFeaturesView;

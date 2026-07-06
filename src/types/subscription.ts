@@ -17,11 +17,11 @@ export interface CreateSubscriptionPlanDto {
 }
 
 export interface UpdateSubscriptionPlanDto {
-  name: string;
-  description: string;
-  price: number;
-  billingCycle: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  status: 'active' | 'inactive';
+  name?: string;
+  description?: string;
+  price?: number;
+  billingCycle?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  status?: 'active' | 'inactive';
 }
 
 export interface CreatePlanApplicationDto {
@@ -32,8 +32,8 @@ export interface CreatePlanApplicationDto {
 }
 
 export interface UpdatePlanApplicationDto {
-  limits: string;
-  status: 'active' | 'inactive';
+  limits?: string;
+  status?: 'active' | 'inactive';
 }
 
 export interface Application {
@@ -58,4 +58,24 @@ export interface PlanApplication {
   application: { id: number; name: string; category: string };
   limits: string;
   status: string;
+}
+
+export interface PlanFeature {
+  id: number;
+  subscriptionPlan: { id: number; name: string };
+  feature: { id: number; name: string; unit: string; description: string };
+  limit_value: number;
+  status: string;
+}
+
+export interface CreatePlanFeatureDto {
+  subscriptionPlan: number;
+  feature: number;
+  limit_value: number;
+  status: 'active';
+}
+
+export interface UpdatePlanFeatureDto {
+  limit_value?: number;
+  status?: 'active' | 'inactive';
 }

@@ -593,17 +593,48 @@ describe('PlanApplicationsView — edit modal fields (AC 2)', () => {
     );
   });
 
-  it('pre-selects the Association Status dropdown with the current status', async () => {
-    const user = userEvent.setup();
+});
+
+describe('PlanApplicationsView — status toggle', () => {
+  it('renders a Deactivate button for an active association and an Activate button for inactive', async () => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue([
+      { id: 1, subscriptionPlan: { id: 3, name: 'Gold Plan' }, application: { id: 5, name: 'POS Core', category: 'POS Core' }, limits: 'Up to 5 terminals', status: 'active' },
+      { id: 2, subscriptionPlan: { id: 3, name: 'Gold Plan' }, application: { id: 6, name: 'KDS', category: 'Kitchen' }, limits: 'Up to 2 displays', status: 'inactive' },
+    ]);
     render(<PlanApplicationsView plan={MOCK_PLAN} />);
     await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Deactivate POS Core' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Activate KDS' })).toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
-
+  it('deactivates an active association after confirming', async () => {
+    const user = userEvent.setup();
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue([
+      { id: 1, subscriptionPlan: { id: 3, name: 'Gold Plan' }, application: { id: 5, name: 'POS Core', category: 'POS Core' }, limits: 'Up to 5 terminals', status: 'active' },
+    ]);
+    vi.mocked(saasService.updatePlanApplication).mockResolvedValue({
+      id: 1, subscriptionPlan: { id: 3, name: 'Gold Plan' }, application: { id: 5, name: 'POS Core', category: 'POS Core' }, limits: 'Up to 5 terminals', status: 'inactive',
+    });
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Deactivate POS Core' }));
+    await user.click(screen.getByRole('button', { name: /^deactivate$/i }));
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: /association status/i })).toBeInTheDocument(),
+      expect(saasService.updatePlanApplication).toHaveBeenCalledWith(1, { status: 'inactive' }),
     );
-    expect(screen.getByRole('combobox', { name: /association status/i })).toHaveValue('active');
+  });
+});
+
+describe('PlanApplicationsView — Edit no longer touches status', () => {
+  it('does not render an Association Status field in the Edit dialog', async () => {
+    const user = userEvent.setup();
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue([
+      { id: 1, subscriptionPlan: { id: 3, name: 'Gold Plan' }, application: { id: 5, name: 'POS Core', category: 'POS Core' }, limits: 'Up to 5 terminals', status: 'active' },
+    ]);
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Edit POS Core' }));
+    expect(screen.queryByLabelText('Association Status')).not.toBeInTheDocument();
   });
 });
 
@@ -633,10 +664,6 @@ describe('PlanApplicationsView — edit happy path (AC 3)', () => {
     await user.type(
       screen.getByPlaceholderText(/Up to 5 terminals/i),
       'Updated limit',
-    );
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: /association status/i }),
-      'inactive',
     );
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
