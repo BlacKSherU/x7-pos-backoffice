@@ -43,6 +43,7 @@ import { CategoriesView } from './views/CategoriesView';
 import { ProductsView } from './views/ProductsView';
 import { VariantsView } from './views/VariantsView';
 import { ModifiersView } from './views/ModifiersView';
+import { SuppliersView } from './views/SuppliersView';
 import { MerchantDirectoryView } from './views/MerchantDirectoryView';
 import { CompanyProfileView } from './views/CompanyProfileView';
 import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
@@ -249,8 +250,18 @@ export const MerchantFrame: React.FC = () => {
   useEffect(() => {
     const rootEl = document.getElementById('root');
     const bodyEl = document.body;
-    // Modo SaaS si el rol es SaaS Owner o si el tab es el dashboard de SaaS
-    const isSaaSTab = profile?.role === 'SaaS Owner' || activeTab === 'saas-dashboard';
+    // Modo SaaS si el rol es SaaS Owner, si el tab es exclusivo de SaaS, o si la categoría activa es saas
+    const exclusiveSaaS = [
+      'saas-dashboard',
+      'companies-dashboard',
+      'apps-config',
+      'features-control',
+      'plan-apps-rules',
+      'plan-features-mapping',
+      'sub-plans-core',
+      'sub-apps-mapping'
+    ];
+    const isSaaSTab = profile?.role === 'SaaS Owner' || exclusiveSaaS.includes(activeTab) || activeCategory === 'saas';
 
     if (isSaaSTab) {
       rootEl?.classList.remove('restaurant-active');
@@ -442,6 +453,10 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'company-configurations') {
       return <CompanyConfigurationsView />;
+    }
+
+    if (activeTab === 'suppliers' || activeTab === 'suppliers-management') {
+      return <SuppliersView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
     }
 
     if (activeTab !== 'dashboard') {
@@ -928,6 +943,9 @@ export const MerchantFrame: React.FC = () => {
                   if (role === 'SaaS Owner') {
                     setActiveCategory('saas');
                     setActiveTab('saas-dashboard');
+                  } else if (role === 'Super Admin (All Access)') {
+                    setActiveCategory('core');
+                    setActiveTab('dashboard');
                   } else {
                     setActiveCategory('core');
                     setActiveTab('dashboard');
@@ -938,6 +956,7 @@ export const MerchantFrame: React.FC = () => {
               >
                 <option value="General Manager">General Manager (Merchant)</option>
                 <option value="SaaS Owner">SaaS Owner (Platform SaaS)</option>
+                <option value="Super Admin (All Access)">Super Admin (All Access)</option>
               </select>
             </div>
 

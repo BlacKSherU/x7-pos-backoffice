@@ -3,6 +3,7 @@ export interface UserProfile {
   role: string;
   portraitUrl: string;
   Plan_id: number;
+  company_id?: number;
 }
 
 export interface SalesData {
@@ -263,7 +264,8 @@ window.fetch = async function (input, _init) {
         portraitUrl: currentSimulationRole === 'SaaS Owner' 
           ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&q=80' 
           : 'https://images.unsplash.com/photo-1579038773843-c5a52b90ea0a?w=80&h=80&fit=crop&q=80',
-        Plan_id: currentSimulationPlanId
+        Plan_id: currentSimulationPlanId,
+        company_id: 1
       };
       return new Response(JSON.stringify(profile), {
         status: 200,

@@ -60,6 +60,7 @@ export const navigationService = {
       });
 
       const isSaaSMode = userRole === 'SaaS Owner';
+      const isGodMode = userRole === 'Super Admin (All Access)' || userRole === 'God Mode';
 
       // 2. Parsear y filtrar características (L3)
       const features: NavFeature[] = featsData
@@ -75,6 +76,10 @@ export const navigationService = {
         })
         .filter((f): f is NavFeature => f !== null)
         .filter(f => {
+          if (isGodMode) {
+            // El rol Super Admin (All Access) ve absolutamente todas las opciones de menú
+            return true;
+          }
           if (isSaaSMode) {
             // SaaS Owner ve únicamente características marcadas como SaaS
             return f.isSaaS;
