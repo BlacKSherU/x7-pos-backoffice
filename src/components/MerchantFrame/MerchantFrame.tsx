@@ -49,6 +49,10 @@ import { TaxRulesView } from './views/TaxRulesView';
 import { TipRulesView } from './views/TipRulesView';
 import { OvertimeRulesView } from './views/OvertimeRulesView';
 import { PayrollRulesView } from './views/PayrollRulesView';
+import { SuppliersView } from './views/SuppliersView';
+import { MerchantDirectoryView } from './views/MerchantDirectoryView';
+import { CompanyProfileView } from './views/CompanyProfileView';
+import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
 import { clearAuthSession } from '../../lib/auth-storage';
 
 export const MerchantFrame: React.FC = () => {
@@ -99,9 +103,22 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/dashboard/categories') {
       setActiveCategory('inventory');
       setActiveTab('categories');
+    } else if (path === '/dashboard/merchants') {
+      setActiveCategory('platformsaas');
+      setActiveTab('merchant-directory');
+    } else if (path === '/dashboard/company-profile') {
+      setActiveCategory('platformsaas');
+      setActiveTab('company-profile');
+    } else if (path === '/dashboard/company-configurations') {
+      setActiveCategory('platformsaas');
+      setActiveTab('company-configurations');
     } else if (path === '/dashboard') {
       const stateTab = location.state?.activeTab;
       const stateCategory = location.state?.activeCategory;
+      const stateMerchantId = location.state?.merchantId;
+      if (stateMerchantId != null) {
+        sessionStorage.setItem('x7:branch-context', String(stateMerchantId));
+      }
       if (stateTab && stateCategory) {
         setActiveCategory(stateCategory);
         setActiveTab(stateTab);
@@ -198,8 +215,25 @@ export const MerchantFrame: React.FC = () => {
       if (userProfile.role === 'SaaS Owner') {
         setActiveTab('saas-dashboard');
       } else {
-        // Para Merchant User, si el tab activo es exclusivo de SaaS, redirigir al dashboard
-        if (activeTab === 'saas-dashboard') {
+        const isSaaSTab = [
+          'saas-dashboard',
+          'subscription',
+          'companies',
+          'merchants',
+          'users',
+          'reports',
+        ].includes(activeTab);
+
+        const merchantCompanyPaths = [
+          '/dashboard/company-profile',
+          '/dashboard/company-configurations',
+          '/dashboard/merchants',
+        ];
+        const isMerchantCompanyRoute = merchantCompanyPaths.includes(
+          location.pathname,
+        );
+
+        if ((activeCategory === 'saas' || isSaaSTab) && !isMerchantCompanyRoute) {
           setActiveCategory('core');
           setActiveTab('dashboard');
         }
@@ -239,8 +273,18 @@ export const MerchantFrame: React.FC = () => {
   useEffect(() => {
     const rootEl = document.getElementById('root');
     const bodyEl = document.body;
-    // Modo SaaS si el rol es SaaS Owner o si el tab es el dashboard de SaaS
-    const isSaaSTab = profile?.role === 'SaaS Owner' || activeTab === 'saas-dashboard';
+    // Modo SaaS si el rol es SaaS Owner, si el tab es exclusivo de SaaS, o si la categoría activa es saas
+    const exclusiveSaaS = [
+      'saas-dashboard',
+      'companies-dashboard',
+      'apps-config',
+      'features-control',
+      'plan-apps-rules',
+      'plan-features-mapping',
+      'sub-plans-core',
+      'sub-apps-mapping'
+    ];
+    const isSaaSTab = profile?.role === 'SaaS Owner' || exclusiveSaaS.includes(activeTab) || activeCategory === 'saas';
 
     if (isSaaSTab) {
       rootEl?.classList.remove('restaurant-active');
@@ -442,12 +486,27 @@ export const MerchantFrame: React.FC = () => {
       return <PlanFeaturesView plan={selectedPlan} onNavigate={handleNavigateView} />;
     }
 
+    if (activeTab === 'merchant-directory') {
+      return <MerchantDirectoryView />;
+    }
+
+    if (activeTab === 'company-profile') {
+      return <CompanyProfileView />;
+    }
+
+    if (activeTab === 'company-configurations') {
+      return <CompanyConfigurationsView />;
+    }
+
+    if (activeTab === 'suppliers' || activeTab === 'suppliers-management') {
+      return <SuppliersView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
     if (activeTab !== 'dashboard') {
       // Resolver nombre e icono dinámicamente desde navCategories
       let featureName = activeTab.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       let featureIcon = 'widgets';
       let appName = '';
-      let catIcon = 'grid_view';
 
       for (const cat of navCategories) {
         for (const app of cat.applications) {
@@ -456,7 +515,6 @@ export const MerchantFrame: React.FC = () => {
             featureName = feat.name;
             featureIcon = cat.icon;
             appName = app.name;
-            catIcon = cat.icon;
             break;
           }
         }
@@ -787,6 +845,12 @@ export const MerchantFrame: React.FC = () => {
                                           navigate('/dashboard/products');
                                         } else if (feat.id === 'categories') {
                                           navigate('/dashboard/categories');
+                                        } else if (feat.id === 'merchant-directory') {
+                                          navigate('/dashboard/merchants');
+                                        } else if (feat.id === 'company-profile') {
+                                          navigate('/dashboard/company-profile');
+                                        } else if (feat.id === 'company-configurations') {
+                                          navigate('/dashboard/company-configurations');
                                         } else {
                                           navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
                                         }
@@ -923,6 +987,9 @@ export const MerchantFrame: React.FC = () => {
                   if (role === 'SaaS Owner') {
                     setActiveCategory('saas');
                     setActiveTab('saas-dashboard');
+                  } else if (role === 'Super Admin (All Access)') {
+                    setActiveCategory('core');
+                    setActiveTab('dashboard');
                   } else {
                     setActiveCategory('core');
                     setActiveTab('dashboard');
@@ -933,6 +1000,7 @@ export const MerchantFrame: React.FC = () => {
               >
                 <option value="General Manager">General Manager (Merchant)</option>
                 <option value="SaaS Owner">SaaS Owner (Platform SaaS)</option>
+                <option value="Super Admin (All Access)">Super Admin (All Access)</option>
               </select>
             </div>
 

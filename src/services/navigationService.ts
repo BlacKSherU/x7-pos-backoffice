@@ -31,6 +31,12 @@ const parseTextFile = (text: string): string[][] => {
     .map(line => line.split('|'));
 };
 
+const MERCHANT_COMPANY_FEATURE_IDS = new Set([
+  'company-profile',
+  'company-configurations',
+  'merchant-directory',
+]);
+
 export const navigationService = {
   async loadAndParseNavigation(userPlanId: number, userRole: string): Promise<NavCategory[]> {
     try {
@@ -54,6 +60,7 @@ export const navigationService = {
       });
 
       const isSaaSMode = userRole === 'SaaS Owner';
+      const isGodMode = userRole === 'Super Admin (All Access)' || userRole === 'God Mode';
 
       // 2. Parsear y filtrar características (L3)
       const features: NavFeature[] = featsData
@@ -69,11 +76,19 @@ export const navigationService = {
         })
         .filter((f): f is NavFeature => f !== null)
         .filter(f => {
+          if (isGodMode) {
+            // El rol Super Admin (All Access) ve absolutamente todas las opciones de menú
+            return true;
+          }
           if (isSaaSMode) {
             // SaaS Owner ve únicamente características marcadas como SaaS
             return f.isSaaS;
           } else {
-            // Merchant ve características si no son exclusivas del SaaS Owner (e.g., config del core de saas) y entran en su plan
+            // Admin de company/merchants: visible en todos los planes de merchant
+            if (MERCHANT_COMPANY_FEATURE_IDS.has(f.id)) {
+              return true;
+            }
+            // Merchant ve características si no son exclusivas del SaaS Owner y entran en su plan
             const exclusiveSaaS = [
               'saas-dashboard',
               'companies-dashboard',

@@ -273,7 +273,7 @@ export function LoginPage() {
               className="text-primary-container font-bold hover:underline"
               to="/register"
             >
-              Logon
+              Register
             </Link>
           </p>
         </div>
