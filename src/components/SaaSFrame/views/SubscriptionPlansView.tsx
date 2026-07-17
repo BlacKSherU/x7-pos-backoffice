@@ -227,7 +227,7 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
           data-testid="empty-state"
           className="flex flex-col items-center justify-center py-24 gap-6"
         >
-          <span className="material-symbols-outlined text-[#5f5e5e]" style={{ fontSize: '72px' }}>
+          <span className="material-symbols-outlined text-[#5f5e5e] text-[72px]">
             inventory_2
           </span>
           <div className="text-center">
@@ -666,6 +666,7 @@ const AddPlanModal: React.FC<ModalProps> = ({
               Billing Cycle <span className="text-[#ae001a]">*</span>
             </label>
             <select
+              aria-label="Billing Cycle"
               value={form.billingCycle}
               onChange={(e) =>
                 setForm((f) => ({

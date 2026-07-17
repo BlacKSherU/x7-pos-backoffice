@@ -37,12 +37,18 @@ import { SubscriptionPlansView } from '../SaaSFrame/views/SubscriptionPlansView'
 import { PlatformApplicationsView } from '../SaaSFrame/views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from '../SaaSFrame/views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from '../SaaSFrame/views/PlanApplicationsView';
+import { PlanFeaturesView } from '../SaaSFrame/views/PlanFeaturesView';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
+import type { SubscriptionPlan } from '../../types/subscription';
 
 import { CategoriesView } from './views/CategoriesView';
 import { ProductsView } from './views/ProductsView';
 import { VariantsView } from './views/VariantsView';
 import { ModifiersView } from './views/ModifiersView';
+import { TaxRulesView } from './views/TaxRulesView';
+import { TipRulesView } from './views/TipRulesView';
+import { OvertimeRulesView } from './views/OvertimeRulesView';
+import { PayrollRulesView } from './views/PayrollRulesView';
 import { clearAuthSession } from '../../lib/auth-storage';
 
 export const MerchantFrame: React.FC = () => {
@@ -57,6 +63,23 @@ export const MerchantFrame: React.FC = () => {
   // Estados de navegación SPA
   const [activeCategory, setActiveCategory] = useState<string>('saas'); // Categoria activa
   const [activeTab, setActiveTab] = useState<string>('saas-dashboard'); // Sub-item o vista activa
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+
+  // Traduce los nombres de tab internos de las vistas SaaS compartidas (SaaSFrame)
+  // a los tab ids reales de MerchantFrame (definidos en Features.txt), ya que ambos
+  // shells reusan los mismos componentes de vista con vocabularios de navegación distintos.
+  const SAAS_VIEW_TAB_MAP: Record<string, string> = {
+    'subscription': 'sub-plans-core',
+    'subscription-applications': 'apps-config',
+    'subscription-features': 'features-control',
+    'subscription-plan-applications': 'plan-apps-rules',
+    'subscription-plan-features': 'plan-features-mapping',
+  };
+
+  const handleNavigateView = (view: string, plan?: SubscriptionPlan) => {
+    if (plan) setSelectedPlan(plan);
+    setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
+  };
 
   // Sincronizar ruta de navegador física con el estado de navegación interna SPA
   useEffect(() => {
@@ -383,20 +406,40 @@ export const MerchantFrame: React.FC = () => {
       return <VariantsView />;
     }
 
+    if (activeTab === 'merchant-tax-rules') {
+      return <TaxRulesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'merchant-tips-rules') {
+      return <TipRulesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'merchant-overtime-rules') {
+      return <OvertimeRulesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'merchant-payroll-rules') {
+      return <PayrollRulesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
     if (activeTab === 'sub-plans-core') {
-      return <SubscriptionPlansView />;
+      return <SubscriptionPlansView onNavigate={handleNavigateView} />;
     }
 
     if (activeTab === 'apps-config') {
-      return <PlatformApplicationsView />;
+      return <PlatformApplicationsView onNavigate={handleNavigateView} />;
     }
 
     if (activeTab === 'features-control') {
-      return <PlatformFeatureCatalogView />;
+      return <PlatformFeatureCatalogView onNavigate={handleNavigateView} />;
     }
 
     if (activeTab === 'plan-apps-rules') {
-      return <PlanApplicationsView />;
+      return <PlanApplicationsView plan={selectedPlan ?? undefined} onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'plan-features-mapping' && selectedPlan) {
+      return <PlanFeaturesView plan={selectedPlan} onNavigate={handleNavigateView} />;
     }
 
     if (activeTab !== 'dashboard') {
@@ -872,6 +915,7 @@ export const MerchantFrame: React.FC = () => {
             <div className="border-t border-white/10 pt-2">
               <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Role / Environment</p>
               <select
+                aria-label="Role / Environment"
                 value={profile?.role || 'General Manager'}
                 onChange={(e) => {
                   const role = e.target.value;
@@ -897,6 +941,7 @@ export const MerchantFrame: React.FC = () => {
               <div className="border-t border-white/10 pt-2">
                 <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
                 <select
+                  aria-label="Merchant Plan (Tier)"
                   value={profile?.Plan_id || 2}
                   onChange={(e) => {
                     const planId = parseInt(e.target.value);
