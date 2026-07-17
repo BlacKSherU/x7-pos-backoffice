@@ -81,6 +81,15 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   } else if (activeTab === 'categories') {
     parentAppName = 'Product/Inventory System';
     activeFeatureName = 'Categories';
+  } else if (activeTab === 'stock-movements') {
+    parentAppName = 'Product/Inventory System';
+    activeFeatureName = 'Stock and Stock Movements Management';
+  } else if (activeTab === 'locations') {
+    parentAppName = 'Product/Inventory System';
+    activeFeatureName = 'Inventory Locations';
+  } else if (activeTab === 'purchase-orders') {
+    parentAppName = 'Product/Inventory System';
+    activeFeatureName = 'Purchase Orders';
   } else if (activeTab === 'merchant-directory') {
     parentAppName = 'Platform SaaS';
     activeFeatureName = 'Merchants';
@@ -112,6 +121,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Categories';
   } else if (activeTab === 'products') {
     friendlyTitle = 'Products';
+  } else if (activeTab === 'stock-movements') {
+    friendlyTitle = 'Stock and Stock Movements Management';
+  } else if (activeTab === 'locations') {
+    friendlyTitle = 'Inventory Locations';
+  } else if (activeTab === 'purchase-orders') {
+    friendlyTitle = 'Purchase Orders';
   } else if (activeTab === 'merchant-directory') {
     friendlyTitle = 'Merchant Directory';
   } else if (activeTab === 'company-profile') {

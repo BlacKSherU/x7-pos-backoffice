@@ -39,19 +39,25 @@ import { PlatformFeatureCatalogView } from '../SaaSFrame/views/PlatformFeatureCa
 import { PlanApplicationsView } from '../SaaSFrame/views/PlanApplicationsView';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
 
-import { CategoriesView } from './views/CategoriesView';
-import { ProductsView } from './views/ProductsView';
-import { VariantsView } from './views/VariantsView';
-import { ModifiersView } from './views/ModifiersView';
+import { CategoriesView } from './views/products-inventory/category/CategoriesView';
+import { ProductsView } from './views/products-inventory/products/ProductsView';
+import { VariantsView } from './views/products-inventory/variants/VariantsView';
+import { ModifiersView } from './views/products-inventory/modifiers/ModifiersView';
 import { SuppliersView } from './views/SuppliersView';
+import { LocationsView } from './views/products-inventory/stocks/locations/LocationsView';
+import { PurchaseOrdersView } from './views/products-inventory/purchase-order/PurchaseOrdersView';
+import { StockInventoryView } from './views/products-inventory/stocks/items/StockInventoryView';
 import { MerchantDirectoryView } from './views/MerchantDirectoryView';
 import { CompanyProfileView } from './views/CompanyProfileView';
 import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
+import { MovementsView } from './views/products-inventory/stocks/movements/MovementsView';
 import { clearAuthSession } from '../../lib/auth-storage';
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+
+
 
   // Estados de carga e inicialización de sesión
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -412,19 +418,19 @@ export const MerchantFrame: React.FC = () => {
     }
 
     if (activeTab === 'categories') {
-      return <CategoriesView />;
+      return <CategoriesView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'products') {
-      return <ProductsView />;
+      return <ProductsView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'modifiers') {
-      return <ModifiersView />;
+      return <ModifiersView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'variants') {
-      return <VariantsView />;
+      return <VariantsView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'sub-plans-core') {
@@ -455,8 +461,24 @@ export const MerchantFrame: React.FC = () => {
       return <CompanyConfigurationsView />;
     }
 
-    if (activeTab === 'suppliers' || activeTab === 'suppliers-management') {
+    if (activeTab === 'suppliers') {
       return <SuppliersView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'locations') {
+      return <LocationsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'purchase-orders') {
+      return <PurchaseOrdersView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'stock-movements') {
+      return <StockInventoryView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'movements') {
+      return <MovementsView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab !== 'dashboard') {
@@ -878,11 +900,10 @@ export const MerchantFrame: React.FC = () => {
         }}
       />
 
-      {/* Main Content Area */}
       <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto bg-[#f1ece4] p-8 custom-scrollbar transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'left-0' : 'left-64'
       }`}>
-        <div className="max-w-7xl mx-auto min-h-full flex flex-col justify-between">
+        <div className="w-full min-h-full flex flex-col justify-between">
           <div className="flex-grow space-y-8 pb-8">
             {renderSPAView()}
           </div>

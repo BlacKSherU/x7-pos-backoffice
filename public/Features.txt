@@ -50,6 +50,7 @@ products|Product Management Matrix|products-inventory|1|0
 purchase-orders|Purchase Orders Management|products-inventory|2|0
 stock-movements|Stock and Stock Movements Management|products-inventory|2|0
 suppliers-management|Suppliers Management Link|products-inventory|2|0
+locations|Inventory Locations|products-inventory|2|0
 variants|Variants Management|products-inventory|1|0
 floor-plans|Floor plans designer|dining-system|2|0
 table-assignments|Table assignments matrix|dining-system|2|0

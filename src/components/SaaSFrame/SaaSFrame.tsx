@@ -9,6 +9,7 @@ import logoX7 from '../../assets/logo-x7.png';
 import { PlatformApplicationsView } from './views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from './views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from './views/PlanApplicationsView';
+import { PlanFeaturesView } from './views/PlanFeaturesView';
 import type { SubscriptionPlan } from '../../types/subscription';
 
 export const SaaSFrame: React.FC = () => {

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../shared/QuickLaunchPanel';
+import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
+import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Category {
   id: string;
@@ -12,7 +13,11 @@ interface Category {
   status: 'Active' | 'Inactive';
 }
 
-export const CategoriesView: React.FC = () => {
+interface CategoriesViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +36,21 @@ export const CategoriesView: React.FC = () => {
   const [formParent, setFormParent] = useState<string>('NULL');
   const [formStatus, setFormStatus] = useState<'Active' | 'Inactive'>('Active');
   const [formLinkedProducts, setFormLinkedProducts] = useState<number>(0);
+  const [isSupportOpen, setIsSupportOpen] = useState<boolean>(false);
+  // Estados para modal de confirmación de activación/desactivación
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
+  const [confirmTargetCategory, setConfirmTargetCategory] = useState<Category | null>(null);
+  const [isToggling, setIsToggling] = useState<boolean>(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  const topRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll al inicio al montar la vista
+  useEffect(() => {
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'instant' });
+    }
+  }, []);
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -131,6 +151,52 @@ export const CategoriesView: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // Activar/Desactivar categoría rápidamente
+  const handleToggleActive = (cat: Category) => {
+    setConfirmTargetCategory(cat);
+    setToggleError(null);
+    setIsConfirmModalOpen(true);
+  };
+
+  const executeToggleActive = async () => {
+    if (!confirmTargetCategory) return;
+    setIsToggling(true);
+    setToggleError(null);
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+
+      const newIsActive = confirmTargetCategory.status !== 'Active';
+
+      const res = await fetch(`${API_BASE}/category/${confirmTargetCategory.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ isActive: newIsActive })
+      });
+
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.message || 'Error al cambiar el estado de la categoría');
+      }
+
+      setCategories((prevCategories) =>
+        prevCategories.map((c) =>
+          c.id === confirmTargetCategory.id ? { ...c, status: newIsActive ? 'Active' : 'Inactive' } : c
+        )
+      );
+      setIsConfirmModalOpen(false);
+      setConfirmTargetCategory(null);
+    } catch (err: any) {
+      console.error(err);
+      setToggleError(err.message || 'Error al cambiar el estado de la categoría');
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
   // Guardar Formulario (Add o Edit) en el backend
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,6 +250,20 @@ export const CategoriesView: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left">
+      <div ref={topRef} />
+
+      {/* Título de Sección */}
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+        <div>
+          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+            Product Categories Hierarchy
+          </h2>
+          <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
+            Organize products into parent and sub-categories to optimize menu layouts, POS sales, and tax tracking.
+          </p>
+        </div>
+      </div>
+
       {/* Barra de búsqueda y Filtros */}
       <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="relative w-full md:w-96">
@@ -214,6 +294,14 @@ export const CategoriesView: React.FC = () => {
           >
             <span className="material-symbols-outlined text-[18px]">add</span>
             ADD CATEGORY
+          </button>
+
+          <button
+            onClick={() => fetchCategories()}
+            className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer font-sans"
+            title="Reload categories"
+          >
+            <span className="material-symbols-outlined text-[18px]">refresh</span>
           </button>
         </div>
       </div>
@@ -336,13 +424,22 @@ export const CategoriesView: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-2">
+                          <div className="flex justify-center gap-3">
                             <button
                               onClick={() => handleOpenEditModal(cat)}
-                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
                               title="Editar categoría"
                             >
                               <span className="material-symbols-outlined text-[20px]">edit</span>
+                            </button>
+                            <button
+                              onClick={() => void handleToggleActive(cat)}
+                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                              title={cat.status === 'Active' ? "Desactivar categoría" : "Activar categoría"}
+                            >
+                              <span className="material-symbols-outlined text-[20px]">
+                                {cat.status === 'Active' ? 'block' : 'check_circle_outline'}
+                              </span>
                             </button>
                           </div>
                         </td>
@@ -355,33 +452,6 @@ export const CategoriesView: React.FC = () => {
         </div>
       </div>
 
-      <QuickLaunchPanel
-        className="mt-4 shadow-lg"
-        description="Operational tools and instant management functions."
-        actions={[
-          {
-            id: 'products-list',
-            label: 'PRODUCTS LIST',
-            onClick: () => alert('Products List simulation'),
-          },
-          {
-            id: 'products-dashboard',
-            label: 'PRODUCTS DASHBOARD',
-            onClick: () => alert('Products Dashboard simulation'),
-          },
-          {
-            id: 'categories-report',
-            label: 'RUN CATEGORIES REPORT',
-            onClick: () => alert('Running Categories Report...'),
-          },
-          {
-            id: 'emergency-support',
-            label: 'EMERGENCY SUPPORT',
-            variant: 'danger',
-            onClick: () => alert('Emergency Support simulation'),
-          },
-        ]}
-      />
 
       {/* Modal Interactivo de Add / Edit Category */}
       {isModalOpen && createPortal(
@@ -449,31 +519,6 @@ export const CategoriesView: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-[#5f5e5e] uppercase">Status</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-body-sm font-semibold cursor-pointer">
-                    <input
-                      type="radio"
-                      name="status"
-                      checked={formStatus === 'Active'}
-                      onChange={() => setFormStatus('Active')}
-                      className="text-[#ae001a] focus:ring-[#ae001a] border-[#e8e2d8]"
-                    />
-                    Active
-                  </label>
-                  <label className="flex items-center gap-2 text-body-sm font-semibold cursor-pointer">
-                    <input
-                      type="radio"
-                      name="status"
-                      checked={formStatus === 'Inactive'}
-                      onChange={() => setFormStatus('Inactive')}
-                      className="text-[#ae001a] focus:ring-[#ae001a] border-[#e8e2d8]"
-                    />
-                    Inactive
-                  </label>
-                </div>
-              </div>
               </div>
               <div className="p-6 pt-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0 bg-[#fefbf6]">
                 <button
@@ -494,6 +539,109 @@ export const CategoriesView: React.FC = () => {
           </div>
         </div>,
         document.body
+      )}
+      <div className="mt-8">
+        <QuickLaunchPanel
+          description="One-click access to system settings, master suppliers, and your corporate customer directory."
+          actions={[
+            {
+              id: 'products-master',
+              label: 'PRODUCTS MASTER LIST',
+              onClick: () => onNavigate?.('products'),
+            },
+            {
+              id: 'discounts-control',
+              label: 'DISCOUNTS CONTROL',
+              onClick: () => onNavigate?.('discounts'),
+            },
+            {
+              id: 'tax-configs',
+              label: 'TAX CONFIGURATIONS',
+              onClick: () => onNavigate?.('company-configurations'),
+            },
+            {
+              id: 'emergency-support',
+              label: 'EMERGENCY SUPPORT',
+              variant: 'danger',
+              onClick: () => setIsSupportOpen(true),
+            },
+          ]}
+        />
+      </div>
+
+      <EmergencySupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+      />
+
+      {/* Modal de confirmación de activación/desactivación */}
+      {isConfirmModalOpen && confirmTargetCategory && (
+        <div className="fixed inset-0 z-[10000] overflow-y-auto flex items-center justify-center p-4 font-sans">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setIsConfirmModalOpen(false)}
+          />
+
+          {/* Caja del Modal */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 animate-scale-in">
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                confirmTargetCategory.status === 'Active' 
+                  ? 'bg-red-50 border border-red-100 text-[#ae001a]'
+                  : 'bg-emerald-50 border border-emerald-100 text-emerald-600'
+              }`}>
+                <span className="material-symbols-outlined text-2xl block">
+                  {confirmTargetCategory.status === 'Active' ? 'power_settings_new' : 'check_circle'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-body-md font-bold text-zinc-900 font-sans">
+                  {confirmTargetCategory.status === 'Active' ? 'Confirm Deactivation' : 'Confirm Activation'}
+                </h3>
+                <p className="text-body-xs text-zinc-500 leading-relaxed font-sans">
+                  Are you sure you want to {confirmTargetCategory.status === 'Active' ? 'deactivate' : 'activate'} this category? This action will set the status to {confirmTargetCategory.status === 'Active' ? 'inactive' : 'active'}.
+                </p>
+              </div>
+            </div>
+
+            {toggleError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-body-xs font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm block">error</span>
+                <span>{toggleError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="px-4 py-2 text-body-xs font-bold border border-zinc-200 rounded-lg text-zinc-700 hover:bg-zinc-50 transition-all duration-200 cursor-pointer font-sans"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeToggleActive}
+                disabled={isToggling}
+                className={`px-4 py-2 text-white text-body-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 font-sans ${
+                  confirmTargetCategory.status === 'Active'
+                    ? 'bg-red-600 hover:bg-[#ae001a]'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {isToggling ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin block">sync</span>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{confirmTargetCategory.status === 'Active' ? 'Deactivate' : 'Activate'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
