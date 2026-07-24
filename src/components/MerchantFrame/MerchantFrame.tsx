@@ -45,6 +45,7 @@ import { VariantsView } from './views/VariantsView';
 import { ModifiersView } from './views/ModifiersView';
 import { SuppliersView } from './views/SuppliersView';
 import { MerchantDirectoryView } from './views/MerchantDirectoryView';
+import { UserManagementView } from './views/UserManagementView';
 import { CompanyProfileView } from './views/CompanyProfileView';
 import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
 import { clearAuthSession } from '../../lib/auth-storage';
@@ -83,6 +84,9 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/dashboard/merchants') {
       setActiveCategory('platformsaas');
       setActiveTab('merchant-directory');
+    } else if (path === '/dashboard/users') {
+      setActiveCategory('platformsaas');
+      setActiveTab('user-management');
     } else if (path === '/dashboard/company-profile') {
       setActiveCategory('platformsaas');
       setActiveTab('company-profile');
@@ -205,6 +209,7 @@ export const MerchantFrame: React.FC = () => {
           '/dashboard/company-profile',
           '/dashboard/company-configurations',
           '/dashboard/merchants',
+          '/dashboard/users',
         ];
         const isMerchantCompanyRoute = merchantCompanyPaths.includes(
           location.pathname,
@@ -445,6 +450,10 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'merchant-directory') {
       return <MerchantDirectoryView />;
+    }
+
+    if (activeTab === 'user-management') {
+      return <UserManagementView />;
     }
 
     if (activeTab === 'company-profile') {
@@ -804,6 +813,8 @@ export const MerchantFrame: React.FC = () => {
                                           navigate('/dashboard/categories');
                                         } else if (feat.id === 'merchant-directory') {
                                           navigate('/dashboard/merchants');
+                                        } else if (feat.id === 'user-management') {
+                                          navigate('/dashboard/users');
                                         } else if (feat.id === 'company-profile') {
                                           navigate('/dashboard/company-profile');
                                         } else if (feat.id === 'company-configurations') {

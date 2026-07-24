@@ -84,6 +84,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   } else if (activeTab === 'merchant-directory') {
     parentAppName = 'Platform SaaS';
     activeFeatureName = 'Merchants';
+  } else if (activeTab === 'user-management') {
+    parentAppName = 'Platform SaaS';
+    activeFeatureName = 'User Management';
   } else if (activeTab === 'company-profile') {
     parentAppName = 'Platform SaaS';
     activeFeatureName = 'Company Profile';
@@ -114,6 +117,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Products';
   } else if (activeTab === 'merchant-directory') {
     friendlyTitle = 'Merchant Directory';
+  } else if (activeTab === 'user-management') {
+    friendlyTitle = 'User Management';
   } else if (activeTab === 'company-profile') {
     friendlyTitle = 'Company Profile';
   } else if (activeTab === 'company-configurations') {

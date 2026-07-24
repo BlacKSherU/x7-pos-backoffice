@@ -9,6 +9,8 @@ import logoX7 from '../../assets/logo-x7.png';
 import { PlatformApplicationsView } from './views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from './views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from './views/PlanApplicationsView';
+import { PlanFeaturesView } from './views/PlanFeaturesView';
+import { CompanyRegistryView } from './views/CompanyRegistryView';
 import type { SubscriptionPlan } from '../../types/subscription';
 
 export const SaaSFrame: React.FC = () => {
@@ -106,6 +108,10 @@ export const SaaSFrame: React.FC = () => {
           onNavigate={handleNavigateView}
         />
       );
+    }
+
+    if (activeTab === 'companies') {
+      return <CompanyRegistryView onNavigate={handleNavigateView} />;
     }
 
     if (
@@ -349,6 +355,13 @@ export const SaaSFrame: React.FC = () => {
           {/* Dashboard Header */}
           <div className="flex justify-between items-end">
             <div>
+              {activeTab === 'companies' && (
+                <nav className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e] mb-1">
+                  <span>SaaS Admin</span>
+                  <span className="text-[#d51f2c]">›</span>
+                  <span className="text-[#1d1c17]">Company Management</span>
+                </nav>
+              )}
               {(activeTab === 'subscription-applications' ||
               activeTab === 'subscription-live-installs' ||
               activeTab === 'subscription-features' ||
@@ -380,6 +393,7 @@ export const SaaSFrame: React.FC = () => {
               <h1 className="font-sans text-h1 text-[#222222] uppercase tracking-tighter">
                 Platform SaaS <span className="text-[#d51f2c]">/</span>{' '}
                 {activeTab === 'dashboard' ? 'Overview'
+                  : activeTab === 'companies' ? 'Company Management'
                   : activeTab === 'subscription' ? 'Subscription Plans'
                   : activeTab === 'subscription-applications' ? 'Applications'
                   : activeTab === 'subscription-features' ? 'Feature Catalog'
@@ -392,6 +406,8 @@ export const SaaSFrame: React.FC = () => {
               <p className="text-body-md text-[#666666] mt-1">
                 {activeTab === 'dashboard'
                   ? 'Real-time performance metrics and merchant growth tracking.'
+                  : activeTab === 'companies'
+                    ? 'Global master directory of every company tenant registered on the platform.'
                   : activeTab === 'subscription'
                     ? 'Manage subscription tiers, pricing models, and billing cadences for your platform.'
                     : activeTab === 'subscription-applications'
