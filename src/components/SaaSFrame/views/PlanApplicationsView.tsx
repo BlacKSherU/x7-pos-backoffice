@@ -465,6 +465,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
               Select Plan:
             </label>
             <select
+              aria-label="Select Plan"
               value={selectedPlanState?.id || ''}
               onChange={(e) => {
                 const selected = plans.find(p => p.id === parseInt(e.target.value));

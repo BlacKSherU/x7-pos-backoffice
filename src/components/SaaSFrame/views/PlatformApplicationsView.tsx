@@ -405,7 +405,7 @@ export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> =
         data-testid="empty-state"
         className="flex flex-col items-center justify-center py-24 gap-6"
       >
-        <span className="material-symbols-outlined text-[#5f5e5e]" style={{ fontSize: '72px' }}>
+        <span className="material-symbols-outlined text-[#5f5e5e] text-[72px]">
           inventory_2
         </span>
         <div className="text-center">

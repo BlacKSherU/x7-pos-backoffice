@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../lib/auth-storage';
+import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
+import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Product {
   id: number;
@@ -15,7 +17,11 @@ interface Modifier {
   product: Product | null;
 }
 
-export const ModifiersView: React.FC = () => {
+interface ModifiersViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
   const [modifiers, setModifiers] = useState<Modifier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -35,6 +41,21 @@ export const ModifiersView: React.FC = () => {
   const [formPriceDelta, setFormPriceDelta] = useState<string>('');
   const [formProduct, setFormProduct] = useState<string>('NULL');
   const [formIsActive, setFormIsActive] = useState<boolean>(true);
+  const [isSupportOpen, setIsSupportOpen] = useState<boolean>(false);
+  // Estados para modal de confirmación de activación/desactivación
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
+  const [confirmTargetModifier, setConfirmTargetModifier] = useState<Modifier | null>(null);
+  const [isToggling, setIsToggling] = useState<boolean>(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  const topRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll al inicio al montar la vista
+  useEffect(() => {
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'instant' });
+    }
+  }, []);
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -142,6 +163,50 @@ export const ModifiersView: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // Activar/Desactivar modificador rápidamente
+  const handleToggleActive = (m: Modifier) => {
+    setConfirmTargetModifier(m);
+    setToggleError(null);
+    setIsConfirmModalOpen(true);
+  };
+
+  const executeToggleActive = async () => {
+    if (!confirmTargetModifier) return;
+    setIsToggling(true);
+    setToggleError(null);
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+
+      const res = await fetch(`${API_BASE}/modifiers/${confirmTargetModifier.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ isActive: !confirmTargetModifier.isActive })
+      });
+
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.message || 'Error al cambiar el estado del modificador');
+      }
+
+      setModifiers((prevModifiers) =>
+        prevModifiers.map((mod) =>
+          mod.id === confirmTargetModifier.id ? { ...mod, isActive: !confirmTargetModifier.isActive } : mod
+        )
+      );
+      setIsConfirmModalOpen(false);
+      setConfirmTargetModifier(null);
+    } catch (err: any) {
+      console.error(err);
+      setToggleError(err.message || 'Error al cambiar el estado del modificador');
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
   const handleSaveModifier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formPriceDelta.trim() || formProduct === 'NULL') {
@@ -203,6 +268,20 @@ export const ModifiersView: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-sans">
+      <div ref={topRef} />
+
+      {/* Título de Sección */}
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+        <div>
+          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+            Product Modifiers & Extra Add-ons
+          </h2>
+          <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
+            Configure custom options, extra ingredients, and price modifiers linked directly to master catalog products.
+          </p>
+        </div>
+      </div>
+
       {/* Barra de Búsqueda y Filtros */}
       <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="relative w-full md:w-96">
@@ -235,6 +314,14 @@ export const ModifiersView: React.FC = () => {
           >
             <span className="material-symbols-outlined text-[18px]">add</span>
             ADD MODIFIER
+          </button>
+
+          <button
+            onClick={() => fetchAllData()}
+            className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+            title="Reload modifiers"
+          >
+            <span className="material-symbols-outlined text-[18px]">refresh</span>
           </button>
         </div>
       </div>
@@ -344,13 +431,22 @@ export const ModifiersView: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex justify-center gap-2">
+                        <div className="flex justify-center gap-3">
                           <button
                             onClick={() => handleOpenEditModal(modifier)}
-                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors cursor-pointer"
+                            className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
                             title="Editar modificador"
                           >
                             <span className="material-symbols-outlined text-[20px]">edit</span>
+                          </button>
+                          <button
+                            onClick={() => void handleToggleActive(modifier)}
+                            className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                            title={modifier.isActive ? "Desactivar modificador" : "Activar modificador"}
+                          >
+                            <span className="material-symbols-outlined text-[20px]">
+                              {modifier.isActive ? 'block' : 'check_circle_outline'}
+                            </span>
                           </button>
                         </div>
                       </td>
@@ -430,33 +526,6 @@ export const ModifiersView: React.FC = () => {
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5 py-2">
-                <span className="text-[11px] font-bold text-[#5f5e5e] uppercase font-sans">
-                  Status
-                </span>
-                <div className="flex items-center gap-6 mt-1">
-                  <label className="flex items-center gap-2 cursor-pointer font-sans text-body-md text-[#1d1c17] select-none">
-                    <input
-                      type="radio"
-                      name="formIsActive"
-                      checked={formIsActive === true}
-                      onChange={() => setFormIsActive(true)}
-                      className="w-4 h-4 text-[#ae001a] focus:ring-[#ae001a] border-[#e8e2d8] cursor-pointer"
-                    />
-                    Active
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer font-sans text-body-md text-[#1d1c17] select-none">
-                    <input
-                      type="radio"
-                      name="formIsActive"
-                      checked={formIsActive === false}
-                      onChange={() => setFormIsActive(false)}
-                      className="w-4 h-4 text-[#ae001a] focus:ring-[#ae001a] border-[#e8e2d8] cursor-pointer"
-                    />
-                    Inactive
-                  </label>
-                </div>
-              </div>
               </div>
               <div className="p-6 pt-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0 bg-[#fefbf6]">
                 <button
@@ -477,6 +546,109 @@ export const ModifiersView: React.FC = () => {
           </div>
         </div>,
         document.body
+      )}
+      <div className="mt-8">
+        <QuickLaunchPanel
+          description="One-click access to system settings, master suppliers, and your corporate customer directory."
+          actions={[
+            {
+              id: 'products-master',
+              label: 'PRODUCTS MASTER LIST',
+              onClick: () => onNavigate?.('products'),
+            },
+            {
+              id: 'discounts-control',
+              label: 'DISCOUNTS CONTROL',
+              onClick: () => onNavigate?.('discounts'),
+            },
+            {
+              id: 'tax-configs',
+              label: 'TAX CONFIGURATIONS',
+              onClick: () => onNavigate?.('company-configurations'),
+            },
+            {
+              id: 'emergency-support',
+              label: 'EMERGENCY SUPPORT',
+              variant: 'danger',
+              onClick: () => setIsSupportOpen(true),
+            },
+          ]}
+        />
+      </div>
+
+      <EmergencySupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+      />
+
+      {/* Modal de confirmación de activación/desactivación */}
+      {isConfirmModalOpen && confirmTargetModifier && (
+        <div className="fixed inset-0 z-[10000] overflow-y-auto flex items-center justify-center p-4 font-sans">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setIsConfirmModalOpen(false)}
+          />
+
+          {/* Caja del Modal */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 animate-scale-in">
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                confirmTargetModifier.isActive 
+                  ? 'bg-red-50 border border-red-100 text-[#ae001a]'
+                  : 'bg-emerald-50 border border-emerald-100 text-emerald-600'
+              }`}>
+                <span className="material-symbols-outlined text-2xl block">
+                  {confirmTargetModifier.isActive ? 'power_settings_new' : 'check_circle'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-body-md font-bold text-zinc-900 font-sans">
+                  {confirmTargetModifier.isActive ? 'Confirm Deactivation' : 'Confirm Activation'}
+                </h3>
+                <p className="text-body-xs text-zinc-500 leading-relaxed font-sans">
+                  Are you sure you want to {confirmTargetModifier.isActive ? 'deactivate' : 'activate'} this modifier? This action will set the status to {confirmTargetModifier.isActive ? 'inactive' : 'active'}.
+                </p>
+              </div>
+            </div>
+
+            {toggleError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-body-xs font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm block">error</span>
+                <span>{toggleError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="px-4 py-2 text-body-xs font-bold border border-zinc-200 rounded-lg text-zinc-700 hover:bg-zinc-50 transition-all duration-200 cursor-pointer font-sans"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeToggleActive}
+                disabled={isToggling}
+                className={`px-4 py-2 text-white text-body-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 font-sans ${
+                  confirmTargetModifier.isActive
+                    ? 'bg-red-600 hover:bg-[#ae001a]'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {isToggling ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin block">sync</span>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{confirmTargetModifier.isActive ? 'Deactivate' : 'Activate'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
