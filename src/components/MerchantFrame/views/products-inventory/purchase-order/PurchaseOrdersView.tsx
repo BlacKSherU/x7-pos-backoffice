@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
+import { InventoryNavHubBar } from '../InventoryNavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -1687,6 +1688,9 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
       {/* Persistent Quick Links Hub */}
       <StockQuickLinks current="purchase-orders" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="purchase-orders" onNavigate={onNavigate} />
 
       {/* Portal: Detail Drawer (Order inspection) */}
       {drawerPortal}

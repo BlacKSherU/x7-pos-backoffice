@@ -124,7 +124,7 @@ export const navigationService = {
         })
         .filter((app): app is NavApplication => app !== null);
 
-      // Asignar características a sus aplicaciones (Kitchen Display System abre el hub kds-dashboard)
+      // Asignar características a sus aplicaciones (KDS y Products/Inventory abren sus hubs operacionales)
       applications.forEach(app => {
         if (app.id === 'kitchen-display-system') {
           app.features = [
@@ -132,6 +132,16 @@ export const navigationService = {
               id: 'kds-dashboard',
               name: 'KDS Operational Command Hub',
               applicationId: 'kitchen-display-system',
+              planId: 1,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'products-inventory') {
+          app.features = [
+            {
+              id: 'inventory-dashboard',
+              name: 'Inventory Operational Command Hub',
+              applicationId: 'products-inventory',
               planId: 1,
               isSaaS: false,
             }

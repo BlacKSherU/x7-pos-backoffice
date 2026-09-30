@@ -9,7 +9,7 @@
 // sola vez para la vista, sus estados de error y los stubs "In Development" — así una opción
 // que aún no tiene vista sigue siendo navegable hacia sus hermanas.
 //
-// Kitchen Display System NO está aquí: sus vistas montan su propia NavHubBar desde antes.
+// Kitchen Display System y Products / Inventory System NO están aquí: sus vistas montan su propia NavHubBar desde sus vistas y tienen su propio Hub operacional.
 
 export interface ModuleNavItem {
   /** featureId real de Features.txt, que es lo que MerchantFrame resuelve. */

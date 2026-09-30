@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, getStoredUser } from '../../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../StockQuickLinks';
+import { InventoryNavHubBar } from '../../InventoryNavHubBar';
 import { EmergencySupportModal } from '../../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../../shared/tableOptionsHelpers';
@@ -1134,6 +1135,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
       {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
       <StockQuickLinks current="stock-movements" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="stock-movements" onNavigate={onNavigate} />
 
       {/* Emergency Support Modal */}
 

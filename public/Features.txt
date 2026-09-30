@@ -46,15 +46,14 @@ recipe-ingredients|Recipe Ingredients Breakdown|food-costing|2|0
 recipes|Recipes Composition|food-costing|2|0
 theoretical-cost|Theoretical Cost Model|food-costing|2|0
 categories|Category Management|products-inventory|1|0
-modifiers|Modifiers Management|products-inventory|1|0
 products|Product Management Matrix|products-inventory|1|0
-purchase-orders|Purchase Orders Management|products-inventory|2|0
-stock-movements|Stock and Stock Movements Management|products-inventory|2|0
-suppliers-management|Suppliers Management Link|products-inventory|2|0
-locations|Inventory Locations|products-inventory|2|0
 variants|Variants Management|products-inventory|1|0
-raw-materials|Raw Materials Workspace|products-inventory|2|0
-raw-material-categories|Raw Material Categories|products-inventory|2|0
+modifiers|Modifiers Management|products-inventory|1|0
+stock-movements|Stock and Stock Movements Management|products-inventory|2|0
+purchase-orders|Purchase Orders Management|products-inventory|2|0
+raw-materials|Raw Materials Workspace|raw-materials|2|0
+raw-material-categories|Raw Material Categories|raw-materials|2|0
+locations|Inventory Locations|raw-materials|2|0
 floor-plans|Floor plans designer|dining-system|2|0
 table-assignments|Table assignments matrix|dining-system|2|0
 table-zones|Table Zones config|dining-system|2|0

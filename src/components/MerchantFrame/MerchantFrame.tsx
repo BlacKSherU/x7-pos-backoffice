@@ -110,6 +110,7 @@ import { RawMaterialCategoriesView } from './views/products-inventory/category/R
 import { RecipesView } from './views/products-inventory/recipes/RecipesView';
 import { KitchenStationsView } from './views/restaurant-operations/kitchen-stations/KitchenStationsView';
 import { KitchenKDSHubView } from './views/restaurant-operations/kitchen-stations/KitchenKDSHubView';
+import { ProductsInventoryHubView } from './views/products-inventory/ProductsInventoryHubView';
 import { KitchenDisplayDevicesView } from './views/restaurant-operations/kitchen-stations/KitchenDisplayDevicesView';
 import { KitchenOrdersView } from './views/restaurant-operations/kitchen-stations/KitchenOrdersView';
 import { KitchenOrderItemsView } from './views/restaurant-operations/kitchen-stations/KitchenOrderItemsView';
@@ -214,6 +215,8 @@ const getNavFromPath = (
     return { category: 'inventory', tab: 'stock-movements' };
   } else if (path === '/inventory/movements') {
     return { category: 'inventory', tab: 'movements' };
+  } else if (path === '/inventory/dashboard' || path === '/inventory/hub' || path === '/dashboard/inventory') {
+    return { category: 'inventory', tab: 'inventory-dashboard' };
   } else if (path === '/dashboard') {
     const stateTab = locationState?.activeTab;
     const stateCategory = locationState?.activeCategory;
@@ -1223,6 +1226,14 @@ export const MerchantFrame: React.FC = () => {
       );
     }
 
+    if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') {
+      return (
+        <ProductsInventoryHubView
+          onNavigate={(view) => setActiveTab(view)}
+        />
+      );
+    }
+
     if (activeTab === 'kitchen-stations') {
       return <KitchenStationsView onNavigate={(view) => setActiveTab(view)} />;
     }
@@ -1477,10 +1488,14 @@ export const MerchantFrame: React.FC = () => {
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isAppExpanded = !isKDSApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isInventoryApp = app.id === 'products-inventory' || app.name === 'Products/Inventory System';
+                        const isDirectHubApp = isKDSApp || isInventoryApp;
+                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab);
+                          : isInventoryApp
+                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'purchase-orders', 'stock-movements', 'variants'].includes(activeTab)
+                          : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
                           <div key={app.id} className="w-full text-left">
@@ -1490,6 +1505,10 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('kds-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
+                                } else if (isInventoryApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('inventory-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,
@@ -1509,8 +1528,8 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* L3: Features (Omitted for Kitchen Display System) */}
-                            {isAppExpanded && !isKDSApp && (
+                            {/* L3: Features (Omitted for Kitchen Display System and Products/Inventory System) */}
+                            {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;
@@ -1594,10 +1613,14 @@ export const MerchantFrame: React.FC = () => {
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isAppExpanded = !isKDSApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isInventoryApp = app.id === 'products-inventory' || app.name === 'Products/Inventory System';
+                        const isDirectHubApp = isKDSApp || isInventoryApp;
+                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab);
+                          : isInventoryApp
+                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'purchase-orders', 'stock-movements', 'variants'].includes(activeTab)
+                          : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
                           <div key={app.id} className="w-full text-left">
@@ -1607,6 +1630,10 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('kds-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
+                                } else if (isInventoryApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('inventory-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,
@@ -1626,8 +1653,8 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* Level 3: Features (Omitted for Kitchen Display System since it navigates internally from the hub) */}
-                            {isAppExpanded && !isKDSApp && (
+                            {/* Level 3: Features (Omitted for Kitchen Display System and Products/Inventory System) */}
+                            {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;

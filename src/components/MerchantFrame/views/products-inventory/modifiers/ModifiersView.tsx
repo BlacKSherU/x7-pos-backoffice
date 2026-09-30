@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
+import { InventoryNavHubBar } from '../InventoryNavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -777,6 +778,9 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
 
       {/* Persistent Quick Links Hub */}
       <CatalogQuickLinks current="modifiers" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="modifiers" onNavigate={onNavigate} />
     </div>
   );
 };

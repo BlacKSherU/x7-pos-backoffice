@@ -271,7 +271,7 @@ const StandardDashboardModuleCard: React.FC<StandardDashboardModuleCardProps> = 
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`bg-white border rounded-xl p-5 pb-5 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-w-0 h-[220px] ${
+      className={`bg-white border rounded-xl p-5 pb-5 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-w-0 min-h-[220px] h-full ${
         isHovered ? 'border-[#ae001a]' : 'border-[#e8e2d8]'
       }`}
     >

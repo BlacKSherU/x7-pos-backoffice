@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
+import { InventoryNavHubBar } from '../InventoryNavHubBar';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
@@ -750,6 +751,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
 
       {/* Persistent Quick Links Hub */}
       <CatalogQuickLinks current="categories" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="categories" onNavigate={onNavigate} />
     </div>
   );
 };
