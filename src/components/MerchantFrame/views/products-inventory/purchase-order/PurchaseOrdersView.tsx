@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
-import { InventoryNavHubBar } from '../InventoryNavHubBar';
+import { NavHubBar } from '../../../../shared/NavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -1128,42 +1128,42 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                   />
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left">
+                <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <table className="w-full table-fixed border-collapse text-left">
                     <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                       <tr>
                         {visibleColumns.orderCode && (
-                          <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                          <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-auto min-w-[180px]`}>
                             Order Reference Code
                           </th>
                         )}
                         {visibleColumns.supplier && (
-                          <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                          <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-48 min-w-[140px]`}>
                             Supplier Entity
                           </th>
                         )}
                         {visibleColumns.orderDate && (
-                          <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                          <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[110px]`}>
                             Creation Date
                           </th>
                         )}
                         {visibleColumns.totalAmount && (
-                          <th className={`${densityPadding} text-right text-label-caps font-bold text-[#5f5e5e] w-32`}>
+                          <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-32 min-w-[100px]`}>
                             Total Gross Amount
                           </th>
                         )}
                         {visibleColumns.progress && (
-                          <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] w-40`}>
+                          <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[110px]`}>
                             Fulfillment Progress
                           </th>
                         )}
                         {visibleColumns.status && (
-                          <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] w-36`}>
+                          <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-32 min-w-[100px]`}>
                             Fulfillment Status
                           </th>
                         )}
                         {visibleColumns.actions && (
-                          <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] w-24`}>
+                          <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                             Actions
                           </th>
                         )}
@@ -1280,35 +1280,35 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                               className="category-row group transition-colors hover:bg-[#f8f3eb] cursor-pointer"
                             >
                               {visibleColumns.orderCode && (
-                                <td className={densityPadding}>
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-1 h-8 bg-[#ae001a] rounded-full"></div>
-                                    <div>
-                                      <p className="font-bold text-[#1d1c17] font-mono">
-                                        {formattedId}
-                                      </p>
-                                    </div>
+                                <td className={`${densityPadding} truncate`}>
+                                  <div className="min-w-0 flex flex-col justify-center">
+                                    <span className="font-bold text-[#1d1c17] font-mono text-sm truncate">
+                                      {formattedId}
+                                    </span>
+                                    <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
+                                      ID: #{po.id}
+                                    </span>
                                   </div>
                                 </td>
                               )}
                               {visibleColumns.supplier && (
-                                <td className={`${densityPadding} text-[#1d1c17] font-semibold`}>
+                                <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] font-sans truncate`}>
                                   {po.supplier?.name || 'Unassigned Supplier'}
                                 </td>
                               )}
                               {visibleColumns.orderDate && (
-                                <td className={`${densityPadding} font-sans text-secondary text-sm`}>
+                                <td className={`${densityPadding} font-sans text-[#5f5e5e] text-xs font-normal truncate`}>
                                   {formattedDate}
                                 </td>
                               )}
                               {visibleColumns.totalAmount && (
-                                <td className={`${densityPadding} text-right`}>
+                                <td className={`${densityPadding} text-right whitespace-nowrap`}>
                                   <div className="flex flex-col items-end">
-                                    <span className="font-mono font-bold text-xs text-[#ae001a]">
+                                    <span className="font-mono font-normal text-xs text-[#ae001a]">
                                       ${totalOrderedAmount.toFixed(2)}
                                     </span>
                                     {(totalReceivedAmount > 0 || po.status === 'CANCELLED' || po.status === 'PARTIALLY_RECEIVED') && (
-                                      <span className={`text-[10px] font-mono font-bold mt-0.5 whitespace-nowrap ${
+                                      <span className={`text-[10px] font-mono font-normal mt-0.5 whitespace-nowrap ${
                                         totalReceivedAmount >= totalOrderedAmount && totalOrderedAmount > 0
                                           ? 'text-emerald-600'
                                           : totalReceivedAmount > 0
@@ -1322,14 +1322,14 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                                 </td>
                               )}
                               {visibleColumns.progress && (
-                                <td className={`${densityPadding} text-center font-sans text-xs font-bold text-secondary`}>
+                                <td className={`${densityPadding} text-center font-sans text-xs font-normal text-[#5f5e5e] whitespace-nowrap`}>
                                   {fulfillmentText}
                                 </td>
                               )}
                               {visibleColumns.status && (
-                                <td className={`${densityPadding} text-center`}>
+                                <td className={`${densityPadding} text-center whitespace-nowrap`}>
                                   <span
-                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase tracking-wider ${badgeStyle}`}
+                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase whitespace-nowrap tracking-wider ${badgeStyle}`}
                                   >
                                     {po.status}
                                   </span>
@@ -1689,8 +1689,54 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       {/* Persistent Quick Links Hub */}
       <StockQuickLinks current="purchase-orders" onNavigate={onNavigate} />
 
-      {/* Persistent Inventory Navigation Hub Bar */}
-      <InventoryNavHubBar activeModuleId="purchase-orders" onNavigate={onNavigate} />
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
+        activeModuleId="purchase-orders"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'RM CATEGORIES',
+            icon: 'category',
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            active: true,
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'STOCK LEVELS',
+            icon: 'table_rows',
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate?.('movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            onClick: () => onNavigate?.('locations'),
+          },
+        ]}
+      />
 
       {/* Portal: Detail Drawer (Order inspection) */}
       {drawerPortal}

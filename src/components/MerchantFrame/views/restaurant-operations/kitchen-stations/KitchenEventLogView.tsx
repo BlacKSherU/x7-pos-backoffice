@@ -108,6 +108,8 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
   const [staffUsers, setStaffUsers] = useState<MerchantUser[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
   const [currentNow] = useState(() => Date.now());
 
   // Multi-dimensional Filter Bar State
@@ -293,9 +295,9 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
     setCurrentPage(1);
   };
 
-  // 5. Fetch Event Logs from Backend
   const fetchEventLogs = useCallback(async (silent: boolean = false) => {
     if (!silent) setLoading(true);
+    setIsRefreshing(true);
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = {
@@ -338,6 +340,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
       }));
 
       setLogs(parsed);
+      setLastUpdated(new Date());
     } catch (err: unknown) {
       console.error('Failed to fetch kitchen event logs', err);
       if (!silent) {
@@ -346,6 +349,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
       }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, [selectedStationId, selectedUserId, selectedEventTypes, startTime, endTime]);
 
@@ -476,7 +480,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
         return (a.id ?? 0) - (b.id ?? 0);
       });
 
-      // Calcular el estado de ciclo de vida más reciente para el encabezado del grupo
+      // Compute the most recent lifecycle status for the group header
       const latestEvent = grp.events[grp.events.length - 1];
       const orderBusinessStatus = latestEvent?.kitchenOrder?.businessStatus?.toLowerCase();
 
@@ -504,7 +508,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
       }
     });
 
-    // 2. Table ordering: Newest orders first (de la orden más nueva a la más vieja)
+    // 2. Table ordering: Newest orders first
     groups.sort((a, b) => {
       if (!a.orderId) return 1;
       if (!b.orderId) return -1;
@@ -804,9 +808,14 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
       {/* 1. Header Card Workspace */}
       <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
         <div>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
-            KITCHEN EVENT AUDIT LOG &amp; TIMELINE INSPECTOR
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              history
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              KITCHEN EVENT AUDIT LOG &amp; TIMELINE INSPECTOR
+            </h2>
+          </div>
           <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
             Real-time operational event stream, actor tracking, station telemetry &amp; forensic state change audit trail.
           </p>
@@ -952,7 +961,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full pl-9 pr-8 py-2 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
               />
               {searchQuery && (
                 <button
@@ -976,7 +985,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                   setSelectedStationId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer max-w-[180px] transition-colors duration-200"
+                className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer max-w-[180px] transition-colors duration-200"
               >
                 <option value="ALL">All Stations ({stations.length})</option>
                 {stations.map((st) => (
@@ -996,7 +1005,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                   setSelectedUserId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer max-w-[180px] transition-colors duration-200"
+                className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer max-w-[180px] transition-colors duration-200"
               >
                 <option value="ALL">All Staff ({staffUsers.length})</option>
                 {staffUsers.map((u) => (
@@ -1009,18 +1018,34 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
           </div>
 
           {/* Right Toolbar: Auto-refresh */}
-          <div className="flex items-center gap-1 text-xs text-[#5f5e5e]">
-            <span className="material-symbols-outlined text-sm">sync</span>
+          <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+            <button
+              type="button"
+              onClick={() => fetchEventLogs(false)}
+              disabled={loading || isRefreshing}
+              className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+              title="Sync event log now"
+            >
+              <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                sync
+              </span>
+            </button>
             <select
               value={autoRefreshInterval}
               onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-              className="px-2 py-1.5 rounded border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-[11px] focus:outline-none focus:border-[#ae001a] cursor-pointer transition-colors duration-200"
+              className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
             >
               <option value={0}>Auto: Off</option>
               <option value={10}>Auto: 10s</option>
               <option value={30}>Auto: 30s</option>
               <option value={60}>Auto: 60s</option>
             </select>
+          </div>
+
+          <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
+            <span className="material-symbols-outlined text-sm">schedule</span>
+            <span>Updated:</span>
+            <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
           </div>
         </div>
 
@@ -1042,9 +1067,9 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                 <button
                   key={p.id}
                   onClick={() => handlePresetChange(p.id)}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                  className={`h-[34px] px-3 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border flex items-center justify-center ${
                     isActive
-                      ? 'bg-[#1d1c17] text-white border-[#1d1c17]'
+                      ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
                       : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
                   }`}
                 >
@@ -1066,7 +1091,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                   setDatePreset('custom');
                   setCurrentPage(1);
                 }}
-                className="px-2 py-1 rounded border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
+                className="h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
               />
             </div>
             <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
@@ -1079,7 +1104,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                   setDatePreset('custom');
                   setCurrentPage(1);
                 }}
-                className="px-2 py-1 rounded border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
+                className="h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
               />
             </div>
             {(startTime || endTime) && (
@@ -1090,7 +1115,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                   setDatePreset('all');
                   setCurrentPage(1);
                 }}
-                className="text-[11px] text-[#ae001a] hover:underline font-semibold cursor-pointer ml-1 transition-colors duration-200"
+                className="h-[34px] text-[11px] text-[#ae001a] hover:underline font-semibold cursor-pointer ml-1 flex items-center"
                 title="Clear date filter"
               >
                 Clear
@@ -1250,21 +1275,21 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
             </span>
           )}
 
-          <div className="flex items-center gap-1 ml-auto shrink-0 pr-0.5">
+          <div className="flex items-center gap-1.5 ml-auto shrink-0 pr-0.5">
             <button
               onClick={expandAllGroups}
-              className="text-[10px] text-[#5f5e5e] hover:text-[#ae001a] px-1.5 py-0.5 rounded border border-[#e8e2d8] hover:bg-[#f8f3eb] transition-colors cursor-pointer font-medium flex items-center gap-0.5 shrink-0"
+              className="h-[28px] px-2.5 rounded-lg border border-[#d5cfc4] bg-white text-[#5f5e5e] hover:border-[#ae001a] hover:text-[#ae001a] hover:bg-[#fcfcfb] text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
               title="Expand all orders"
             >
-              <span className="material-symbols-outlined text-[13px]">unfold_more</span>
+              <span className="material-symbols-outlined text-[15px]">unfold_more</span>
               <span>Expand All</span>
             </button>
             <button
               onClick={collapseAllGroups}
-              className="text-[10px] text-[#5f5e5e] hover:text-[#ae001a] px-1.5 py-0.5 rounded border border-[#e8e2d8] hover:bg-[#f8f3eb] transition-colors cursor-pointer font-medium flex items-center gap-0.5 shrink-0"
+              className="h-[28px] px-2.5 rounded-lg border border-[#d5cfc4] bg-white text-[#5f5e5e] hover:border-[#ae001a] hover:text-[#ae001a] hover:bg-[#fcfcfb] text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
               title="Collapse all orders"
             >
-              <span className="material-symbols-outlined text-[13px]">unfold_less</span>
+              <span className="material-symbols-outlined text-[15px]">unfold_less</span>
               <span>Collapse All</span>
             </button>
           </div>
@@ -1333,7 +1358,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
           <NoColumnsEmptyState />
         ) : (
           <>
-            <div className="w-full overflow-x-hidden">
+            <div className="w-full overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
                 <colgroup>
                   {visibleColumns.eventTime && <col style={{ width: '20%' }} />}
@@ -1345,7 +1370,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                   {visibleColumns.actions && <col style={{ width: '95px' }} />}
                 </colgroup>
                 <thead>
-                  <tr className="bg-[#ece8e0] text-[#5f5e5e] uppercase text-[11px] tracking-wider font-bold border-b border-[#e8e2d8]">
+                  <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
                     {visibleColumns.eventTime && (
                       <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Event Timestamp</th>
                     )}
@@ -1419,10 +1444,10 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                                     chevron_right
                                   </span>
                                   <div className="min-w-0 truncate">
-                                    <div className="font-bold text-[#1d1c17] text-xs truncate group-hover:text-[#ae001a] transition-colors duration-200">
+                                    <div className="font-bold text-[#1d1c17] font-sans text-sm truncate group-hover:text-[#ae001a] transition-colors duration-200">
                                       {formatTimestamp(group.lastEventTime)}
                                     </div>
-                                    <div className="text-[10px] text-[#5f5e5e] font-mono truncate mt-0.5">
+                                    <div className="text-[11px] text-[#5f5e5e] font-mono font-normal truncate mt-0.5">
                                       {group.lastEventTime !== group.firstEventTime ? (
                                         <span>Active {formatRelativeTime(group.lastEventTime)} • Recv: {formatTimeOnly(group.firstEventTime)}</span>
                                       ) : (
@@ -1438,27 +1463,27 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                             {visibleColumns.eventType && (
                               <td className={`${densityPadding} truncate`}>
                                 {group.latestStatus === 'CANCELLED' ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-[#ae001a] border border-red-200 whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-[#ae001a] border border-red-200 whitespace-nowrap">
                                     <span className="material-symbols-outlined text-[13px]">cancel</span>
                                     CANCELLED
                                   </span>
                                 ) : group.latestStatus === 'SERVED' ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
                                     <span className="material-symbols-outlined text-[13px]">check_circle</span>
                                     SERVED
                                   </span>
                                 ) : group.latestStatus === 'RECALLED' ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200 whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 whitespace-nowrap">
                                     <span className="material-symbols-outlined text-[13px]">replay</span>
                                     RECALLED
                                   </span>
                                 ) : group.latestStatus === 'PENDING' ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 whitespace-nowrap">
                                     <span className="material-symbols-outlined text-[13px]">schedule</span>
                                     PENDING
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 whitespace-nowrap">
                                     <span className="material-symbols-outlined text-[13px]">pending</span>
                                     IN PREP
                                   </span>
@@ -1476,7 +1501,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                                         e.stopPropagation();
                                         onNavigate?.('kitchen-orders');
                                       }}
-                                      className="px-2 py-0.5 rounded text-xs font-mono font-black bg-[#f2ede5] hover:bg-[#ae001a] hover:text-white text-[#1d1c17] border border-[#d5cfc4] transition-colors duration-200 cursor-pointer shadow-2xs shrink-0"
+                                      className="px-2 py-0.5 rounded text-xs font-mono font-normal bg-[#f2ede5] hover:bg-[#ae001a] hover:text-white text-[#1d1c17] border border-[#d5cfc4] transition-colors duration-200 cursor-pointer shadow-2xs shrink-0"
                                       title="View Order in Kitchen Orders"
                                     >
                                       {group.orderRef}
@@ -1484,7 +1509,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                                   ) : (
                                     <span className="text-xs text-[#5f5e5e] italic shrink-0">{group.orderRef}</span>
                                   )}
-                                  <span className="text-[10px] font-bold text-[#5f5e5e] bg-stone-100 px-1.5 py-0.5 rounded-full border border-stone-200 shrink-0">
+                                  <span className="text-[10px] font-normal text-[#5f5e5e] bg-stone-100 px-1.5 py-0.5 rounded-full border border-stone-200 shrink-0">
                                     {group.totalEvents} evt
                                   </span>
                                 </div>
@@ -1494,7 +1519,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                             {/* Column 4: Station */}
                             {visibleColumns.station && (
                               <td className={`${densityPadding} truncate`}>
-                                <div className="truncate text-xs font-bold text-[#1d1c17]" title={group.stationName}>
+                                <div className="truncate text-xs font-normal text-[#5f5e5e]" title={group.stationName}>
                                   {group.stationName}
                                 </div>
                               </td>
@@ -1546,10 +1571,10 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                                         subdirectory_arrow_right
                                       </span>
                                       <div className="min-w-0 truncate">
-                                        <div className="font-semibold text-[#1d1c17] text-xs group-hover/sub:text-[#ae001a] transition-colors duration-200 truncate">
+                                        <div className="font-normal text-[#1d1c17] text-xs group-hover/sub:text-[#ae001a] transition-colors duration-200 truncate">
                                           {formatTimestamp(record.eventTime)}
                                         </div>
-                                        <div className="text-[10px] text-[#5f5e5e] font-mono truncate mt-0.5">
+                                        <div className="text-[11px] text-[#5f5e5e] font-mono font-normal truncate mt-0.5">
                                           {formatTimeOnly(record.eventTime)} • {formatRelativeTime(record.eventTime)}
                                         </div>
                                       </div>
@@ -1574,19 +1599,19 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                                             e.stopPropagation();
                                             onNavigate?.('kitchen-order-items');
                                           }}
-                                          className="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-800 border border-blue-200 transition-colors duration-200 cursor-pointer shrink-0"
+                                          className="px-1.5 py-0.5 rounded text-[11px] font-mono font-normal bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-800 border border-blue-200 transition-colors duration-200 cursor-pointer shrink-0"
                                           title="View Kitchen Order Item"
                                         >
                                           #ITM-{record.kitchenOrderItemId}
                                         </button>
                                       ) : (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-600 border border-stone-200 shrink-0">
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-normal bg-stone-100 text-stone-600 border border-stone-200 shrink-0">
                                           Order
                                         </span>
                                       )}
                                       {record.kitchenOrderItem?.productName && (
                                         <span
-                                          className="text-[11px] font-semibold text-[#1d1c17] truncate"
+                                          className="text-xs font-normal text-[#1d1c17] truncate"
                                           title={record.kitchenOrderItem.productName}
                                         >
                                           {record.kitchenOrderItem.productName}
@@ -1600,7 +1625,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                                 {visibleColumns.station && (
                                   <td className={`${densityPadding} truncate`}>
                                     <div
-                                      className="truncate font-medium text-[#1d1c17] text-xs"
+                                      className="truncate font-normal text-[#5f5e5e] text-xs"
                                       title={record.station ? record.station.name : 'Global / Unassigned'}
                                     >
                                       {record.station ? record.station.name : (

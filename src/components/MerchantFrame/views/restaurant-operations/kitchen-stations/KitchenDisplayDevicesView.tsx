@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken } from '../../../../../lib/auth-storage';
 import { KitchenQuickLinks } from './KitchenQuickLinks';
@@ -48,17 +48,18 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   const [devices, setDevices] = useState<KitchenDisplayDevice[]>([]);
   const [stations, setStations] = useState<KitchenStationRef[]>([]);
   const [deviceCountByStation, setDeviceCountByStation] = useState<Record<number, number>>({});
-  const [unassignedDevicesCount, setUnassignedDevicesCount] = useState<number>(0);
-  const [totalActiveDevicesCount, setTotalActiveDevicesCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtros y vista
+  // Filters and view
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [stationFilter, setStationFilter] = useState<string>('All');
   const [connectivityFilter, setConnectivityFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   // Table: Density, Visible Columns, and Pagination
   const [visibleColumns, setVisibleColumns] = useState<{
@@ -114,7 +115,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add');
   const [editingDevice, setEditingDevice] = useState<KitchenDisplayDevice | null>(null);
 
-  // Campos de Formulario
+  // Form fields
   const [formName, setFormName] = useState<string>('');
   const [formDeviceIdentifier, setFormDeviceIdentifier] = useState<string>('');
   const [formIpAddress, setFormIpAddress] = useState<string>('');
@@ -148,7 +149,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
     }
   }, []);
 
-  // Cargar lista de estaciones de cocina para los selectores y calcular conteos
+  // Load kitchen station list for selectors and calculate counts
   const fetchStationsList = useCallback(async () => {
     try {
       const token = getAccessToken();
@@ -190,18 +191,13 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         const devJson = await resDevices.json();
         const rawDevs = Array.isArray(devJson) ? devJson : devJson.data || [];
         const countMap: Record<number, number> = {};
-        let unassigned = 0;
         rawDevs.forEach((d: { station_id?: number; stationId?: number; station?: { id: number } }) => {
           const sId = d.station_id ?? d.stationId ?? d.station?.id;
           if (sId) {
             countMap[sId] = (countMap[sId] || 0) + 1;
-          } else {
-            unassigned++;
           }
         });
         setDeviceCountByStation(countMap);
-        setUnassignedDevicesCount(unassigned);
-        setTotalActiveDevicesCount(rawDevs.length);
       }
     } catch (err) {
       console.error('Error fetching kitchen stations from database:', err);
@@ -209,9 +205,10 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
     }
   }, [API_BASE]);
 
-  // Fetch de Dispositivos KDS desde PostgreSQL
+  // Fetch KDS devices from PostgreSQL
   const fetchDevices = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    setIsRefreshing(true);
     setError(null);
     try {
       const token = getAccessToken();
@@ -225,12 +222,6 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       else if (statusFilter === 'Active') params.append('status', 'active');
       else if (statusFilter === 'All') params.append('status', 'all');
 
-      if (connectivityFilter === 'Online') params.append('isOnline', 'true');
-      else if (connectivityFilter === 'Offline') params.append('isOnline', 'false');
-
-      if (stationFilter === 'Unassigned') params.append('unassigned', 'true');
-      else if (stationFilter !== 'All') params.append('stationId', stationFilter);
-
       params.append('limit', '100');
 
       const res = await fetch(`${API_BASE}/kitchen-display-devices?${params.toString()}`, { headers });
@@ -243,6 +234,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
           merchant_id?: number;
           merchantId?: number;
           station_id?: number;
+          stationId?: number;
           station?: {
             id: number;
             name: string;
@@ -298,6 +290,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
           updated_at: dev.updated_at ?? dev.updatedAt ?? new Date().toISOString(),
         }));
         setDevices(dataList);
+        setLastUpdated(new Date());
       } else {
         setDevices([]);
       }
@@ -307,8 +300,9 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       setDevices([]);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }, [statusFilter, connectivityFilter, stationFilter, API_BASE]);
+  }, [statusFilter, API_BASE]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -317,6 +311,17 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
     });
   }, [fetchStationsList, fetchDevices]);
 
+  // Auto-refresh timer
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      fetchDevices(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchDevices]);
+
+  const FIVE_MINS_MS = 5 * 60 * 1000;
+  const [currentNow] = useState(() => Date.now());
 
   // In-memory alphanumeric filtering
   const filteredDevices = devices.filter((dev) => {
@@ -335,6 +340,12 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
 
     if (connectivityFilter === 'Online' && !dev.is_online) return false;
     if (connectivityFilter === 'Offline' && dev.is_online) return false;
+    if (connectivityFilter === 'Unassigned' && effectiveStationId !== null) return false;
+    if (connectivityFilter === 'SyncDelay') {
+      if (!dev.last_sync) return false;
+      const syncTime = new Date(dev.last_sync).getTime();
+      if (currentNow - syncTime <= FIVE_MINS_MS) return false;
+    }
 
     if (statusFilter === 'Active' && dev.status !== 'active') return false;
     if (statusFilter === 'Deleted' && dev.status !== 'deleted') return false;
@@ -348,17 +359,26 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   const activeDevices = devices.filter((d) => d.status === 'active');
   const totalActiveCount = activeDevices.length;
   const onlineCount = activeDevices.filter((d) => d.is_online).length;
+  const offlineCount = activeDevices.filter((d) => !d.is_online).length;
   const unassignedCount = activeDevices.filter((d) => !d.station_id).length;
 
-  const FIVE_MINS_MS = 5 * 60 * 1000;
-  const [currentNow] = useState(() => Date.now());
   const outOfSyncCount = activeDevices.filter((d) => {
     if (!d.last_sync) return true;
     const syncTime = new Date(d.last_sync).getTime();
     return currentNow - syncTime > FIVE_MINS_MS;
   }).length;
 
-  // Calculador de tiempo relativo ("2 mins ago", "1 hr ago", etc.)
+  const deviceCounts = useMemo(() => {
+    return {
+      all: totalActiveCount,
+      online: onlineCount,
+      offline: offlineCount,
+      unassigned: unassignedCount,
+      syncDelay: outOfSyncCount,
+    };
+  }, [totalActiveCount, onlineCount, offlineCount, unassignedCount, outOfSyncCount]);
+
+  // Relative time calculator ("2 mins ago", "1 hr ago", etc.)
   const formatTimeAgo = (isoString: string | null) => {
     if (!isoString) return 'Never Synced';
     const date = new Date(isoString);
@@ -421,7 +441,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       return;
     }
 
-    // 1. Validacion IPv4
+    // 1. IPv4 validation
     if (formIpAddress.trim()) {
       const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
       if (!ipv4Regex.test(formIpAddress.trim())) {
@@ -430,7 +450,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       }
     }
 
-    // 2. Guard del Identificador Unico por Merchant
+    // 2. Unique identifier guard per merchant
     const duplicate = devices.find(
       (d) =>
         d.device_identifier.toLowerCase().trim() === formDeviceIdentifier.toLowerCase().trim() &&
@@ -564,11 +584,16 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       <div ref={topRef} />
 
       {/* 1. Header Card Workspace */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
         <div>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
-            KDS HARDWARE DEVICES & CONNECTIVITY WORKSPACE
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              desktop_windows
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              KDS HARDWARE DEVICES & CONNECTIVITY WORKSPACE
+            </h2>
+          </div>
           <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
             Track physical display units, monitor live online/offline network connectivity status, manage IP address assignments, and inspect hardware bindings with kitchen stations.
           </p>
@@ -662,108 +687,257 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         </div>
       </div>
 
-      {/* 2. Toolbar Multicriterio a 2 Filas */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
-        {/* Row 1: Search on left and View Switcher on right in SAME horizontal line */}
-        <div className="flex flex-row items-center justify-between gap-3 w-full">
-          <div className="relative flex-1 min-w-0">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#5f5e5e] font-sans">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Search devices by name, identifier (DEV-001), IP address, or station..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md transition-all font-sans"
-              aria-label="Search KDS devices"
-            />
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Station selector, View Switcher + Reload on right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[220px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search devices by name, identifier, IP, station..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search KDS devices"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="material-symbols-outlined text-base">soup_kitchen</span>
+              <select
+                value={stationFilter}
+                onChange={(e) => setStationFilter(e.target.value)}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[220px] transition-colors duration-200"
+                aria-label="Filter by kitchen station"
+              >
+                <option value="All">All Stations ({totalActiveCount})</option>
+                <option value="Unassigned">Unassigned / Floating Units ({unassignedCount})</option>
+                {stations.map((s) => {
+                  const count = deviceCountByStation[s.id] || 0;
+                  return (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name} (#KST-{s.stationNumber ?? s.station_number ?? s.display_order ?? s.id}) {count > 0 ? `(${count})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
           </div>
 
-          {/* View Switcher Toggle (Table View vs Quick-Launch Cards) aligned right on same line */}
-          <div className="flex items-center bg-[#f2ede5] p-1 rounded border border-[#e8e2d8] shrink-0">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-              title="Switch to Table View"
-            >
-              <span className="material-symbols-outlined text-[16px]">table_rows</span>
-              Table View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                viewMode === 'cards'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-              title="Switch to Quick-Launch Cards Grid View"
-            >
-              <span className="material-symbols-outlined text-[16px]">grid_view</span>
-              Quick-Launch Cards
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* View Switcher Toggle (Table View vs Quick-Launch Cards) */}
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Switch to Table View"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'table' ? 'text-[#ae001a]' : ''}`}>table_rows</span>
+                Table View
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Switch to Quick-Launch Cards Grid View"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'cards' ? 'text-[#ae001a]' : ''}`}>grid_view</span>
+                Quick-Launch Cards
+              </button>
+            </div>
+
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => fetchDevices(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh devices now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+
+            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
+              <span className="material-symbols-outlined text-sm">schedule</span>
+              <span>Updated:</span>
+              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
+            </div>
           </div>
         </div>
 
-        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Station Filter */}
-            <select
-              value={stationFilter}
-              onChange={(e) => setStationFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by kitchen station"
-            >
-              <option value="All">All Stations ({totalActiveDevicesCount} {totalActiveDevicesCount === 1 ? 'screen' : 'screens'})</option>
-              <option value="Unassigned">Unassigned / Floating Units {unassignedDevicesCount > 0 ? `(${unassignedDevicesCount})` : '(0)'}</option>
-              {stations.map((s) => {
-                const count = deviceCountByStation[s.id] || 0;
-                return (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.name} (#KST-{s.stationNumber ?? s.station_number ?? s.display_order ?? s.id}) {count > 0 ? `(${count} ${count === 1 ? 'screen' : 'screens'})` : '(No screen)'}
-                  </option>
-                );
-              })}
-            </select>
+        {/* Row 2: STATUS Pills Strip on left, Record Status & Primary Add Button on right */}
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: STATUS Pills Strip */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Status:
+            </span>
 
-            {/* Connectivity Filter */}
-            <select
-              value={connectivityFilter}
-              onChange={(e) => setConnectivityFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by network connectivity"
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => setConnectivityFilter('All')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                connectivityFilter === 'All'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
             >
-              <option value="All">All Network States</option>
-              <option value="Online">ONLINE ONLY</option>
-              <option value="Offline">OFFLINE ONLY</option>
-            </select>
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  connectivityFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {deviceCounts.all}
+              </span>
+            </button>
 
-            {/* Record Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by record status"
+            {/* ONLINE Pill (Icon: wifi) */}
+            <button
+              type="button"
+              onClick={() => setConnectivityFilter('Online')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                connectivityFilter === 'Online'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
+              }`}
             >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Deleted">Deleted</option>
-            </select>
+              <span className="material-symbols-outlined text-[12px]">wifi</span>
+              <span>ONLINE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  connectivityFilter === 'Online' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {deviceCounts.online}
+              </span>
+            </button>
+
+            {/* OFFLINE Pill (Icon: wifi_off) */}
+            <button
+              type="button"
+              onClick={() => setConnectivityFilter('Offline')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                connectivityFilter === 'Offline'
+                  ? 'bg-[#ae001a] text-white border-[#ae001a] shadow-xs'
+                  : 'bg-red-50 text-[#ae001a] border-red-200 hover:bg-red-100/60 hover:text-[#900015]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">wifi_off</span>
+              <span>OFFLINE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  connectivityFilter === 'Offline' ? 'bg-white/20 text-white' : 'bg-red-100 text-[#ae001a]'
+                }`}
+              >
+                {deviceCounts.offline}
+              </span>
+            </button>
+
+            {/* UNASSIGNED Pill (Icon: soup_kitchen) */}
+            <button
+              type="button"
+              onClick={() => setConnectivityFilter('Unassigned')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                connectivityFilter === 'Unassigned'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">soup_kitchen</span>
+              <span>UNASSIGNED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  connectivityFilter === 'Unassigned' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {deviceCounts.unassigned}
+              </span>
+            </button>
+
+            {/* SYNC DELAY Pill (Icon: published_with_changes) */}
+            <button
+              type="button"
+              onClick={() => setConnectivityFilter('SyncDelay')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                connectivityFilter === 'SyncDelay'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">published_with_changes</span>
+              <span>SYNC DELAY</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  connectivityFilter === 'SyncDelay' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {deviceCounts.syncDelay}
+              </span>
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Right: Record Status Filter & Primary Add Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Record Status Filter */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">tune</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs font-semibold focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer"
+                aria-label="Filter by record status"
+              >
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Deleted">Deleted</option>
+              </select>
+            </div>
+
             {/* Primary Add Button */}
             <button
               type="button"
               onClick={handleOpenAddDrawer}
-              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+              className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
             >
               <span className="material-symbols-outlined text-[18px]">add</span>
               PAIR NEW DEVICE
@@ -775,18 +949,18 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       {/* 3. Main Data Workspace Grid */}
       {viewMode === 'cards' ? (
         isLoading ? (
-          <div className="p-12 text-center bg-white border border-[#e8e2d8] rounded">
-            <span className="material-symbols-outlined animate-spin text-3xl text-amber-600 mb-2">progress_activity</span>
-            <p className="text-xs font-bold text-[#5f5e5e]">Hydrating KDS hardware devices inventory...</p>
+          <div className="p-12 text-center bg-white border border-[#e8e2d8] rounded-xl shadow-sm">
+            <span className="material-symbols-outlined animate-spin text-3xl text-[#ae001a] mb-2">sync</span>
+            <p className="text-xs font-bold uppercase tracking-wider text-[#5f5e5e]">Hydrating KDS hardware devices inventory...</p>
           </div>
         ) : error ? (
-          <div className="p-12 text-center bg-white border border-[#e8e2d8] rounded space-y-3">
+          <div className="p-12 text-center bg-white border border-[#e8e2d8] rounded-xl shadow-sm space-y-3">
             <span className="material-symbols-outlined text-4xl text-[#ba1a1a]">error</span>
             <p className="font-bold text-[#ba1a1a]">{error}</p>
             <button
               type="button"
               onClick={() => fetchDevices()}
-              className="px-4 py-2 bg-[#222222] text-white font-bold text-xs uppercase hover:bg-[#ae001a] transition-all cursor-pointer"
+              className="px-4 py-2 bg-[#222222] text-white font-bold text-xs uppercase hover:bg-[#ae001a] transition-all cursor-pointer rounded-lg"
             >
               Retry Connection
             </button>
@@ -917,7 +1091,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         )
       ) : (
         /* Table View Mode */
-        <div className="bg-white border border-[#e8e2d8] rounded shadow-sm relative">
+        <div className="bg-white border border-[#e8e2d8] rounded-xl shadow-sm relative overflow-hidden">
           <HeaderQuickTabs
             title="KITCHEN DISPLAY DEVICES INVENTORY MATRIX"
             badgeCount={
@@ -982,20 +1156,20 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="w-full">
-                <table className="w-full text-left border-collapse text-xs font-sans">
+              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
                   <thead>
-                    <tr className="bg-[#ece8e0] text-[#5f5e5e] uppercase text-[11px] tracking-wider font-bold border-b border-[#e8e2d8]">
-                      {visibleColumns.deviceIdentity && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Device Identity & HW ID</th>}
-                      {visibleColumns.stationBinding && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Mapped Kitchen Station</th>}
-                      {visibleColumns.ipAddress && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Network IP Address</th>}
-                      {visibleColumns.connectivity && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e]`}>Live Connectivity</th>}
-                      {visibleColumns.lastSync && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Last Sync Timestamp</th>}
-                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e]`}>Lifecycle Status</th>}
-                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e]`}>Actions</th>}
+                    <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
+                      {visibleColumns.deviceIdentity && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-auto min-w-[180px]`}>Device Identity & HW ID</th>}
+                      {visibleColumns.stationBinding && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-44 min-w-[130px]`}>Mapped Kitchen Station</th>}
+                      {visibleColumns.ipAddress && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Network IP Address</th>}
+                      {visibleColumns.connectivity && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-32 min-w-[100px]`}>Live Connectivity</th>}
+                      {visibleColumns.lastSync && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Last Sync Timestamp</th>}
+                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Lifecycle Status</th>}
+                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Actions</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e8e2d8]">
+                  <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                     {isLoading ? (
                       <tr>
                         <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -1051,11 +1225,15 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
                         >
                           {/* Device Identity Block */}
                           {visibleColumns.deviceIdentity && (
-                            <td className={densityPadding}>
-                              <div className="font-bold text-[#1d1c17] text-sm leading-snug max-w-[220px]">{device.name}</div>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#f2ede5] text-[#5f5e5e] border border-[#e8e2d8] inline-block mt-0.5">
-                                {device.device_identifier}
-                              </span>
+                            <td className={`${densityPadding} truncate`}>
+                              <div className="min-w-0 flex flex-col justify-center">
+                                <span className="font-bold text-[#1d1c17] font-sans text-sm truncate" title={device.name}>
+                                  {device.name}
+                                </span>
+                                <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
+                                  ID: {device.device_identifier}
+                                </span>
+                              </div>
                             </td>
                           )}
 
@@ -1064,13 +1242,13 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
                             <td className={densityPadding}>
                               {device.station ? (
                                 <div className="flex flex-wrap items-center gap-1.5 max-w-[220px]">
-                                  <span className="font-bold text-[#1d1c17] text-xs leading-snug">{device.station.name}</span>
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-200 shrink-0">
+                                  <span className="font-normal text-[#1d1c17] text-xs leading-snug">{device.station.name}</span>
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-normal bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
                                     #KST-{device.station.stationNumber ?? device.station.station_number ?? device.station.display_order ?? device.station.id}
                                   </span>
                                 </div>
                               ) : (
-                                <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] border border-[#e8e2d8] inline-block">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-normal bg-[#f2ede5] text-[#5f5e5e] border border-[#e8e2d8] inline-block">
                                   Unassigned / Floating
                                 </span>
                               )}
@@ -1080,7 +1258,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
                           {/* Network IP Address */}
                           {visibleColumns.ipAddress && (
                             <td className={`${densityPadding} whitespace-nowrap`}>
-                              <div className="flex items-center gap-1.5 font-mono text-xs text-[#1d1c17] font-semibold">
+                              <div className="flex items-center gap-1.5 font-mono text-xs text-[#1d1c17] font-normal">
                                 <span className="material-symbols-outlined text-[16px] text-[#5f5e5e]">router</span>
                                 {device.ip_address || '0.0.0.0 (DHCP)'}
                               </div>
@@ -1108,7 +1286,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
                           {visibleColumns.lastSync && (
                             <td className={`${densityPadding} whitespace-nowrap`}>
                               <div>
-                                <div className="font-semibold text-[#1d1c17] text-xs">{formatTimeAgo(device.last_sync)}</div>
+                                <div className="font-normal text-[#1d1c17] text-xs">{formatTimeAgo(device.last_sync)}</div>
                                 <div className="text-[10px] text-[#5f5e5e] font-mono">
                                   {device.last_sync ? new Date(device.last_sync).toLocaleString('en-US') : 'No sync recorded'}
                                 </div>

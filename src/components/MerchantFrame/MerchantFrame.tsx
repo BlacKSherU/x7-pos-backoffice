@@ -111,6 +111,8 @@ import { RecipesView } from './views/products-inventory/recipes/RecipesView';
 import { KitchenStationsView } from './views/restaurant-operations/kitchen-stations/KitchenStationsView';
 import { KitchenKDSHubView } from './views/restaurant-operations/kitchen-stations/KitchenKDSHubView';
 import { ProductsInventoryHubView } from './views/products-inventory/ProductsInventoryHubView';
+import { RawMaterialsHubView } from './views/products-inventory/RawMaterialsHubView';
+import { OnlineStoresView } from './views/commerce/online-stores/OnlineStoresView';
 import { KitchenDisplayDevicesView } from './views/restaurant-operations/kitchen-stations/KitchenDisplayDevicesView';
 import { KitchenOrdersView } from './views/restaurant-operations/kitchen-stations/KitchenOrdersView';
 import { KitchenOrderItemsView } from './views/restaurant-operations/kitchen-stations/KitchenOrderItemsView';
@@ -217,6 +219,10 @@ const getNavFromPath = (
     return { category: 'inventory', tab: 'movements' };
   } else if (path === '/inventory/dashboard' || path === '/inventory/hub' || path === '/dashboard/inventory') {
     return { category: 'inventory', tab: 'inventory-dashboard' };
+  } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
+    return { category: 'inventory', tab: 'raw-materials-dashboard' };
+  } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores') {
+    return { category: 'commerce', tab: 'online-stores' };
   } else if (path === '/dashboard') {
     const stateTab = locationState?.activeTab;
     const stateCategory = locationState?.activeCategory;
@@ -295,6 +301,7 @@ export const MerchantFrame: React.FC = () => {
   }
 
   // Handle external side effects (sessionStorage) on route change
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const path = location.pathname;
     if (path === '/legal/privacy-policy') {
@@ -387,18 +394,24 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/inventory/stocks') {
       setActiveCategory('inventory');
       setActiveTab('stock-movements');
-    } else if (path === '/inventory/movements') {
+    } else if (path === '/inventory/dashboard' || path === '/inventory/hub' || path === '/dashboard/inventory') {
       setActiveCategory('inventory');
-      setActiveTab('movements');
+      setActiveTab('inventory-dashboard');
+    } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-materials-dashboard');
     } else if (path === '/dashboard') {
       const stateTab = location.state?.activeTab;
       const stateCategory = location.state?.activeCategory;
+      if (stateTab) setActiveTab(stateTab);
+      if (stateCategory) setActiveCategory(stateCategory);
       const stateMerchantId = location.state?.merchantId;
       if (stateMerchantId != null) {
         sessionStorage.setItem('x7:branch-context', String(stateMerchantId));
       }
     }
   }, [location.pathname, location.state]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
 
   // Dynamic Navigation by Plan and Permissions
@@ -855,7 +868,7 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-pool-members');
-        try { navigate('/tips/pool-members'); } catch (e) {}
+        try { navigate('/tips/pool-members'); } catch { /* noop */ }
       } else if (
         target === '/store-operations/tips-settlements' ||
         target === '/store-operations/tip-settlements' ||
@@ -865,11 +878,11 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-settlements');
-        try { navigate('/tips/settlements'); } catch (e) {}
+        try { navigate('/tips/settlements'); } catch { /* noop */ }
       } else if (target === '/tips/cash-movements' || target === 'tips-cash-movements' || target === 'cash-tip-movements') {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-cash-movements');
-        try { navigate('/tips/cash-movements'); } catch (e) {}
+        try { navigate('/tips/cash-movements'); } catch { /* noop */ }
       } else {
         setActiveTab(target);
       }
@@ -1234,6 +1247,18 @@ export const MerchantFrame: React.FC = () => {
       );
     }
 
+    if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') {
+      return (
+        <RawMaterialsHubView
+          onNavigate={(view) => setActiveTab(view)}
+        />
+      );
+    }
+
+    if (activeTab === 'online-stores') {
+      return <OnlineStoresView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
     if (activeTab === 'kitchen-stations') {
       return <KitchenStationsView onNavigate={(view) => setActiveTab(view)} />;
     }
@@ -1488,13 +1513,16 @@ export const MerchantFrame: React.FC = () => {
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isInventoryApp = app.id === 'products-inventory' || app.name === 'Products/Inventory System';
-                        const isDirectHubApp = isKDSApp || isInventoryApp;
+                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
+                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
+                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp;
                         const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : isInventoryApp
-                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'purchase-orders', 'stock-movements', 'variants'].includes(activeTab)
+                          : isProductsApp
+                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
+                          : isRawMaterialsApp
+                          ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
                           : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
@@ -1505,10 +1533,14 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('kds-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
-                                } else if (isInventoryApp) {
+                                } else if (isProductsApp) {
                                   setActiveCategory(cat.id);
                                   setActiveTab('inventory-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
+                                } else if (isRawMaterialsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('raw-materials-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,
@@ -1613,13 +1645,16 @@ export const MerchantFrame: React.FC = () => {
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isInventoryApp = app.id === 'products-inventory' || app.name === 'Products/Inventory System';
-                        const isDirectHubApp = isKDSApp || isInventoryApp;
+                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
+                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
+                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp;
                         const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : isInventoryApp
-                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'purchase-orders', 'stock-movements', 'variants'].includes(activeTab)
+                          : isProductsApp
+                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
+                          : isRawMaterialsApp
+                          ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
                           : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
@@ -1630,10 +1665,14 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('kds-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
-                                } else if (isInventoryApp) {
+                                } else if (isProductsApp) {
                                   setActiveCategory(cat.id);
                                   setActiveTab('inventory-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
+                                } else if (isRawMaterialsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('raw-materials-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,
@@ -1676,6 +1715,8 @@ export const MerchantFrame: React.FC = () => {
                                           navigate('/dashboard/company-profile');
                                         } else if (feat.id === 'company-configurations') {
                                           navigate('/dashboard/company-configurations');
+                                        } else if (feat.id === 'online-stores') {
+                                          navigate('/dashboard/online-stores');
                                         } else {
                                           navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
                                         }

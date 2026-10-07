@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getAccessToken } from '../../../../lib/auth-storage';
-import { InventoryQuickLinks } from './InventoryQuickLinks';
+import { CatalogQuickLinks } from './CatalogQuickLinks';
 import {
   StandardDashboardHub,
   type DashboardKPIItem,
@@ -17,9 +17,10 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
   onNavigate,
 }) => {
   const [productsCount, setProductsCount] = useState<number>(0);
+  const [uncategorizedCount, setUncategorizedCount] = useState<number>(0);
   const [categoriesCount, setCategoriesCount] = useState<number>(0);
+  const [variantsCount, setVariantsCount] = useState<number>(0);
   const [modifiersCount, setModifiersCount] = useState<number>(0);
-  const [purchaseOrdersCount, setPurchaseOrdersCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -34,11 +35,11 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
-        const [prodRes, catRes, modRes, poRes] = await Promise.allSettled([
-          fetch(`${API_BASE}/products`, { headers }),
-          fetch(`${API_BASE}/categories`, { headers }),
-          fetch(`${API_BASE}/modifiers`, { headers }),
-          fetch(`${API_BASE}/purchase-orders`, { headers }),
+        const [prodRes, catRes, varRes, modRes] = await Promise.allSettled([
+          fetch(`${API_BASE}/products?limit=100`, { headers }),
+          fetch(`${API_BASE}/category?limit=100`, { headers }),
+          fetch(`${API_BASE}/variants?limit=100`, { headers }),
+          fetch(`${API_BASE}/modifiers?limit=100`, { headers }),
         ]);
 
         if (!isMounted) return;
@@ -47,6 +48,8 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
           const json = await prodRes.value.json();
           const list = Array.isArray(json) ? json : json.data || [];
           setProductsCount(list.length);
+          const uncat = list.filter((p: { category?: unknown; categoryId?: unknown }) => !p.category && !p.categoryId).length;
+          setUncategorizedCount(uncat);
         }
 
         if (catRes.status === 'fulfilled' && catRes.value.ok) {
@@ -55,19 +58,19 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
           setCategoriesCount(list.length);
         }
 
+        if (varRes.status === 'fulfilled' && varRes.value.ok) {
+          const json = await varRes.value.json();
+          const list = Array.isArray(json) ? json : json.data || [];
+          setVariantsCount(list.length);
+        }
+
         if (modRes.status === 'fulfilled' && modRes.value.ok) {
           const json = await modRes.value.json();
           const list = Array.isArray(json) ? json : json.data || [];
           setModifiersCount(list.length);
         }
-
-        if (poRes.status === 'fulfilled' && poRes.value.ok) {
-          const json = await poRes.value.json();
-          const list = Array.isArray(json) ? json : json.data || [];
-          setPurchaseOrdersCount(list.length);
-        }
       } catch (err) {
-        console.warn('Error loading inventory dashboard metrics:', err);
+        console.warn('Error loading products dashboard metrics:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -83,33 +86,35 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
   const kpis: DashboardKPIItem[] = [
     {
       title: 'Catalog Products',
-      value: productsCount || 0,
-      subtitle: 'Active saleable items',
+      value: productsCount,
+      subtitle: uncategorizedCount > 0 ? `${uncategorizedCount} need category` : 'Active saleable items',
       icon: 'inventory_2',
       variant: 'red',
+      onClick: () => onNavigate?.('products'),
     },
     {
       title: 'Active Categories',
-      value: categoriesCount || 0,
-      subtitle: 'Product taxonomy tree',
+      value: categoriesCount,
+      subtitle: 'Menu taxonomy tree',
       icon: 'category',
       variant: 'blue',
+      onClick: () => onNavigate?.('categories'),
+    },
+    {
+      title: 'Product Variants',
+      value: variantsCount,
+      subtitle: 'Portion & sizing matrix',
+      icon: 'style',
+      variant: 'emerald',
+      onClick: () => onNavigate?.('variants'),
     },
     {
       title: 'Custom Modifiers',
-      value: modifiersCount || 0,
-      subtitle: 'Add-ons & choice groups',
+      value: modifiersCount,
+      subtitle: 'Add-on & choice groups',
       icon: 'tune',
       variant: 'amber',
-    },
-    {
-      title: 'System Status',
-      value: 'OPERATIONAL',
-      subtitle: 'Real-time catalog sync',
-      icon: 'check_circle',
-      variant: 'emerald',
-      isOperationalStatus: true,
-      statusLabel: 'OPERATIONAL',
+      onClick: () => onNavigate?.('modifiers'),
     },
   ];
 
@@ -120,7 +125,7 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       subtitle: 'Taxonomy & Families',
       description: 'Organize menu and store catalog into structured departments, groups, and categories.',
       icon: 'category',
-      badge: `${categoriesCount || 'Active'} Categories`,
+      badge: `${categoriesCount || 'Live'} Categories`,
       badgeVariant: 'emerald',
       actionText: 'Manage Categories',
     },
@@ -140,7 +145,7 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       subtitle: 'Portions, Sizes & Pricing',
       description: 'Define product variations such as sizing, colors, portions, and custom SKUs.',
       icon: 'style',
-      badge: 'Variant Matrix',
+      badge: `${variantsCount || 'Matrix'} Variations`,
       badgeVariant: 'zinc',
       actionText: 'Manage Variants',
     },
@@ -154,42 +159,23 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       badgeVariant: 'amber',
       actionText: 'Manage Modifiers',
     },
-    {
-      id: 'stock-movements',
-      title: 'Stock & Stock Movements Management',
-      subtitle: 'Live Inventory Balances & Audit Trail',
-      description: 'Track real-time inventory balances, stock movements, manual adjustments, waste, and audits.',
-      icon: 'swap_vert',
-      badge: 'Audit Trail Active',
-      badgeVariant: 'purple',
-      actionText: 'Manage Stock & Movements',
-    },
-    {
-      id: 'purchase-orders',
-      title: 'Purchase Orders Management',
-      subtitle: 'Procurement & Inbound Shipments',
-      description: 'Create purchase orders, receive supplier shipments, verify bills, and replenish warehouse stock.',
-      icon: 'receipt_long',
-      badge: `${purchaseOrdersCount || 'Active'} Orders`,
-      badgeVariant: 'blue',
-      actionText: 'Manage Purchase Orders',
-    },
   ];
 
   return (
     <StandardDashboardHub
-      breadcrumb="Inventory / Products & Inventory Ecosystem"
+      breadcrumb="Inventory / Products"
       headerIcon="space_dashboard"
-      title="Products & Inventory Command Hub"
-      description="Centralized operational hub for catalog taxonomy, dish customization modifiers, product matrix, supplier purchase orders, and stock movements."
+      title="Products Command Hub"
+      description="Centralized operational hub for catalog taxonomy, dish customization modifiers, product matrix, and item variations."
       kpis={kpis}
       loadingKpis={loading}
       modules={modules}
       onModuleClick={(id) => onNavigate?.(id)}
     >
-      <InventoryQuickLinks onNavigate={onNavigate} />
+      <CatalogQuickLinks current="products" onNavigate={onNavigate} />
     </StandardDashboardHub>
   );
 };
 
+export const ProductsHubView = ProductsInventoryHubView;
 export default ProductsInventoryHubView;

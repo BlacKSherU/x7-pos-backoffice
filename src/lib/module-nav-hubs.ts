@@ -1,34 +1,30 @@
-// Barras de navegación persistentes (NavHubBar) de los módulos del backoffice.
+// Persistent navigation hub bars (NavHubBar) for backoffice modules.
 //
-// Cash Drawers (X7P-4264) usa etiquetas deducidas del patrón de las demás historias: la suya
-// no se ha recibido todavía. Si trae otras, se cambian aquí y en module-nav-hubs.test.ts.
+// Single map per module: return button to its Command Hub and direct links to
+// ALL its 3rd level options (features from Features.txt), with exact story labels.
+// MerchantFrame references this with active featureId and mounts the bar once
+// for the active view, its error states, and "In Development" stubs.
 //
-// Un único mapa por módulo: el botón de regreso a su Command Hub y los accesos directos a
-// TODAS sus opciones de 3er nivel (las features de Features.txt), con las etiquetas exactas
-// de las historias. MerchantFrame lo consulta con el featureId activo y monta la barra una
-// sola vez para la vista, sus estados de error y los stubs "In Development" — así una opción
-// que aún no tiene vista sigue siendo navegable hacia sus hermanas.
-//
-// Kitchen Display System y Products / Inventory System NO están aquí: sus vistas montan su propia NavHubBar desde sus vistas y tienen su propio Hub operacional.
+// Kitchen Display System and Products / Inventory System mount their own operational Hub and NavHubBar.
 
 export interface ModuleNavItem {
-  /** featureId real de Features.txt, que es lo que MerchantFrame resuelve. */
+  /** Real featureId from Features.txt resolved by MerchantFrame. */
   featureId: string;
   label: string;
-  /** Símbolo de Material Symbols Outlined. */
+  /** Material Symbols Outlined glyph name. */
   icon: string;
-  /** Descripción para la tarjeta del Command Hub. */
+  /** Description for Command Hub card. */
   description: string;
-  /** Tiene vista propia; false = cae en el stub "In Development". */
+  /** Has its own view; false falls into "In Development" stub. */
   live: boolean;
 }
 
 export interface ModuleNavHub {
-  /** Application_Id de Applications.txt. */
+  /** Application_Id from Applications.txt. */
   appId: string;
-  /** featureId sintético de la página Command Hub del módulo. */
+  /** Synthetic featureId for module Command Hub page. */
   hubId: string;
-  /** Etiqueta del botón de regreso (y título del hub). */
+  /** Back button label (and hub title). */
   hubLabel: string;
   title: string;
   category: string;

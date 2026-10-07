@@ -642,49 +642,49 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
               {activeColSpan === 0 ? (
                 <NoColumnsEmptyState />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <table className="w-full table-fixed text-left border-collapse">
                     <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                       <tr>
                         {visibleColumns.name && (
-                          <th className={`text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-auto min-w-[180px]`}>
                             Recipe Name & ID
                           </th>
                         )}
                         {visibleColumns.product && (
-                          <th className={`text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-44 min-w-[130px]`}>
                             Linked Product / Variant
                           </th>
                         )}
                         {visibleColumns.yield && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-32 min-w-[100px]`}>
                             Batch Yield
                           </th>
                         )}
                         {visibleColumns.ingredients && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-32 min-w-[100px]`}>
                             Ingredients
                           </th>
                         )}
                         {visibleColumns.cost && (
-                          <th className={`text-right text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-36 min-w-[110px]`}>
                             Theoretical Cost / Portion
                           </th>
                         )}
                         {visibleColumns.status && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                             Status
                           </th>
                         )}
                         {visibleColumns.actions && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                             Actions
                           </th>
                         )}
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y divide-[#e8e2d8] text-sm font-sans">
+                    <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                       {isLoading ? (
                         <tr>
                           <td colSpan={activeColSpan} className="py-12 px-6 text-center text-secondary font-sans bg-white">
@@ -738,11 +738,15 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                             <tr key={rec.id} className="hover:bg-[#f8f3eb] transition-colors">
                               {/* Recipe Name & ID */}
                               {visibleColumns.name && (
-                                <td className={densityPadding}>
-                                  <p className="font-bold text-[#1d1c17]">{recipeName}</p>
-                                  <span className="font-mono text-[11px] text-[#5f5e5e] bg-[#f2ede5] px-1.5 py-0.5 rounded">
-                                    RCP-#{rec.id}
-                                  </span>
+                                <td className={`${densityPadding} truncate`}>
+                                  <div className="min-w-0 flex flex-col justify-center">
+                                    <span className="font-bold text-[#1d1c17] font-sans text-sm truncate" title={recipeName}>
+                                      {recipeName}
+                                    </span>
+                                    <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
+                                      RCP-#{rec.id}
+                                    </span>
+                                  </div>
                                 </td>
                               )}
 
@@ -751,20 +755,20 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                                 <td className={densityPadding}>
                                   {prod ? (
                                     <div className="flex flex-col gap-1 items-start">
-                                      <span className="px-2.5 py-1 rounded-full bg-[#f2ede5] text-[#1d1c17] font-semibold text-xs border border-[#e8e2d8] inline-flex items-center gap-1.5">
+                                      <span className="px-2.5 py-0.5 rounded-full bg-[#f2ede5] text-[#1d1c17] font-normal text-xs border border-[#e8e2d8] inline-flex items-center gap-1.5">
                                         <span className="material-symbols-outlined text-[14px] text-[#ae001a]">
                                           restaurant
                                         </span>
                                         {prod.name}
                                       </span>
                                       {variant && (
-                                        <span className="text-[11px] text-[#5f5e5e] italic font-mono pl-1">
+                                        <span className="text-[11px] text-[#5f5e5e] font-normal font-mono pl-1">
                                           Variant: {variant.name}
                                         </span>
                                       )}
                                     </div>
                                   ) : (
-                                    <span className="px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-500 font-semibold text-xs italic">
+                                    <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500 font-normal text-xs italic">
                                       General Formula
                                     </span>
                                   )}
@@ -774,7 +778,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                               {/* Batch Yield */}
                               {visibleColumns.yield && (
                                 <td className={`text-center ${densityPadding}`}>
-                                  <span className="font-bold text-[#1d1c17] font-mono">
+                                  <span className="font-normal text-[#1d1c17] font-mono text-xs">
                                     {yieldQty} {yieldQty === 1 ? 'Portion' : 'Portions'}
                                   </span>
                                 </td>
@@ -783,7 +787,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                               {/* Ingredient Count */}
                               {visibleColumns.ingredients && (
                                 <td className={`text-center ${densityPadding}`}>
-                                  <span className="px-2 py-0.5 rounded-full bg-[#ece8e0] text-[#5f5e5e] font-semibold text-xs">
+                                  <span className="px-2 py-0.5 rounded-full bg-[#ece8e0] text-[#5f5e5e] font-normal text-xs">
                                     {ingredientCount} {ingredientCount === 1 ? 'Ingredient' : 'Ingredients'}
                                   </span>
                                 </td>
@@ -792,10 +796,10 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                               {/* Theoretical Cost & Portion Cost */}
                               {visibleColumns.cost && (
                                 <td className={`text-right ${densityPadding}`}>
-                                  <p className="font-bold font-mono text-[#ae001a] text-sm">
+                                  <p className="font-normal font-mono text-[#ae001a] text-xs">
                                     ${portionCost.toFixed(4)} <span className="text-[10px] font-normal text-secondary">/ portion</span>
                                   </p>
-                                  <span className="text-[10px] font-mono text-secondary">
+                                  <span className="text-[10px] font-mono font-normal text-secondary">
                                     Total: ${totalCost.toFixed(4)}
                                   </span>
                                 </td>
@@ -803,12 +807,12 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
                               {/* Status Badge */}
                               {visibleColumns.status && (
-                                <td className={`text-center ${densityPadding}`}>
+                                <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                                   <span
-                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
                                       recIsActive
                                         ? 'bg-emerald-100 text-emerald-700'
-                                        : 'bg-zinc-100 text-zinc-600'
+                                        : 'bg-zinc-200 text-[#5f5e5e]'
                                     }`}
                                   >
                                     {recIsActive ? 'Active' : 'Inactive'}

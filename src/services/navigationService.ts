@@ -140,8 +140,18 @@ export const navigationService = {
           app.features = [
             {
               id: 'inventory-dashboard',
-              name: 'Inventory Operational Command Hub',
+              name: 'Products Operational Command Hub',
               applicationId: 'products-inventory',
+              planId: 1,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'raw-materials') {
+          app.features = [
+            {
+              id: 'raw-materials-dashboard',
+              name: 'Raw Materials Operational Command Hub',
+              applicationId: 'raw-materials',
               planId: 1,
               isSaaS: false,
             }

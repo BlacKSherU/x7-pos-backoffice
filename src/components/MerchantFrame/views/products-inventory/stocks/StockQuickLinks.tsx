@@ -24,13 +24,6 @@ const STOCK_ANCHORS: Array<{
   icon: string;
 }> = [
   {
-    key: 'raw-materials',
-    label: 'RAW MATERIALS',
-    route: '/inventory/raw-materials',
-    featureId: 'raw-materials',
-    icon: 'inventory_2',
-  },
-  {
     key: 'raw-material-categories',
     label: 'RM CATEGORIES',
     route: '/dashboard/raw-material-categories',
@@ -38,11 +31,11 @@ const STOCK_ANCHORS: Array<{
     icon: 'category',
   },
   {
-    key: 'recipes',
-    label: 'RECIPES & BOM',
-    route: '/inventory/recipes',
-    featureId: 'recipes',
-    icon: 'menu_book',
+    key: 'raw-materials',
+    label: 'RAW MATERIALS',
+    route: '/inventory/raw-materials',
+    featureId: 'raw-materials',
+    icon: 'inventory_2',
   },
   {
     key: 'purchase-orders',
@@ -50,13 +43,6 @@ const STOCK_ANCHORS: Array<{
     route: '/inventory/purchase-orders',
     featureId: 'purchase-orders',
     icon: 'receipt_long',
-  },
-  {
-    key: 'locations',
-    label: 'INVENTORY LOCATIONS',
-    route: '/inventory/locations',
-    featureId: 'locations',
-    icon: 'warehouse',
   },
   {
     key: 'stock-movements',
@@ -67,10 +53,24 @@ const STOCK_ANCHORS: Array<{
   },
   {
     key: 'movements',
-    label: 'STOCK MOVEMENTS',
+    label: 'MOVEMENTS',
     route: '/inventory/movements',
     featureId: 'movements',
     icon: 'swap_vert',
+  },
+  {
+    key: 'locations',
+    label: 'LOCATIONS',
+    route: '/inventory/locations',
+    featureId: 'locations',
+    icon: 'warehouse',
+  },
+  {
+    key: 'recipes',
+    label: 'RECIPES & BOM',
+    route: '/inventory/recipes',
+    featureId: 'recipes',
+    icon: 'menu_book',
   },
 ];
 

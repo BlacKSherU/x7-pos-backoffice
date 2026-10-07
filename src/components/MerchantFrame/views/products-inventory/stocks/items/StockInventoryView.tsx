@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, getStoredUser } from '../../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../StockQuickLinks';
-import { InventoryNavHubBar } from '../../InventoryNavHubBar';
+import { NavHubBar } from '../../../../../shared/NavHubBar';
 import { EmergencySupportModal } from '../../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../../shared/tableOptionsHelpers';
@@ -702,20 +702,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
             </label>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Action Button: Register Movement */}
-            {onNavigate && (
-              <button
-                type="button"
-                onClick={() => onNavigate('movements')}
-                className="bg-[#ae001a] text-white font-bold text-label-caps px-5 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">swap_vert</span>
-                RECORD MOVEMENT
-              </button>
-            )}
 
-          </div>
         </div>
       </div>
 
@@ -769,48 +756,48 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
         {colSpan === 0 ? (
           <NoColumnsEmptyState />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
+          <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <table className="w-full table-fixed border-collapse text-left">
               <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                 <tr>
                   {visibleColumns.entity && (
-                    <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                    <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-auto min-w-[320px]`}>
                       {viewMode === 'by-location' ? 'Storage Location Node' : 'Raw Material Item'}
                     </th>
                   )}
                   {visibleColumns.itemsCount && (
-                    <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                    <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-40 min-w-[120px]`}>
                       {viewMode === 'by-location' ? 'Raw Material Items' : 'Assigned Storage Locations'}
                     </th>
                   )}
                   {visibleColumns.currentStock && (
-                    <th className={`${densityPadding} text-right text-label-caps font-bold text-[#5f5e5e]`}>
+                    <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                       Current Stock
                     </th>
                   )}
                   {visibleColumns.allocatedNet && (
-                    <th className={`${densityPadding} text-right text-label-caps font-bold text-[#5f5e5e]`}>
-                      Allocated & Net Available
+                    <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[120px]`}>
+                      Allocated &amp; Net Available
                     </th>
                   )}
                   {visibleColumns.valuation && (
-                    <th className={`${densityPadding} text-right text-label-caps font-bold text-[#5f5e5e]`}>
+                    <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                       Stock Valuation
                     </th>
                   )}
                   {visibleColumns.status && (
-                    <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e]`}>
+                    <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                       Status
                     </th>
                   )}
                   {visibleColumns.actions && (
-                    <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e]`}>
+                    <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                       Actions
                     </th>
                   )}
                 </tr>
               </thead>
-            <tbody className="divide-y divide-[#e8e2d8] text-sm">
+            <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
               {isLoading ? (
                 <tr>
                   <td colSpan={colSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -865,17 +852,12 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                               >
                                 {hasMultipleSubItems ? 'chevron_right' : 'remove'}
                               </span>
-                              <div>
-                                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                                  <p className="font-bold text-[#1d1c17] text-sm whitespace-nowrap">{group.title}</p>
-                                  {group.code && (
-                                    <span className="font-mono text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] px-1.5 py-0.5 rounded border border-[#e8e2d8] whitespace-nowrap inline-block shrink-0">
-                                      {group.code}
-                                    </span>
-                                  )}
+                              <div className="min-w-0 flex flex-col justify-center">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                  <span className="font-bold text-[#1d1c17] font-sans text-sm whitespace-normal" title={group.title}>{group.title}</span>
                                   {group.isMainStorage && (
                                     <span
-                                      className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300 whitespace-nowrap shrink-0"
+                                      className="inline-flex items-center gap-1 text-[10px] font-normal bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300 whitespace-nowrap"
                                       title="Primary Storage Hub"
                                     >
                                       ⭐ Main Storage
@@ -890,9 +872,16 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-secondary text-body-xs font-mono">
-                                  {group.items.length} item line{group.items.length === 1 ? '' : 's'}
-                                </span>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {group.code && (
+                                    <span className="font-mono text-[11px] font-normal text-[#5f5e5e] whitespace-nowrap">
+                                      CODE: {group.code}
+                                    </span>
+                                  )}
+                                  <span className="text-[#5f5e5e] text-[11px] font-mono font-normal whitespace-nowrap">
+                                    {group.items.length} item line{group.items.length === 1 ? '' : 's'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -900,7 +889,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
                         {/* Column 2: Count or Supply */}
                         {visibleColumns.itemsCount && (
-                          <td className={`${densityPadding} font-semibold text-secondary`}>
+                          <td className={`${densityPadding} font-normal text-xs text-[#5f5e5e] font-sans truncate`}>
                             {viewMode === 'by-location' ? (
                               <span>{group.items.length} Material{group.items.length === 1 ? '' : 's'} Stored</span>
                             ) : (
@@ -911,8 +900,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
                         {/* Columna 3: Current Stock */}
                         {visibleColumns.currentStock && (
-                          <td className={`${densityPadding} text-right font-mono font-bold text-sm ${
-                            group.hasAlert ? 'text-red-600 font-black' : 'text-[#1d1c17]'
+                          <td className={`${densityPadding} text-right font-mono font-normal text-xs ${
+                            group.hasAlert ? 'text-red-600' : 'text-[#1d1c17]'
                           }`}>
                             {group.totalStock.toFixed(2)}
                           </td>
@@ -920,11 +909,11 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
                         {/* Columna 4: Allocated & Net Available */}
                         {visibleColumns.allocatedNet && (
-                          <td className={`${densityPadding} text-right font-mono text-xs`}>
-                            <span className="text-emerald-700 font-bold">
+                          <td className={`${densityPadding} text-right font-mono text-xs font-normal`}>
+                            <span className="text-emerald-700">
                               {group.totalNetAvailable.toFixed(2)} avail
                             </span>{' '}
-                            <span className="text-secondary text-[11px]">
+                            <span className="text-[#5f5e5e] text-[11px]">
                               ({group.totalAllocated.toFixed(2)} res)
                             </span>
                           </td>
@@ -932,14 +921,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
                         {/* Columna 5: Valuation */}
                         {visibleColumns.valuation && (
-                          <td className={`${densityPadding} text-right font-mono font-bold text-sm text-[#ae001a]`}>
+                          <td className={`${densityPadding} text-right font-mono font-normal text-xs text-[#ae001a]`}>
                             ${group.totalValuation.toFixed(2)}
                           </td>
                         )}
 
                         {/* Columna 6: Status Badge */}
                         {visibleColumns.status && (
-                          <td className={`${densityPadding} text-center`}>
+                          <td className={`${densityPadding} text-center whitespace-nowrap`}>
                             {group.hasAlert ? (
                               <span className="text-[10px] px-2.5 py-0.5 font-bold rounded uppercase bg-red-100 text-red-700 border border-red-200">
                                 Low Stock Alert
@@ -1019,53 +1008,55 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                             >
                               {visibleColumns.entity && (
                                 <td className={`${densityPadding} pl-12`}>
-                                  <span className="flex items-center gap-1.5 text-xs text-zinc-700 font-bold">
-                                    <span className="material-symbols-outlined text-[14px] text-zinc-400">
+                                  <span className="flex items-center gap-1.5 text-xs text-[#1d1c17] font-normal whitespace-normal">
+                                    <span className="material-symbols-outlined text-[14px] text-[#5f5e5e]/50 shrink-0">
                                       subdirectory_arrow_right
                                     </span>
-                                    {viewMode === 'by-location'
-                                      ? subItem.supply?.name || subItem.product?.name || 'Raw Material Item'
-                                      : subItem.location?.name || 'Storage Location Hub'}
+                                    <span>
+                                      {viewMode === 'by-location'
+                                        ? subItem.supply?.name || subItem.product?.name || 'Raw Material Item'
+                                        : subItem.location?.name || 'Storage Location Hub'}
+                                    </span>
                                   </span>
                                 </td>
                               )}
                               {visibleColumns.itemsCount && (
-                                <td className={`${densityPadding} text-xs text-secondary font-mono`}>
+                                <td className={`${densityPadding} text-xs text-[#5f5e5e] font-sans font-normal truncate`}>
                                   {viewMode === 'by-location'
                                     ? `Unit: ${subItem.supply?.consumption_unit || subItem.supply?.unit || 'Units'}`
                                     : subItem.location?.code || 'N/A'}
                                 </td>
                               )}
                               {visibleColumns.currentStock && (
-                                <td className={`${densityPadding} text-right font-mono font-bold text-xs ${
-                                  isSubItemLowStock ? 'text-red-600 font-black' : 'text-[#1d1c17]'
+                                <td className={`${densityPadding} text-right font-mono font-normal text-xs ${
+                                  isSubItemLowStock ? 'text-red-600' : 'text-[#1d1c17]'
                                 }`}>
                                   {currentStock.toFixed(2)}
                                 </td>
                               )}
                               {visibleColumns.allocatedNet && (
-                                <td className={`${densityPadding} text-right font-mono text-xs`}>
-                                  <span className="text-emerald-700 font-bold">
+                                <td className={`${densityPadding} text-right font-mono text-xs font-normal`}>
+                                  <span className="text-emerald-700">
                                     {netAvailable.toFixed(2)} avail
                                   </span>{' '}
-                                  <span className="text-secondary text-[11px]">
+                                  <span className="text-[#5f5e5e] text-[11px]">
                                     ({allocatedStock.toFixed(2)} res)
                                   </span>
                                 </td>
                               )}
                               {visibleColumns.valuation && (
-                                <td className={`${densityPadding} text-right font-mono font-bold text-xs text-[#ae001a]`}>
+                                <td className={`${densityPadding} text-right font-mono font-normal text-xs text-[#ae001a]`}>
                                   ${itemValuation.toFixed(2)}
                                 </td>
                               )}
                               {visibleColumns.status && (
-                                <td className={`${densityPadding} text-center`}>
+                                <td className={`${densityPadding} text-center whitespace-nowrap`}>
                                   {isSubItemLowStock ? (
-                                    <span className="text-[9px] px-2 py-0.5 font-bold rounded uppercase bg-red-100 text-red-700 border border-red-200 whitespace-nowrap inline-block">
+                                    <span className="text-[10px] px-2.5 py-0.5 font-bold rounded uppercase bg-red-100 text-red-700 border border-red-200 whitespace-nowrap inline-block">
                                       {currentStock <= 0 ? 'Out of Stock' : 'Low Stock'}
                                     </span>
                                   ) : (
-                                    <span className="text-[9px] px-2 py-0.5 font-bold rounded uppercase bg-emerald-100 text-emerald-700 whitespace-nowrap inline-block">
+                                    <span className="text-[10px] px-2.5 py-0.5 font-bold rounded uppercase bg-emerald-100 text-emerald-700 whitespace-nowrap inline-block">
                                       Healthy
                                     </span>
                                   )}
@@ -1136,8 +1127,54 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
       {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
       <StockQuickLinks current="stock-movements" onNavigate={onNavigate} />
 
-      {/* Persistent Inventory Navigation Hub Bar */}
-      <InventoryNavHubBar activeModuleId="stock-movements" onNavigate={onNavigate} />
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
+        activeModuleId="stock-movements"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'RM CATEGORIES',
+            icon: 'category',
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'STOCK LEVELS',
+            icon: 'table_rows',
+            active: true,
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate?.('movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            onClick: () => onNavigate?.('locations'),
+          },
+        ]}
+      />
 
       {/* Emergency Support Modal */}
 

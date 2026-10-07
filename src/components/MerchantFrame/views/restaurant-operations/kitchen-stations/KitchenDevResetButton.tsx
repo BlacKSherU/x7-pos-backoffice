@@ -84,13 +84,13 @@ export const KitchenDevResetButton: React.FC<KitchenDevResetButtonProps> = ({ on
             : 'All Orders Cleared!')
       );
 
-      // Notificar a toda la aplicación para recarga reactiva
+      // Notify whole application for reactive reload
       window.dispatchEvent(new CustomEvent('x7_kds_data_reset', { detail: { mode } }));
       if (onResetComplete) {
         onResetComplete();
       }
 
-      // Auto cerrar tras 1.5 segundos
+      // Auto close after 1.5 seconds
       setTimeout(() => {
         setIsOpen(false);
         setStatusMessage(null);

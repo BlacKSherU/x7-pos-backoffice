@@ -34,7 +34,7 @@ export interface AllergyDetectionResult {
 // 1. DICCIONARIO BILINGÜE (INGLÉS ⇋ ESPAÑOL)
 // ====================================================================
 
-const DISH_TRANSLATIONS: Record<string, { en: string; es: string }> = {
+export const DISH_TRANSLATIONS: Record<string, { en: string; es: string }> = {
   'smash burger doble': { en: 'Double Smash Burger', es: 'Smash Burger Doble' },
   'smash burger': { en: 'Smash Burger', es: 'Hamburguesa Smash' },
   'double smash burger': { en: 'Double Smash Burger', es: 'Smash Burger Doble' },

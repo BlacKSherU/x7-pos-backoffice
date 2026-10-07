@@ -1,32 +1,32 @@
 import React from 'react';
 import { NavHubBar } from '../../../shared/NavHubBar';
 
-export type InventorySubModule =
+export type ProductsSubModule =
   | 'categories'
   | 'modifiers'
   | 'products'
-  | 'purchase-orders'
-  | 'stock-movements'
   | 'variants';
 
-interface InventoryNavHubBarProps {
-  activeModuleId: InventorySubModule;
+export type InventorySubModule = ProductsSubModule;
+
+interface ProductsNavHubBarProps {
+  activeModuleId: ProductsSubModule;
   onNavigate?: (view: string) => void;
 }
 
-export const InventoryNavHubBar: React.FC<InventoryNavHubBarProps> = ({
+export const ProductsNavHubBar: React.FC<ProductsNavHubBarProps> = ({
   activeModuleId,
   onNavigate,
 }) => {
   return (
-    <nav aria-label="Products and Inventory sub-module navigation">
+    <nav aria-label="Products catalog sub-module navigation">
       <NavHubBar
-        title="PRODUCTS &amp; INVENTORY COMMAND HUB"
+        title="PRODUCTS COMMAND HUB"
         titleIcon="inventory_2"
-        subtitle="Catalog Matrix, Purchase Orders &amp; Stock Levels"
+        subtitle="Catalog Matrix, Categories, Modifiers &amp; Variants"
         activeModuleId={activeModuleId}
         onBackToDashboard={() => onNavigate?.('inventory-dashboard')}
-        backToDashboardLabel="INVENTORY COMMAND HUB"
+        backToDashboardLabel="PRODUCTS COMMAND HUB"
         items={[
           {
             id: 'categories',
@@ -56,24 +56,11 @@ export const InventoryNavHubBar: React.FC<InventoryNavHubBarProps> = ({
             active: activeModuleId === 'modifiers',
             onClick: () => onNavigate?.('modifiers'),
           },
-          {
-            id: 'stock-movements',
-            label: 'STOCK & MOVEMENTS',
-            icon: 'swap_vert',
-            active: activeModuleId === 'stock-movements',
-            onClick: () => onNavigate?.('stock-movements'),
-          },
-          {
-            id: 'purchase-orders',
-            label: 'PURCHASE ORDERS',
-            icon: 'receipt_long',
-            active: activeModuleId === 'purchase-orders',
-            onClick: () => onNavigate?.('purchase-orders'),
-          },
         ]}
       />
     </nav>
   );
 };
 
-export default InventoryNavHubBar;
+export const InventoryNavHubBar = ProductsNavHubBar;
+export default ProductsNavHubBar;

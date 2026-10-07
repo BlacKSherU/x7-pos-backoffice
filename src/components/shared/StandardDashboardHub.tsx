@@ -234,18 +234,37 @@ export const StandardDashboardHub: React.FC<StandardDashboardHubProps> = ({
         })}
       </div>
 
-      {/* 3. Sub-Module Command Cards Grid (3 cards per row = 2 rows of 3) */}
-      <div className="grid grid-cols-3 gap-4 mt-2 w-full">
-        {modules.map((mod) => (
-          <StandardDashboardModuleCard
-            key={mod.id}
-            mod={mod}
-            onClick={() => {
-              if (mod.onClick) mod.onClick();
-              else if (onModuleClick) onModuleClick(mod.id);
-            }}
-          />
-        ))}
+      {/* 3. Sub-Module Command Cards Grid (3 cards per row; centered if bottom row has fewer than 3) */}
+      <div className="dashboard-hub-grid grid grid-cols-1 md:grid-cols-6 gap-4 mt-2 w-full">
+        {modules.map((mod, idx) => {
+          const remainder = modules.length % 3;
+          let positioningClass = 'dashboard-card-span md:col-span-2';
+
+          if (remainder === 1 && idx === modules.length - 1) {
+            // Si hay 1 en la última fila: centrada al mismo nivel que el segundo cuadro (cols 3 y 4)
+            positioningClass = 'dashboard-card-single-center md:col-start-3 md:col-span-2';
+          } else if (remainder === 2) {
+            if (idx === modules.length - 2) {
+              // Si hay 2: la 1ª se coloca entre el 1° y 2° cuadro (cols 2 y 3)
+              positioningClass = 'dashboard-card-pair-first md:col-start-2 md:col-span-2';
+            } else if (idx === modules.length - 1) {
+              // Si hay 2: la 2ª se coloca entre el 2° y 3° cuadro (cols 4 y 5)
+              positioningClass = 'dashboard-card-pair-second md:col-start-4 md:col-span-2';
+            }
+          }
+
+          return (
+            <StandardDashboardModuleCard
+              key={mod.id}
+              mod={mod}
+              className={positioningClass}
+              onClick={() => {
+                if (mod.onClick) mod.onClick();
+                else if (onModuleClick) onModuleClick(mod.id);
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* 4. Bottom slot for quick links or NavHubBar */}
@@ -256,10 +275,15 @@ export const StandardDashboardHub: React.FC<StandardDashboardHubProps> = ({
 
 interface StandardDashboardModuleCardProps {
   mod: DashboardModuleItem;
+  className?: string;
   onClick?: () => void;
 }
 
-const StandardDashboardModuleCard: React.FC<StandardDashboardModuleCardProps> = ({ mod, onClick }) => {
+const StandardDashboardModuleCard: React.FC<StandardDashboardModuleCardProps> = ({
+  mod,
+  className,
+  onClick,
+}) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const badgeClass =
@@ -273,7 +297,7 @@ const StandardDashboardModuleCard: React.FC<StandardDashboardModuleCardProps> = 
       onMouseLeave={() => setIsHovered(false)}
       className={`bg-white border rounded-xl p-5 pb-5 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-w-0 min-h-[220px] h-full ${
         isHovered ? 'border-[#ae001a]' : 'border-[#e8e2d8]'
-      }`}
+      } ${className || ''}`}
     >
       <div>
         <div className="flex items-center justify-between mb-3 min-w-0 gap-2">

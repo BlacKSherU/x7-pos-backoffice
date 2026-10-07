@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../StockQuickLinks';
+import { NavHubBar } from '../../../../../shared/NavHubBar';
 import { EmergencySupportModal } from '../../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../../shared/tableOptionsHelpers';
@@ -513,38 +514,38 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
             {activeColSpan === 0 ? (
               <NoColumnsEmptyState />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <table className="w-full table-fixed border-collapse">
                   <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                     <tr>
                       {visibleColumns.name && (
-                        <th className={`text-left text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
-                          Location Designation & Code
+                        <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-auto min-w-[200px]`}>
+                          Location Designation &amp; Code
                         </th>
                       )}
                       {visibleColumns.address && (
-                        <th className={`text-left text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                        <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-64 min-w-[160px]`}>
                           Physical Address
                         </th>
                       )}
                       {visibleColumns.isMainStorage && (
-                        <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                        <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-44 min-w-[130px]`}>
                           Primary Storage Hub
                         </th>
                       )}
                       {visibleColumns.status && (
-                        <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                        <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                           Status
                         </th>
                       )}
                       {visibleColumns.actions && (
-                        <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                        <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                           Actions
                         </th>
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e8e2d8] text-sm">
+                  <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                     {isLoading ? (
                       <tr>
                         <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -592,40 +593,39 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
                             }`}
                           >
                             {visibleColumns.name && (
-                              <td className={`${densityPadding} flex items-center gap-3`}>
-                                <div className={`w-1 h-8 rounded-full ${loc.isMainStorage ? 'bg-amber-500' : 'bg-[#ae001a]'}`} />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className={`font-bold text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>{loc.name}</p>
-                                    {loc.code && (
-                                      <span className="font-mono text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] px-1.5 py-0.5 rounded border border-[#e8e2d8]">
-                                        {loc.code}
-                                      </span>
-                                    )}
-                                  </div>
+                              <td className={`${densityPadding} truncate`}>
+                                <div className="min-w-0 flex flex-col justify-center">
+                                  <span className={`font-bold text-[#1d1c17] font-sans text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`}>
+                                    {loc.name}
+                                  </span>
+                                  {loc.code && (
+                                    <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
+                                      CODE: {loc.code}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                             )}
                             {visibleColumns.address && (
-                              <td className={`${densityPadding} text-secondary`}>
+                              <td className={`${densityPadding} text-xs text-[#5f5e5e] font-normal font-sans truncate`}>
                                 {loc.address || 'N/A'}
                               </td>
                             )}
                             {visibleColumns.isMainStorage && (
-                              <td className={`${densityPadding} text-center`}>
+                              <td className={`${densityPadding} text-center whitespace-nowrap`}>
                                 {loc.isMainStorage ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full border border-amber-300">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-normal bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full border border-amber-300">
                                     ⭐ Main Storage
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] text-zinc-400 font-mono italic">Secondary</span>
+                                  <span className="text-[11px] text-zinc-400 font-mono italic font-normal">Secondary</span>
                                 )}
                               </td>
                             )}
                             {visibleColumns.status && (
-                              <td className={`${densityPadding} text-center`}>
+                              <td className={`${densityPadding} text-center whitespace-nowrap`}>
                                 <span
-                                  className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                                  className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase whitespace-nowrap ${
                                     loc.isActive !== false
                                       ? 'bg-emerald-100 text-emerald-700'
                                       : 'bg-zinc-200 text-[#5f5e5e]'
@@ -995,6 +995,54 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
+        activeModuleId="locations"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'RM CATEGORIES',
+            icon: 'category',
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'STOCK LEVELS',
+            icon: 'table_rows',
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate?.('movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            active: true,
+            onClick: () => onNavigate?.('locations'),
+          },
+        ]}
+      />
     </div>
   );
 };
