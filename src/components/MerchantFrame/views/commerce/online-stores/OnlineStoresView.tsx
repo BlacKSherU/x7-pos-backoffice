@@ -14,14 +14,18 @@ import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 export interface OnlineStoreItem {
   id: number;
   merchant_id: number;
+  merchantId?: number;
   subdomain: string;
   is_active: boolean;
+  isActive?: boolean;
   theme: string;
   currency: string;
   timezone: string;
   status: 'active' | 'deleted';
   created_at: string;
+  createdAt?: string;
   updated_at: string;
+  updatedAt?: string;
   merchant?: {
     id: number;
     name: string;
@@ -33,7 +37,7 @@ interface OnlineStoresViewProps {
   onNavigate?: (view: string) => void;
 }
 
-export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: _onNavigate }) => {
+export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
   const [stores, setStores] = useState<OnlineStoreItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +59,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
     actions: true,
   });
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
-  const [pageSize, setPageSize] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(5);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Modal State
@@ -76,11 +80,17 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Auto-refresh state (identical to Event Log)
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
+
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-  const fetchStores = useCallback(async () => {
+  const fetchStores = useCallback(async (silent: boolean = false) => {
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
+      setIsRefreshing(true);
       setError(null);
       const token = getAccessToken();
       const headers: Record<string, string> = {
@@ -101,15 +111,36 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
       }
 
       const json = await res.json();
-      const list: OnlineStoreItem[] = Array.isArray(json)
+      const rawList: Record<string, unknown>[] = Array.isArray(json)
         ? json
-        : json.data || json.items || [];
+        : (json.data || json.items || []);
+      const list: OnlineStoreItem[] = rawList.map((item) => ({
+        id: Number(item.id),
+        merchant_id: Number(item.merchant_id ?? item.merchantId ?? (item.merchant as { id?: number })?.id ?? 0),
+        merchantId: Number(item.merchantId ?? item.merchant_id ?? 0),
+        subdomain: String(item.subdomain || ''),
+        is_active: item.is_active !== undefined ? Boolean(item.is_active) : (item.isActive !== undefined ? Boolean(item.isActive) : true),
+        isActive: item.isActive !== undefined ? Boolean(item.isActive) : (item.is_active !== undefined ? Boolean(item.is_active) : true),
+        theme: String(item.theme || 'default'),
+        currency: String(item.currency || 'USD'),
+        timezone: String(item.timezone || 'America/New_York'),
+        status: (item.status as 'active' | 'deleted') || 'active',
+        created_at: String(item.created_at || item.createdAt || ''),
+        createdAt: String(item.createdAt || item.created_at || ''),
+        updated_at: String(item.updated_at || item.updatedAt || ''),
+        updatedAt: String(item.updatedAt || item.updated_at || ''),
+        merchant: item.merchant as OnlineStoreItem['merchant'],
+      }));
       setStores(list);
+      setLastUpdated(new Date());
     } catch (err: unknown) {
       console.warn('Error fetching online stores:', err);
-      setError(err instanceof Error ? err.message : 'Error fetching online stores');
+      const msg = err instanceof Error ? err.message : 'Error fetching online stores';
+      setError(msg);
+      if (!silent) showToast(msg);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [API_BASE]);
 
@@ -118,6 +149,15 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
       void fetchStores();
     });
   }, [fetchStores]);
+
+  // Auto-refresh timer (Event Log pattern)
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      void fetchStores(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchStores]);
 
   // Handle Save (Create or Edit)
   const handleSaveStore = async (formData: OnlineStoreFormData) => {
@@ -354,47 +394,19 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
         </div>
       )}
 
-      {/* 1. Header Card Hub with Standard Background */}
+      {/* 1. Header Card Workspace */}
       <div className="bg-white border border-[#e8e2d8] p-6 shadow-xs rounded">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-[#ae001a] tracking-wider uppercase mb-1">
-              <span className="material-symbols-outlined text-lg">storefront</span>
-              <span>Commerce / Online Ordering / Online Stores</span>
-            </div>
-            <h1 className="text-2xl font-black text-[#1d1c17] tracking-tight uppercase">
-              Online Stores Workspace
-            </h1>
-            <p className="text-body-sm text-[#5f5e5e] mt-1 max-w-3xl">
-              Provision storefront tenants, map custom subdomains, configure visual themes, and manage regional localization.
-            </p>
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-[#ae001a] tracking-wider uppercase mb-1">
+            <span className="material-symbols-outlined text-lg">storefront</span>
+            <span>Commerce / Online Ordering / Online Stores</span>
           </div>
-
-          {/* Primary Actions */}
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => void fetchStores()}
-              className="px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs uppercase tracking-wider rounded border border-zinc-300 transition-all flex items-center gap-2 cursor-pointer"
-              title="Refresh storefront directory"
-            >
-              <span className="material-symbols-outlined text-base">refresh</span>
-              <span>Refresh</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setModalMode('create');
-                setEditingStore(null);
-                setIsModalOpen(true);
-              }}
-              className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white font-bold text-xs uppercase tracking-wider rounded shadow-md transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">add_circle</span>
-              <span>Provision Storefront</span>
-            </button>
-          </div>
+          <h1 className="text-2xl font-black text-[#1d1c17] tracking-tight uppercase">
+            Online Stores Workspace
+          </h1>
+          <p className="text-body-sm text-[#5f5e5e] mt-1 max-w-3xl">
+            Provision storefront tenants, map custom subdomains, configure visual themes, and manage regional localization.
+          </p>
         </div>
       </div>
 
@@ -481,77 +493,243 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
         </div>
       </div>
 
-      {/* Filter and View Mode Toolbar */}
-      <div className="bg-white rounded border border-[#e8e2d8] p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Left: Search input */}
-        <div className="relative flex-1 min-w-[240px]">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-lg">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Search by subdomain, merchant name, theme or #STR-ID..."
-            className="w-full pl-9 pr-8 py-2 text-xs font-medium rounded-lg border border-[#e8e2d8] bg-zinc-50 focus:bg-white focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] focus:outline-hidden transition-all placeholder:text-zinc-400"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 text-xs"
-            >
-              ✕
-            </button>
-          )}
+      {/* 3. Unified Multi-Dimensional Filter Bar Controls (Event Log Standard Pattern) */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-3.5">
+        {/* ROW 1: Search, View Mode Switcher, Auto-Refresh & Updated Timestamp */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input con estilo canónico Event Log */}
+            <div className="relative flex-1 min-w-[240px] max-w-md">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Search by subdomain, merchant name, theme or #STR-ID..."
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Right Toolbar: View Mode Switcher, Auto-Refresh Widget & Updated */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* View Switcher Toggle (Exact KDS Canonical Pattern) */}
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Storefront Table View"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'table' ? 'text-[#ae001a]' : ''}`}>table_rows</span>
+                Table
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Storefront Card Grid View"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'cards' ? 'text-[#ae001a]' : ''}`}>grid_view</span>
+                Cards
+              </button>
+            </div>
+
+            {/* Widget Canónico de Auto-Refresh ("el auto") */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchStores(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Sync now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+
+            {/* Timestamp de última actualización */}
+            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
+              <span className="material-symbols-outlined text-sm">schedule</span>
+              <span>Updated:</span>
+              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
+            </div>
+
+          </div>
         </div>
 
-        {/* Right: Filters & Switcher */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Status Filter */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="font-bold text-[#8a8880] uppercase text-[10px] tracking-wider">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
+        {/* ROW 2: STATUS Multi-Select Pills & Provision Storefront Action */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-[#f0ede6]">
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+            Status:
+          </span>
+
+          {/* All Pill */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter('All');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              statusFilter === 'All'
+                ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+            }`}
+          >
+            <span>All</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                statusFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+              }`}
+            >
+              {totalProvisioned}
+            </span>
+          </button>
+
+          {/* Published Pill (Icon: check_circle) */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === 'Published' ? 'All' : 'Published');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              statusFilter === 'Published'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">check_circle</span>
+            <span>PUBLISHED</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                statusFilter === 'Published' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}
+            >
+              {publishedCount}
+            </span>
+          </button>
+
+          {/* Maintenance Pill (Icon: construction) */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === 'Maintenance' ? 'All' : 'Maintenance');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              statusFilter === 'Maintenance'
+                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">construction</span>
+            <span>MAINTENANCE</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                statusFilter === 'Maintenance' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {maintenanceCount}
+            </span>
+          </button>
+
+          {/* Archived Pill (Icon: cancel) */}
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === 'Archived' ? 'All' : 'Archived');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              statusFilter === 'Archived'
+                ? 'bg-[#ae001a] text-white border-[#ae001a] shadow-xs'
+                : 'bg-red-50 text-[#ae001a] border-red-200 hover:bg-red-100/60 hover:text-[#900015]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">cancel</span>
+            <span>ARCHIVED</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                statusFilter === 'Archived' ? 'bg-white/20 text-white' : 'bg-red-100 text-[#ae001a]'
+              }`}
+            >
+              {archivedCount}
+            </span>
+          </button>
+
+          {/* Clear Filter / Reset */}
+          {(statusFilter !== 'All' || searchQuery) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('All');
+                setSearchQuery('');
                 setCurrentPage(1);
               }}
-              className="px-2.5 py-1.5 rounded-lg border border-[#e8e2d8] bg-white text-xs font-semibold text-[#1d1c17] focus:outline-hidden"
+              className="text-[9.5px] font-bold text-[#5f5e5e] hover:text-[#ae001a] transition-colors ml-1 shrink-0 cursor-pointer flex items-center gap-1"
             >
-              <option value="All">All Statuses ({totalItems})</option>
-              <option value="Published">Published ({publishedCount})</option>
-              <option value="Maintenance">Store Maintenance ({maintenanceCount})</option>
-              <option value="Archived">Archived ({archivedCount})</option>
-            </select>
+              <span className="material-symbols-outlined text-[12px]">filter_alt_off</span>
+              <span>Clear</span>
+            </button>
+          )}
           </div>
 
-          {/* View mode toggle: Table vs Cards */}
-          <div className="flex items-center rounded-lg border border-[#e8e2d8] p-0.5 bg-zinc-100">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
-                viewMode === 'table' ? 'bg-white text-[#ae001a] shadow-xs' : 'text-zinc-600 hover:text-zinc-900'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">table_rows</span>
-              <span>Table</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
-                viewMode === 'cards' ? 'bg-white text-[#ae001a] shadow-xs' : 'text-zinc-600 hover:text-zinc-900'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">grid_view</span>
-              <span>Cards</span>
-            </button>
-          </div>
+          {/* Primary Action Button: Provision Storefront (al nivel de status, exact ProductsView design) */}
+          <button
+            type="button"
+            onClick={() => {
+              setModalMode('create');
+              setEditingStore(null);
+              setIsModalOpen(true);
+            }}
+            className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer shrink-0 ml-auto"
+            title="Provision new storefront tenant"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            PROVISION STOREFRONT
+          </button>
         </div>
       </div>
 
@@ -611,46 +789,46 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
             <NoColumnsEmptyState />
           ) : (
             <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <table className="w-full table-fixed text-left border-collapse">
+              <table className="w-full table-fixed border-collapse font-sans text-xs">
                 <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                   <tr>
                     {visibleColumns.storeId && (
-                      <th className={`text-left text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-32 min-w-[110px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28 min-w-[95px]`}>
                         Store Badge
                       </th>
                     )}
                     {visibleColumns.subdomain && (
-                      <th className={`text-left text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-auto min-w-[200px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-auto min-w-[200px]`}>
                         Subdomain & Live URL
                       </th>
                     )}
                     {visibleColumns.merchant && (
-                      <th className={`text-left text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-44 min-w-[140px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-36 min-w-[125px]`}>
                         Merchant Context
                       </th>
                     )}
                     {visibleColumns.theme && (
-                      <th className={`text-left text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-32 min-w-[100px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28 min-w-[95px]`}>
                         Visual Theme
                       </th>
                     )}
                     {visibleColumns.localization && (
-                      <th className={`text-left text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-36 min-w-[120px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-36 min-w-[125px]`}>
                         Regional Settings
                       </th>
                     )}
                     {visibleColumns.status && (
-                      <th className={`text-center text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-32 min-w-[110px]`}>
+                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28 min-w-[95px]`}>
                         Store Status
                       </th>
                     )}
                     {visibleColumns.timestamps && (
-                      <th className={`text-left text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-40 min-w-[130px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-32 min-w-[110px]`}>
                         Timestamps
                       </th>
                     )}
                     {visibleColumns.actions && (
-                      <th className={`text-right text-label-caps font-bold text-[#8a8880] font-sans ${densityPadding} w-28 min-w-[90px]`}>
+                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-20 min-w-[70px]`}>
                         Actions
                       </th>
                     )}
@@ -698,197 +876,206 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
                     />
                   ) : (
                     paginatedStores.map((store) => {
-                  const isPublished = store.is_active && store.status === 'active';
-                  const isMaintenance = !store.is_active && store.status === 'active';
-                  const isArchived = store.status === 'deleted';
+                      const isPublished = store.is_active && store.status === 'active';
+                      const isMaintenance = !store.is_active && store.status === 'active';
+                      const isArchived = store.status === 'deleted';
 
-                  return (
-                    <tr
-                      key={store.id}
-                      className="hover:bg-zinc-50/70 transition-colors group"
-                    >
-                      {/* Store Badge */}
-                      {visibleColumns.storeId && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)}`}>
-                          <span className="font-mono font-bold text-xs bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded shadow-2xs">
-                            #STR-{store.id}
-                          </span>
-                        </td>
-                      )}
-
-                      {/* Subdomain & Live URL */}
-                      {visibleColumns.subdomain && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)}`}>
-                          <div className="flex flex-col min-w-0">
-                            <span className="font-bold text-sm text-[#1d1c17] truncate">
-                              {store.subdomain}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-zinc-500 font-mono text-[11px]">
-                              <a
-                                href={`https://${store.subdomain}.x7pos.com`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-zinc-600 hover:text-[#ae001a] hover:underline flex items-center gap-1 truncate"
-                                title="Open storefront in new tab"
-                              >
-                                <span>https://{store.subdomain}.x7pos.com</span>
-                                <span className="material-symbols-outlined text-[13px] text-zinc-400">
-                                  open_in_new
-                                </span>
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyUrl(store.subdomain)}
-                                className="text-zinc-400 hover:text-zinc-700 cursor-pointer p-0.5"
-                                title="Copy live URL"
-                              >
-                                <span className="material-symbols-outlined text-[13px]">
-                                  content_copy
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      )}
-
-                      {/* Merchant Context */}
-                      {visibleColumns.merchant && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-zinc-400 text-sm">
-                              business
-                            </span>
-                            <span className="font-semibold text-xs text-zinc-800 truncate">
-                              {store.merchant?.name || `Merchant #${store.merchant_id}`}
-                            </span>
-                          </div>
-                        </td>
-                      )}
-
-                      {/* Theme Pill */}
-                      {visibleColumns.theme && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)}`}>
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize">
-                            <span className="material-symbols-outlined text-xs">palette</span>
-                            <span>{store.theme || 'default'}</span>
-                          </span>
-                        </td>
-                      )}
-
-                      {/* Regional Settings: Currency & Timezone */}
-                      {visibleColumns.localization && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)}`}>
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1 text-[11px]">
-                              <span className="font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono">
-                                {store.currency || 'USD'}
+                      return (
+                        <tr
+                          key={store.id}
+                          className="hover:bg-zinc-50/70 transition-colors group"
+                        >
+                          {/* Store Badge */}
+                          {visibleColumns.storeId && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              <span className="font-mono font-bold text-xs bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded shadow-2xs">
+                                #STR-{store.id}
                               </span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-medium truncate">
-                              <span className="material-symbols-outlined text-[12px] text-zinc-400">
-                                schedule
+                            </td>
+                          )}
+
+                          {/* Subdomain & Live URL */}
+                          {visibleColumns.subdomain && (
+                            <td className={`${densityPadding} truncate`}>
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-sm text-[#1d1c17] truncate block" title={store.subdomain}>
+                                  {store.subdomain}
+                                </span>
+                                <div className="flex items-center gap-1.5 mt-0.5 text-zinc-500 font-mono text-[11px] whitespace-nowrap">
+                                  <a
+                                    href={`https://${store.subdomain}.x7pos.com`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-zinc-600 hover:text-[#ae001a] hover:underline flex items-center gap-1 truncate max-w-full"
+                                    title={`https://${store.subdomain}.x7pos.com`}
+                                  >
+                                    <span className="truncate">https://{store.subdomain}.x7pos.com</span>
+                                    <span className="material-symbols-outlined text-[13px] text-zinc-400 shrink-0">
+                                      open_in_new
+                                    </span>
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyUrl(store.subdomain)}
+                                    className="text-zinc-400 hover:text-zinc-700 cursor-pointer p-0.5 shrink-0"
+                                    title="Copy live URL"
+                                  >
+                                    <span className="material-symbols-outlined text-[13px]">
+                                      content_copy
+                                    </span>
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Merchant Context */}
+                          {visibleColumns.merchant && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="material-symbols-outlined text-zinc-400 text-sm shrink-0">
+                                  business
+                                </span>
+                                <span className="font-medium text-xs text-zinc-800 truncate" title={store.merchant?.name || `Merchant #${store.merchant_id}`}>
+                                  {store.merchant?.name || `Merchant #${store.merchant_id}`}
+                                </span>
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Theme Pill */}
+                          {visibleColumns.theme && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize">
+                                <span className="material-symbols-outlined text-xs">palette</span>
+                                <span>{store.theme || 'default'}</span>
                               </span>
-                              <span>{store.timezone || 'America/New_York'}</span>
-                            </div>
-                          </div>
-                        </td>
-                      )}
-
-                      {/* Store Status Pills (Strictly formatted per Story 4294) */}
-                      {visibleColumns.status && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)}`}>
-                          {isPublished && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
-                              <span>Published</span>
-                            </span>
+                            </td>
                           )}
-                          {isMaintenance && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
-                              <span>Store Maintenance</span>
-                            </span>
+
+                          {/* Regional Settings: Currency & Timezone */}
+                          {visibleColumns.localization && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1 text-[11px]">
+                                  <span className="font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono">
+                                    {store.currency || 'USD'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-medium whitespace-nowrap" title={store.timezone || 'America/New_York'}>
+                                  <span className="material-symbols-outlined text-[12px] text-zinc-400 shrink-0">
+                                    schedule
+                                  </span>
+                                  <span className="truncate">{store.timezone || 'America/New_York'}</span>
+                                </div>
+                              </div>
+                            </td>
                           )}
-                          {isArchived && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444]" />
-                              <span>Archived</span>
-                            </span>
+
+                          {/* Store Status Pills */}
+                          {visibleColumns.status && (
+                            <td className={`${densityPadding} text-center whitespace-nowrap`}>
+                              {isPublished && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleToggleActive(store)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30 hover:bg-[#10b981]/25 transition-all cursor-pointer"
+                                  title="Published & live. Click to set Maintenance mode"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse shrink-0" />
+                                  <span>Published</span>
+                                </button>
+                              )}
+                              {isMaintenance && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleToggleActive(store)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30 hover:bg-[#f59e0b]/25 transition-all cursor-pointer"
+                                  title="Under maintenance. Click to publish live"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] shrink-0" />
+                                  <span>Maintenance</span>
+                                </button>
+                              )}
+                              {isArchived && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444] shrink-0" />
+                                  <span>Archived</span>
+                                </span>
+                              )}
+                            </td>
                           )}
-                        </td>
-                      )}
 
-                      {/* Timestamps */}
-                      {visibleColumns.timestamps && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)} text-[11px] text-zinc-500 font-medium`}>
-                          <div>Created: {store.created_at ? new Date(store.created_at).toLocaleDateString() : '—'}</div>
-                          <div className="text-[10px] text-zinc-400">
-                            Updated: {store.updated_at ? new Date(store.updated_at).toLocaleDateString() : '—'}
-                          </div>
-                        </td>
-                      )}
+                          {/* Timestamps */}
+                          {visibleColumns.timestamps && (
+                            <td className={`${densityPadding} text-xs text-zinc-600 font-medium whitespace-nowrap`}>
+                              <div className="flex flex-col gap-0.5 leading-tight">
+                                <div className="text-[11px] text-zinc-800 font-medium flex items-center gap-1.5">
+                                  <span className="text-zinc-400 font-normal text-[10px]">Created:</span>
+                                  <span className="font-mono text-[10.5px]">
+                                    {store.created_at || store.createdAt
+                                      ? new Date(store.created_at || store.createdAt!).toLocaleDateString()
+                                      : '—'}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-zinc-500 flex items-center gap-1.5">
+                                  <span className="text-zinc-400 font-normal text-[10px]">Updated:</span>
+                                  <span className="font-mono text-[10px]">
+                                    {store.updated_at || store.updatedAt
+                                      ? new Date(store.updated_at || store.updatedAt!).toLocaleDateString()
+                                      : '—'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                          )}
 
-                      {/* Actions */}
-                      {visibleColumns.actions && (
-                        <td className={`px-4 ${getDensityPadding(rowDensity)} text-right`}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Toggle Quick Active switch */}
-                            {!isArchived && (
-                              <button
-                                type="button"
-                                onClick={() => handleToggleActive(store)}
-                                className={`px-2.5 py-1 rounded text-[11px] font-bold border transition-colors cursor-pointer ${
-                                  store.is_active
-                                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
-                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
-                                }`}
-                                title={store.is_active ? 'Put store in maintenance' : 'Publish store live'}
-                              >
-                                {store.is_active ? 'Set Maintenance' : 'Publish Live'}
-                              </button>
-                            )}
+                          {/* Actions */}
+                          {visibleColumns.actions && (
+                            <td className={`text-center whitespace-nowrap ${densityPadding}`}>
+                              <div className="flex justify-center gap-2">
 
-                            {/* Edit Button */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setModalMode('edit');
-                                setEditingStore({
-                                  id: store.id,
-                                  subdomain: store.subdomain,
-                                  theme: store.theme,
-                                  currency: store.currency,
-                                  timezone: store.timezone,
-                                  is_active: store.is_active,
-                                });
-                                setIsModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg text-zinc-500 hover:text-[#ae001a] hover:bg-zinc-100 transition-colors cursor-pointer"
-                              title="Edit storefront configuration"
-                            >
-                              <span className="material-symbols-outlined text-base">edit</span>
-                            </button>
+                                {/* Edit Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalMode('edit');
+                                    setEditingStore({
+                                      id: store.id,
+                                      subdomain: store.subdomain,
+                                      theme: store.theme,
+                                      currency: store.currency,
+                                      timezone: store.timezone,
+                                      is_active: store.is_active,
+                                    });
+                                    setIsModalOpen(true);
+                                  }}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Edit storefront"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
 
-                            {/* Delete / Archive Button */}
-                            {!isArchived && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setStoreToDelete(store);
-                                  setIsDeleteModalOpen(true);
-                                }}
-                                className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                                title="Archive storefront"
-                              >
-                                <span className="material-symbols-outlined text-base">delete</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })
+                                {/* Delete / Archive Button */}
+                                {!isArchived && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setStoreToDelete(store);
+                                      setIsDeleteModalOpen(true);
+                                    }}
+                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                    title="Archive storefront"
+                                  >
+                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
               )}
             </tbody>
             </table>
@@ -988,16 +1175,26 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
 
                       {/* Status Pill */}
                       {isPublished && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30">
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleActive(store)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30 hover:bg-[#10b981]/25 transition-all cursor-pointer"
+                          title="Published & live. Click to set Maintenance mode"
+                        >
                           <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
                           <span>Published</span>
-                        </span>
+                        </button>
                       )}
                       {isMaintenance && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30">
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleActive(store)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30 hover:bg-[#f59e0b]/25 transition-all cursor-pointer"
+                          title="Under maintenance. Click to publish live"
+                        >
                           <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
                           <span>Maintenance</span>
-                        </span>
+                        </button>
                       )}
                       {isArchived && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30">
@@ -1063,24 +1260,12 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate: 
                   {/* Card Bottom Actions */}
                   <div className="mt-4 pt-3 border-t border-[#e8e2d8] flex items-center justify-between">
                     <span className="text-[10px] text-zinc-400 font-medium">
-                      {store.created_at ? new Date(store.created_at).toLocaleDateString() : '—'}
+                      {store.created_at || store.createdAt
+                        ? new Date(store.created_at || store.createdAt!).toLocaleDateString()
+                        : '—'}
                     </span>
 
                     <div className="flex items-center gap-1.5">
-                      {!isArchived && (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleActive(store)}
-                          className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
-                            store.is_active
-                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
-                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
-                          }`}
-                        >
-                          {store.is_active ? 'Maintenance' : 'Publish'}
-                        </button>
-                      )}
-
                       <button
                         type="button"
                         onClick={() => {
