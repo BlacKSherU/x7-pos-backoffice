@@ -638,24 +638,35 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
                             {visibleColumns.actions && (
                               <td className={`${densityPadding} text-center`}>
                                 <div className="flex justify-center gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleOpenEditDrawer(e, loc)}
-                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
-                                    title="Edit Location"
-                                  >
-                                    <span className="material-symbols-outlined text-[20px]">edit</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleOpenConfirmToggle(e, loc)}
-                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
-                                    title={loc.isActive !== false ? 'Deactivate Location' : 'Activate Location'}
-                                  >
-                                    <span className="material-symbols-outlined text-[20px]">
-                                      {loc.isActive !== false ? 'block' : 'check_circle'}
-                                    </span>
-                                  </button>
+                                  {loc.isActive !== false ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleOpenEditDrawer(e, loc)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                                        title="Edit Location"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleOpenConfirmToggle(e, loc)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                                        title="Deactivate Location"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">block</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleOpenConfirmToggle(e, loc)}
+                                      className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors duration-200 cursor-pointer"
+                                      title="Activate Location"
+                                    >
+                                      <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             )}

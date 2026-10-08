@@ -99,8 +99,10 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const handleExportCSV = () => {
     if (filteredRecipes.length === 0) return;
     const headers = ['ID', 'Recipe Name', 'Product SKU', 'Batch Yield', 'Ingredients Count', 'Theoretical Cost', 'Status'];
-    const rows = filteredRecipes.map(r => {
+    const rows = filteredRecipes.map((r) => {
       const prod = r.finishedProduct || products.find((p) => p.id === r.finishedProductId);
+      const isProdActive = prod ? prod.isActive !== false : true;
+      const rIsActive = r.isActive !== false && isProdActive;
       return [
         r.id,
         `"${(r.name || prod?.name || `Recipe #${r.id}`).replace(/"/g, '""')}"`,
@@ -108,7 +110,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
         r.yieldQuantity ?? 1,
         (r.lines || []).length,
         r.theoreticalCostCached || 0,
-        r.isActive !== false ? 'Active' : 'Inactive'
+        rIsActive ? 'Active' : !isProdActive ? 'Product Inactive' : 'Inactive',
       ];
     });
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -124,7 +126,11 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const handlePrintTable = () => { window.print(); };
 
   const handleCopySummary = () => {
-    const active = filteredRecipes.filter(r => r.isActive !== false).length;
+    const active = filteredRecipes.filter((r) => {
+      const prod = r.finishedProduct || products.find((p) => p.id === r.finishedProductId);
+      const isProdActive = prod ? prod.isActive !== false : true;
+      return r.isActive !== false && isProdActive;
+    }).length;
     navigator.clipboard.writeText(`Recipes & BOM: ${filteredRecipes.length} total, ${active} active, ${filteredRecipes.length - active} inactive.`);
   };
 
@@ -186,7 +192,24 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       const suppliesList = suppliesJson.items || suppliesJson.data || suppliesJson || [];
       const recipesList = Array.isArray(recipesJson) ? recipesJson : (recipesJson.items || []);
 
-      setProducts(Array.isArray(productsList) ? productsList : []);
+      const rawProducts: Record<string, unknown>[] = Array.isArray(productsList) ? productsList : [];
+      const normalizedProducts: Product[] = rawProducts.map((p) => ({
+        id: Number(p.id),
+        name: String(p.name || ''),
+        sku: String(p.sku || ''),
+        basePrice: Number(p.basePrice ?? p.price ?? 0),
+        isActive:
+          p.isActive !== undefined
+            ? Boolean(p.isActive)
+            : p.is_active !== undefined
+            ? Boolean(p.is_active)
+            : p.status !== undefined
+            ? p.status === 'active'
+            : true,
+        variants: Array.isArray(p.variants) ? (p.variants as Variant[]) : [],
+      }));
+
+      setProducts(normalizedProducts);
       setSupplies(Array.isArray(suppliesList) ? suppliesList : []);
       setRecipes(Array.isArray(recipesList) ? recipesList : []);
 
@@ -471,8 +494,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
     const matchesProduct =
       productFilter === 'ALL' || String(rec.finishedProductId) === productFilter;
 
-    // Filtro por Estado (Activo / Inactivo)
-    const recIsActive = rec.isActive !== false;
+    // Filtro por Estado (Activo / Inactivo en cascada con el Producto terminado)
+    const isProdActive = prod ? prod.isActive !== false : true;
+    const recIsActive = rec.isActive !== false && isProdActive;
     const matchesStatus =
       statusFilter === 'ALL' ||
       (statusFilter === 'ACTIVE' && recIsActive) ||
@@ -548,7 +572,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
               <option value="ALL">All Products</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.sku})
+                  {p.name} ({p.sku}){!p.isActive ? ' (Inactive)' : ''}
                 </option>
               ))}
             </select>
@@ -732,7 +756,8 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                             : calculatedLinesCost;
                           const portionCost = yieldQty > 0 ? totalCost / yieldQty : totalCost;
                           const ingredientCount = (rec.lines || []).length;
-                          const recIsActive = rec.isActive !== false;
+                          const isProdActive = prod ? prod.isActive !== false : true;
+                          const recIsActive = rec.isActive !== false && isProdActive;
 
                           return (
                             <tr key={rec.id} className="hover:bg-[#f8f3eb] transition-colors">
@@ -812,10 +837,17 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                                     className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
                                       recIsActive
                                         ? 'bg-emerald-100 text-emerald-700'
+                                        : !isProdActive
+                                        ? 'bg-red-50 text-red-700 border border-red-200'
                                         : 'bg-zinc-200 text-[#5f5e5e]'
                                     }`}
+                                    title={!isProdActive ? 'Finished menu product is disabled in catalog' : undefined}
                                   >
-                                    {recIsActive ? 'Active' : 'Inactive'}
+                                    {recIsActive
+                                      ? 'Active'
+                                      : !isProdActive
+                                      ? 'Product Inactive'
+                                      : 'Inactive'}
                                   </span>
                                 </td>
                               )}
@@ -897,12 +929,18 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
             <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col border-l border-[#e8e2d8] animate-slide-in font-sans z-[100000]">
 
               {/* Header Drawer */}
-              <div className="bg-[#222222] p-6 text-white flex justify-between items-center shrink-0">
+              <div className="bg-[#222222] p-6 text-white flex justify-between items-center shrink-0 border-b border-[#333333]">
                 <div>
-                  <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest block mb-0.5">
+                  <span
+                    style={{ color: '#a1a1aa' }}
+                    className="text-[10px] !text-zinc-400 font-bold uppercase tracking-widest block mb-1"
+                  >
                     Recipe & BOM Formula Specification
                   </span>
-                  <h3 className="font-black text-lg uppercase tracking-tight">
+                  <h3
+                    style={{ color: '#ffffff' }}
+                    className="font-black text-xl uppercase tracking-tight text-white !text-white leading-none"
+                  >
                     {drawerMode === 'add'
                       ? 'Add Recipe Formula'
                       : drawerMode === 'edit'
@@ -913,9 +951,10 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                 <button
                   type="button"
                   onClick={() => setIsDrawerOpen(false)}
-                  className="text-white/70 hover:text-white p-1 rounded cursor-pointer"
+                  className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Close drawer"
                 >
-                  <span className="material-symbols-outlined text-xl">close</span>
+                  <span className="material-symbols-outlined text-xl select-none" style={{ color: '#ffffff' }}>close</span>
                 </button>
               </div>
 
@@ -923,6 +962,20 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
               <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
                 {drawerMode === 'view' && selectedRecipe ? (
                   <div className="flex flex-col gap-5 text-left">
+                    {/* Inactive Product Warning in View Mode */}
+                    {(() => {
+                      const linkedProd = selectedRecipe.finishedProduct || products.find((p) => p.id === selectedRecipe.finishedProductId);
+                      if (linkedProd && linkedProd.isActive === false) {
+                        return (
+                          <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg flex items-center gap-2 font-semibold">
+                            <span className="material-symbols-outlined text-red-600 text-base">cancel</span>
+                            <span>This finished product is currently inactive/disabled in the catalog.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     <div className="bg-[#fcfbf9] border border-[#e8e2d8] p-4 rounded-lg flex flex-col gap-2">
                       <span className="text-xs font-bold text-gray-500 uppercase">
                         Finished Menu Item
@@ -1005,6 +1058,20 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                       </div>
                     )}
 
+                    {/* Inactive Product Warning in Edit Mode */}
+                    {drawerMode === 'edit' && (() => {
+                      const linkedProd = selectedRecipe?.finishedProduct || products.find((p) => p.id === selectedRecipe?.finishedProductId);
+                      if (linkedProd && linkedProd.isActive === false) {
+                        return (
+                          <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg flex items-center gap-2 font-semibold">
+                            <span className="material-symbols-outlined text-red-600 text-base">cancel</span>
+                            <span>This finished product is currently inactive/disabled in the catalog. Reactivate the product in Products Workspace to resume POS sales.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {/* Header Fields: Name (required, max 150 chars) */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-bold text-[#1d1c17] uppercase">
@@ -1045,11 +1112,17 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                           className="bg-[#fcfbf9] text-xs font-semibold px-3 py-2.5 border border-[#e8e2d8] rounded-lg outline-none focus:border-[#ae001a]"
                         >
                           <option value="">(Select Finished Menu Item / Product *)</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.sku}) - Price: ${Number(p.basePrice).toFixed(2)}
-                            </option>
-                          ))}
+                          {products
+                            .filter((p) =>
+                              p.isActive !== false ||
+                              (drawerMode === 'edit' && String(selectedRecipe?.finishedProductId) === String(p.id))
+                            )
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.sku}) - Price: ${Number(p.basePrice).toFixed(2)}
+                                {!p.isActive ? ' (Inactive)' : ''}
+                              </option>
+                            ))}
                         </select>
                       </div>
 

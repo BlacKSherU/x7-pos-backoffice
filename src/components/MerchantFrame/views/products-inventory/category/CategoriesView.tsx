@@ -538,22 +538,32 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
                               {visibleColumns.actions && (
                                 <td className={`text-center ${densityPadding}`}>
                                   <div className="flex justify-center gap-3">
-                                    <button
-                                      onClick={() => handleOpenEditModal(cat)}
-                                      className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                      title="Edit category"
-                                    >
-                                      <span className="material-symbols-outlined text-[20px]">edit</span>
-                                    </button>
-                                    <button
-                                      onClick={() => void handleToggleActive(cat)}
-                                      className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                      title={cat.status === 'Active' ? "Deactivate category" : "Activate category"}
-                                    >
-                                      <span className="material-symbols-outlined text-[20px]">
-                                        {cat.status === 'Active' ? 'block' : 'check_circle_outline'}
-                                      </span>
-                                    </button>
+                                    {cat.status === 'Active' ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleOpenEditModal(cat)}
+                                          className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                          title="Edit category"
+                                        >
+                                          <span className="material-symbols-outlined text-[20px]">edit</span>
+                                        </button>
+                                        <button
+                                          onClick={() => void handleToggleActive(cat)}
+                                          className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                          title="Deactivate category"
+                                        >
+                                          <span className="material-symbols-outlined text-[20px]">block</span>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button
+                                        onClick={() => void handleToggleActive(cat)}
+                                        className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                        title="Activate category"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               )}

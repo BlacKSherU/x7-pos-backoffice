@@ -186,6 +186,25 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
       { featureId: 'suppliers', label: 'SUPPLIERS', icon: 'local_shipping', live: true, description: 'Supplier directory and terms.' },
     ],
   },
+  {
+    appId: 'online-ordering',
+    hubId: 'online-ordering-hub',
+    hubLabel: 'ONLINE ORDERING COMMAND HUB',
+    title: 'Online Ordering Command Hub',
+    category: 'Commerce',
+    icon: 'storefront',
+    description: 'Centralized operational hub for digital storefronts, multi-tenant web portals, menu catalogs, digital payments, live dispatch orders, and delivery logistics.',
+    items: [
+      { featureId: 'online-stores', label: 'STORES', icon: 'storefront', live: true, description: 'Manage digital storefronts, subdomains, themes, currency and operational status.' },
+      { featureId: 'online-payments', label: 'PAYMENTS', icon: 'payments', live: false, description: 'Payment gateways, Stripe/PayPal accounts and digital checkout configurations.' },
+      { featureId: 'online-menus', label: 'MENUS', icon: 'restaurant_menu', live: true, description: 'Curated digital menus, seasonal offerings and time-based availability.' },
+      { featureId: 'online-menu-categories', label: 'CATEGORIES', icon: 'category', live: false, description: 'Menu taxonomy, sections, families and dish categorization.' },
+      { featureId: 'online-menu-items', label: 'ITEMS', icon: 'lunch_dining', live: false, description: 'Online dish catalog, pricing, modifier linkages and stock availability.' },
+      { featureId: 'online-orders', label: 'ORDERS', icon: 'shopping_bag', live: false, description: 'Live incoming web orders, customer tracking and dispatch statuses.' },
+      { featureId: 'online-order-items', label: 'ORDER ITEMS', icon: 'receipt_long', live: false, description: 'Detailed cart item breakdown, custom modifiers and customer instructions.' },
+      { featureId: 'online-delivery-info', label: 'DELIVERY', icon: 'local_shipping', live: false, description: 'Delivery coverage zones, courier fees, minimum order amounts and dispatch timing.' },
+    ],
+  },
 ];
 
 const HUB_BY_FEATURE = new Map<string, ModuleNavHub>();

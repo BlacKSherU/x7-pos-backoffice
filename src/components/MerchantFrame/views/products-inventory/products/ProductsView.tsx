@@ -654,22 +654,32 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                             {visibleColumns.actions && (
                               <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                                 <div className="flex justify-center gap-3">
-                                  <button
-                                    onClick={() => handleOpenEditModal(product)}
-                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                    title="Edit product"
-                                  >
-                                    <span className="material-symbols-outlined text-[20px]">edit</span>
-                                  </button>
-                                  <button
-                                    onClick={() => void handleToggleActive(product)}
-                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                    title={product.isActive ? "Deactivate product" : "Activate product"}
-                                  >
-                                    <span className="material-symbols-outlined text-[20px]">
-                                      {product.isActive ? 'block' : 'check_circle_outline'}
-                                    </span>
-                                  </button>
+                                  {product.isActive ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleOpenEditModal(product)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                        title="Edit product"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                      </button>
+                                      <button
+                                        onClick={() => void handleToggleActive(product)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                        title="Deactivate product"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">block</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => void handleToggleActive(product)}
+                                      className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                      title="Activate product"
+                                    >
+                                      <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             )}

@@ -585,22 +585,32 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
                       {visibleColumns.actions && (
                         <td className={`${densityPadding} text-center whitespace-nowrap`}>
                           <div className="flex justify-center gap-3">
-                            <button
-                              onClick={() => handleOpenEditModal(variant)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title="Edit variant"
-                            >
-                              <span className="material-symbols-outlined text-[20px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => void handleToggleActive(variant)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title={variant.isActive ? "Deactivate variant" : "Activate variant"}
-                            >
-                              <span className="material-symbols-outlined text-[20px]">
-                                {variant.isActive ? 'block' : 'check_circle_outline'}
-                              </span>
-                            </button>
+                            {variant.isActive ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEditModal(variant)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Edit variant"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <button
+                                  onClick={() => void handleToggleActive(variant)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Deactivate variant"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">block</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => void handleToggleActive(variant)}
+                                className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                title="Activate variant"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}

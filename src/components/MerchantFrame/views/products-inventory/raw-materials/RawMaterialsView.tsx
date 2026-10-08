@@ -764,22 +764,32 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
                       {visibleColumns.actions && (
                         <td className={`${densityPadding} text-center whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-center gap-2.5">
-                            <button
-                              onClick={() => handleOpenEdit(m)}
-                              className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
-                              title="Edit raw material"
-                            >
-                              <span className="material-symbols-outlined text-lg">edit</span>
-                            </button>
-                            <button
-                              onClick={(e) => handleOpenToggleActive(e, m)}
-                              className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
-                              title={m.isActive ? 'Deactivate raw material' : 'Activate raw material'}
-                            >
-                              <span className="material-symbols-outlined text-lg">
-                                {m.isActive ? 'block' : 'check_circle'}
-                              </span>
-                            </button>
+                            {m.isActive ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEdit(m)}
+                                  className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
+                                  title="Edit raw material"
+                                >
+                                  <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button
+                                  onClick={(e) => handleOpenToggleActive(e, m)}
+                                  className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
+                                  title="Deactivate raw material"
+                                >
+                                  <span className="material-symbols-outlined text-lg">block</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={(e) => handleOpenToggleActive(e, m)}
+                                className="p-1 text-gray-500 hover:text-emerald-600 transition-all cursor-pointer"
+                                title="Activate raw material"
+                              >
+                                <span className="material-symbols-outlined text-lg">check_circle</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}

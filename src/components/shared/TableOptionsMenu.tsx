@@ -546,8 +546,14 @@ export const TableEmptyState: React.FC<TableEmptyStateProps> = ({
       <span className="material-symbols-outlined text-secondary text-5xl block mb-2 mx-auto select-none">
         {icon}
       </span>
-      <p className="font-bold text-[#222222] uppercase text-sm">{title}</p>
-      {description && <p className="text-xs text-[#666666] mt-1">{description}</p>}
+      <p className="font-bold text-[#222222] uppercase text-sm text-center mx-auto" style={{ textAlign: 'center' }}>
+        {title}
+      </p>
+      {description && (
+        <p className="text-xs text-[#666666] mt-1 text-center mx-auto" style={{ textAlign: 'center' }}>
+          {description}
+        </p>
+      )}
     </>
   );
 

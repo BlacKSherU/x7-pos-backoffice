@@ -112,7 +112,9 @@ import { KitchenStationsView } from './views/restaurant-operations/kitchen-stati
 import { KitchenKDSHubView } from './views/restaurant-operations/kitchen-stations/KitchenKDSHubView';
 import { ProductsInventoryHubView } from './views/products-inventory/ProductsInventoryHubView';
 import { RawMaterialsHubView } from './views/products-inventory/RawMaterialsHubView';
+import { OnlineOrderingHubView } from './views/commerce/OnlineOrderingHubView';
 import { OnlineStoresView } from './views/commerce/online-stores/OnlineStoresView';
+import { OnlineMenusView } from './views/commerce/online-menus/OnlineMenusView';
 import { KitchenDisplayDevicesView } from './views/restaurant-operations/kitchen-stations/KitchenDisplayDevicesView';
 import { KitchenOrdersView } from './views/restaurant-operations/kitchen-stations/KitchenOrdersView';
 import { KitchenOrderItemsView } from './views/restaurant-operations/kitchen-stations/KitchenOrderItemsView';
@@ -221,8 +223,24 @@ const getNavFromPath = (
     return { category: 'inventory', tab: 'inventory-dashboard' };
   } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
     return { category: 'inventory', tab: 'raw-materials-dashboard' };
-  } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores') {
+  } else if (path === '/online-ordering' || path === '/online-ordering/hub' || path === '/online-ordering/dashboard' || path === '/dashboard/online-ordering') {
+    return { category: 'commerce', tab: 'online-ordering-hub' };
+  } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores' || path === '/online-ordering/stores') {
     return { category: 'commerce', tab: 'online-stores' };
+  } else if (path === '/online-ordering/payments') {
+    return { category: 'commerce', tab: 'online-payments' };
+  } else if (path === '/commerce/online-menus' || path === '/dashboard/online-menus' || path === '/online-menus' || path === '/online-ordering/menus') {
+    return { category: 'commerce', tab: 'online-menus' };
+  } else if (path === '/online-ordering/categories') {
+    return { category: 'commerce', tab: 'online-menu-categories' };
+  } else if (path === '/online-ordering/items') {
+    return { category: 'commerce', tab: 'online-menu-items' };
+  } else if (path === '/online-ordering/orders') {
+    return { category: 'commerce', tab: 'online-orders' };
+  } else if (path === '/online-ordering/order-items') {
+    return { category: 'commerce', tab: 'online-order-items' };
+  } else if (path === '/online-ordering/delivery' || path === '/online-ordering/delivery-info') {
+    return { category: 'commerce', tab: 'online-delivery-info' };
   } else if (path === '/dashboard') {
     const stateTab = locationState?.activeTab;
     const stateCategory = locationState?.activeCategory;
@@ -280,7 +298,32 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter(null);
     setAllocationsContext(null);
     setActiveTab(featureId);
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
   };
+
+  // Scroll main container to top whenever activeTab changes
+  useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+      try {
+        mainEl.scrollTo({ top: 0, behavior: 'instant' });
+      } catch {
+        // fallback
+      }
+    }
+    window.scrollTo(0, 0);
+    const timer = setTimeout(() => {
+      const el = document.querySelector('main');
+      if (el) el.scrollTop = 0;
+      window.scrollTo(0, 0);
+    }, 30);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   const handleNavigateView = (view: string, plan?: SubscriptionPlan) => {
     if (plan) setSelectedPlan(plan);
@@ -400,6 +443,33 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
       setActiveCategory('inventory');
       setActiveTab('raw-materials-dashboard');
+    } else if (path === '/online-ordering' || path === '/online-ordering/hub' || path === '/online-ordering/dashboard' || path === '/dashboard/online-ordering') {
+      setActiveCategory('commerce');
+      setActiveTab('online-ordering-hub');
+    } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores' || path === '/online-ordering/stores') {
+      setActiveCategory('commerce');
+      setActiveTab('online-stores');
+    } else if (path === '/online-ordering/payments') {
+      setActiveCategory('commerce');
+      setActiveTab('online-payments');
+    } else if (path === '/online-ordering/menus') {
+      setActiveCategory('commerce');
+      setActiveTab('online-menus');
+    } else if (path === '/online-ordering/categories') {
+      setActiveCategory('commerce');
+      setActiveTab('online-menu-categories');
+    } else if (path === '/online-ordering/items') {
+      setActiveCategory('commerce');
+      setActiveTab('online-menu-items');
+    } else if (path === '/online-ordering/orders') {
+      setActiveCategory('commerce');
+      setActiveTab('online-orders');
+    } else if (path === '/online-ordering/order-items') {
+      setActiveCategory('commerce');
+      setActiveTab('online-order-items');
+    } else if (path === '/online-ordering/delivery' || path === '/online-ordering/delivery-info') {
+      setActiveCategory('commerce');
+      setActiveTab('online-delivery-info');
     } else if (path === '/dashboard') {
       const stateTab = location.state?.activeTab;
       const stateCategory = location.state?.activeCategory;
@@ -1255,8 +1325,20 @@ export const MerchantFrame: React.FC = () => {
       );
     }
 
+    if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') {
+      return (
+        <OnlineOrderingHubView
+          onNavigate={(view) => setActiveTab(view)}
+        />
+      );
+    }
+
     if (activeTab === 'online-stores') {
       return <OnlineStoresView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'online-menus') {
+      return <OnlineMenusView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'kitchen-stations') {
@@ -1339,6 +1421,17 @@ export const MerchantFrame: React.FC = () => {
             </p>
 
             <div className="flex justify-center gap-3 mt-8">
+              {moduleNavHub && (
+                <button
+                  onClick={() => {
+                    navigateToFeature(moduleNavHub.hubId);
+                  }}
+                  className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#930015] transition-all rounded shadow-sm flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">arrow_back</span>
+                  <span>Back to {moduleNavHub.title}</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (profile?.role === 'SaaS Owner') {
@@ -1348,7 +1441,7 @@ export const MerchantFrame: React.FC = () => {
                     setActiveTab('dashboard');
                   }
                 }}
-                className="px-5 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#d51f2c] transition-all rounded shadow-sm"
+                className="px-5 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#d51f2c] transition-all rounded shadow-sm cursor-pointer"
               >
                 Back to Dashboard
               </button>
@@ -1515,7 +1608,8 @@ export const MerchantFrame: React.FC = () => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
                         const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
                         const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
-                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp;
+                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
+                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
                         const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
@@ -1523,6 +1617,8 @@ export const MerchantFrame: React.FC = () => {
                           ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
                           : isRawMaterialsApp
                           ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
+                          : isOnlineOrderingApp
+                          ? ['online-ordering-hub', 'online-ordering-dashboard', 'online-stores', 'online-payments', 'online-menus', 'online-menu-categories', 'online-menu-items', 'online-orders', 'online-order-items', 'online-delivery-info'].includes(activeTab)
                           : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
@@ -1541,6 +1637,10 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('raw-materials-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
+                                } else if (isOnlineOrderingApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('online-ordering-hub');
+                                  navigate('/online-ordering', { state: { activeTab: 'online-ordering-hub', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,
@@ -1647,7 +1747,8 @@ export const MerchantFrame: React.FC = () => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
                         const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
                         const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
-                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp;
+                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
+                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
                         const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
@@ -1655,6 +1756,8 @@ export const MerchantFrame: React.FC = () => {
                           ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
                           : isRawMaterialsApp
                           ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
+                          : isOnlineOrderingApp
+                          ? ['online-ordering-hub', 'online-ordering-dashboard', 'online-stores', 'online-payments', 'online-menus', 'online-menu-categories', 'online-menu-items', 'online-orders', 'online-order-items', 'online-delivery-info'].includes(activeTab)
                           : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
@@ -1673,6 +1776,10 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('raw-materials-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
+                                } else if (isOnlineOrderingApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('online-ordering-hub');
+                                  navigate('/online-ordering', { state: { activeTab: 'online-ordering-hub', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,

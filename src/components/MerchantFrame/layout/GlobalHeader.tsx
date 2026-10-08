@@ -232,6 +232,19 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'saas-dashboard',
   ];
 
+  const onlineOrderingTabs = [
+    'online-ordering-hub',
+    'online-ordering-dashboard',
+    'online-stores',
+    'online-payments',
+    'online-menus',
+    'online-menu-categories',
+    'online-menu-items',
+    'online-orders',
+    'online-order-items',
+    'online-delivery-info',
+  ];
+
   // Specific domain mappings according to catalog architecture
   if (productsCatalogTabs.includes(activeTab)) {
     categoryName = 'Inventory';
@@ -265,9 +278,17 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     categoryName = 'CORE';
   } else if (saasTabs.includes(activeTab)) {
     categoryName = 'Platform SaaS';
-  } else if (activeTab === 'online-stores') {
+  } else if (onlineOrderingTabs.includes(activeTab)) {
     categoryName = 'Commerce';
-    activeFeatureName = 'Online Stores';
+    if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') activeFeatureName = 'Online Ordering Command Hub';
+    else if (activeTab === 'online-stores') activeFeatureName = 'Online Stores';
+    else if (activeTab === 'online-payments') activeFeatureName = 'Online Payments';
+    else if (activeTab === 'online-menus') activeFeatureName = 'Menus';
+    else if (activeTab === 'online-menu-categories') activeFeatureName = 'Categories';
+    else if (activeTab === 'online-menu-items') activeFeatureName = 'Menu Items';
+    else if (activeTab === 'online-orders') activeFeatureName = 'Online Orders';
+    else if (activeTab === 'online-order-items') activeFeatureName = 'Order Items';
+    else if (activeTab === 'online-delivery-info') activeFeatureName = 'Delivery Info';
   } else if (activeTab === 'dashboard') {
     categoryName = 'CORE';
     activeFeatureName = 'Restaurant Dashboard';
@@ -301,6 +322,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Products Command Hub';
   } else if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') {
     friendlyTitle = 'Raw Materials Command Hub';
+  } else if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') {
+    friendlyTitle = 'Online Ordering Command Hub';
   } else if (activeTab === 'categories') {
     friendlyTitle = 'Categories';
   } else if (activeTab === 'products') {

@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
-import { OnlineStoreModal, type OnlineStoreFormData } from './OnlineStoreModal';
-import { AppModal, ModalFormFooter } from '../../../shared/AppModal';
+import {
+  OnlineStoreSetupDrawer,
+  type OnlineStoreFormData,
+} from './OnlineStoreSetupDrawer';
 import {
   TableOptionsMenu,
   TablePaginationFooter,
@@ -37,7 +40,8 @@ interface OnlineStoresViewProps {
   onNavigate?: (view: string) => void;
 }
 
-export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
+export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate }) => {
+  const navigate = useNavigate();
   const [stores, setStores] = useState<OnlineStoreItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +75,13 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [storeToDelete, setStoreToDelete] = useState<OnlineStoreItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Restore Confirmation Modal (Exact ProductsView pattern)
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState<boolean>(false);
+  const [storeToRestore, setStoreToRestore] = useState<OnlineStoreItem | null>(null);
+  const [isRestoring, setIsRestoring] = useState<boolean>(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   // Quick feedback toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -98,22 +109,36 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
-      const res = await fetch(`${API_BASE}/online-stores?limit=100`, { headers });
+      const [resActive, resDeleted] = await Promise.all([
+        fetch(`${API_BASE}/online-stores?limit=100&status=active`, { headers }),
+        fetch(`${API_BASE}/online-stores?limit=100&status=deleted`, { headers }),
+      ]);
 
-      if (res.status === 401) {
+      if (resActive.status === 401 || resDeleted.status === 401) {
         clearAuthSession();
         window.location.assign('/login');
         return;
       }
 
-      if (!res.ok) {
-        throw new Error(`Failed to load online stores (${res.status})`);
+      if (!resActive.ok) {
+        throw new Error(`Failed to load online stores (${resActive.status})`);
       }
 
-      const json = await res.json();
-      const rawList: Record<string, unknown>[] = Array.isArray(json)
-        ? json
-        : (json.data || json.items || []);
+      const jsonActive = await resActive.json();
+      const rawActive: Record<string, unknown>[] = Array.isArray(jsonActive)
+        ? jsonActive
+        : (jsonActive.data || jsonActive.items || []);
+
+      let rawDeleted: Record<string, unknown>[] = [];
+      if (resDeleted.ok) {
+        const jsonDeleted = await resDeleted.json();
+        rawDeleted = Array.isArray(jsonDeleted)
+          ? jsonDeleted
+          : (jsonDeleted.data || jsonDeleted.items || []);
+      }
+
+      const rawList = [...rawActive, ...rawDeleted];
+      rawList.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
       const list: OnlineStoreItem[] = rawList.map((item) => ({
         id: Number(item.id),
         merchant_id: Number(item.merchant_id ?? item.merchantId ?? (item.merchant as { id?: number })?.id ?? 0),
@@ -189,7 +214,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
       showToast(`Storefront '${formData.subdomain}' provisioned successfully!`);
     } else if (modalMode === 'edit' && formData.id) {
       const res = await fetch(`${API_BASE}/online-stores/${formData.id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers,
         body: JSON.stringify({
           subdomain: formData.subdomain,
@@ -197,6 +222,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
           currency: formData.currency,
           timezone: formData.timezone,
           isActive: formData.is_active,
+          status: formData.status,
         }),
       });
 
@@ -214,6 +240,10 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
 
   // Toggle active availability
   const handleToggleActive = async (store: OnlineStoreItem) => {
+    if (store.status === 'deleted') {
+      showToast('Archived stores cannot be modified');
+      return;
+    }
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = {
@@ -248,11 +278,12 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
     }
   };
 
-  // Delete / Archive Store
+  // Delete / Archive Store (Exact ProductsView pattern)
   const handleConfirmDelete = async () => {
     if (!storeToDelete) return;
     try {
       setIsDeleting(true);
+      setDeleteError(null);
       const token = getAccessToken();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -265,7 +296,9 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to archive online store');
+        const errorJson = await res.json().catch(() => ({}));
+        const msg = errorJson.message || `Failed to archive online store (${res.status})`;
+        throw new Error(Array.isArray(msg) ? msg.join(', ') : msg);
       }
 
       showToast(`Store #${storeToDelete.id} archived successfully`);
@@ -273,9 +306,50 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
       setStoreToDelete(null);
       await fetchStores();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Error deleting store');
+      const msg = err instanceof Error ? err.message : 'Error deleting store';
+      setDeleteError(msg);
+      showToast(msg);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Restore Store (Exact ProductsView activation pattern)
+  const executeRestoreStore = async () => {
+    if (!storeToRestore) return;
+    try {
+      setIsRestoring(true);
+      setRestoreError(null);
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      const res = await fetch(`${API_BASE}/online-stores/${storeToRestore.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          status: 'active',
+        }),
+      });
+
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        const msg = errorJson.message || `Failed to restore online store (${res.status})`;
+        throw new Error(Array.isArray(msg) ? msg.join(', ') : msg);
+      }
+
+      showToast(`Storefront #${storeToRestore.id} restored successfully!`);
+      setIsRestoreModalOpen(false);
+      setStoreToRestore(null);
+      await fetchStores();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error restoring store';
+      setRestoreError(msg);
+      showToast(msg);
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -289,9 +363,9 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
   // Filtered store list
   const filteredStores = useMemo(() => {
     return stores.filter((st) => {
-      // Query filter
+      // Query filter across subdomain, theme, merchant, id
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const matchSubdomain = st.subdomain.toLowerCase().includes(q);
         const matchTheme = st.theme.toLowerCase().includes(q);
         const matchMerchant = st.merchant?.name?.toLowerCase().includes(q) || false;
@@ -328,6 +402,13 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
   const publishedCount = stores.filter((s) => s.is_active && s.status === 'active').length;
   const maintenanceCount = stores.filter((s) => !s.is_active && s.status === 'active').length;
   const archivedCount = stores.filter((s) => s.status === 'deleted').length;
+
+  // Supported Currencies: Distinct currency codes active across storefronts
+  const activeStores = useMemo(() => stores.filter((s) => s.status === 'active'), [stores]);
+  const distinctCurrencies = useMemo(() => {
+    return Array.from(new Set(activeStores.map((s) => (s.currency || 'USD').toUpperCase()))).sort();
+  }, [activeStores]);
+  const supportedCurrenciesCount = distinctCurrencies.length;
 
   // Action menu handlers for TableOptionsMenu
   const handleExportCSV = () => {
@@ -385,7 +466,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
   const activeColSpan = Math.max(1, dataColumnsCount);
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-left font-sans">
+    <div className="flex flex-col gap-6 animate-fade-in text-left font-sans pb-24">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 px-4 py-3 bg-[#1d1c17] text-white rounded-xl shadow-2xl border border-zinc-700 flex items-center gap-3 text-xs font-semibold animate-slide-in">
@@ -394,17 +475,18 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
         </div>
       )}
 
-      {/* 1. Header Card Workspace */}
-      <div className="bg-white border border-[#e8e2d8] p-6 shadow-xs rounded">
+      {/* 1. Header Card Workspace (KDS standard layout) */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-[#ae001a] tracking-wider uppercase mb-1">
-            <span className="material-symbols-outlined text-lg">storefront</span>
-            <span>Commerce / Online Ordering / Online Stores</span>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              storefront
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              ONLINE STORES WORKSPACE
+            </h2>
           </div>
-          <h1 className="text-2xl font-black text-[#1d1c17] tracking-tight uppercase">
-            Online Stores Workspace
-          </h1>
-          <p className="text-body-sm text-[#5f5e5e] mt-1 max-w-3xl">
+          <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
             Provision storefront tenants, map custom subdomains, configure visual themes, and manage regional localization.
           </p>
         </div>
@@ -412,82 +494,82 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
 
       {/* 2. Hero KPIs Strip (4 Cards strictly in 1 single horizontal row) */}
       <div className="grid grid-cols-4 gap-3 w-full">
-        {/* KPI 1: Total Storefronts */}
+        {/* KPI 1: Total Online Stores */}
         <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-t-blue-500 shadow-xs flex flex-col justify-between h-28 group transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors">
-              Total Storefronts
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors font-poppins">
+              Total Online Stores
             </span>
             <div className="w-7 h-7 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center">
               <span className="material-symbols-outlined text-base">storefront</span>
             </div>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-white leading-none">
+            <p className="text-2xl sm:text-3xl font-black text-white leading-none font-poppins">
               {isLoading ? '...' : totalProvisioned}
             </p>
-            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate">
-              Multi-tenant ordering channels
+            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
+              Provisioned storefront tenants
             </p>
           </div>
         </div>
 
-        {/* KPI 2: Live & Published */}
+        {/* KPI 2: Published Stores */}
         <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-t-emerald-500 shadow-xs flex flex-col justify-between h-28 group transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors">
-              Published & Live
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors font-poppins">
+              Published Stores
             </span>
             <div className="w-7 h-7 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <span className="material-symbols-outlined text-base">check_circle</span>
             </div>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-emerald-400 leading-none">
+            <p className="text-2xl sm:text-3xl font-black text-emerald-400 leading-none font-poppins">
               {isLoading ? '...' : publishedCount}
             </p>
-            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate">
-              Publicly taking live orders
+            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
+              is_active = true & active
             </p>
           </div>
         </div>
 
-        {/* KPI 3: Store Maintenance */}
+        {/* KPI 3: In-Maintenance Stores */}
         <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-t-amber-500 shadow-xs flex flex-col justify-between h-28 group transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors">
-              Store Maintenance
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors font-poppins">
+              In-Maintenance Stores
             </span>
             <div className="w-7 h-7 rounded bg-amber-500/20 text-amber-400 flex items-center justify-center">
               <span className="material-symbols-outlined text-base">construction</span>
             </div>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-amber-400 leading-none">
+            <p className="text-2xl sm:text-3xl font-black text-amber-400 leading-none font-poppins">
               {isLoading ? '...' : maintenanceCount}
             </p>
-            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate">
-              Private / Under review
+            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
+              is_active = false (offline)
             </p>
           </div>
         </div>
 
-        {/* KPI 4: Infrastructure & Archival */}
+        {/* KPI 4: Supported Currencies */}
         <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-t-purple-500 shadow-xs flex flex-col justify-between h-28 group transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors">
-              DNS Routing
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors font-poppins">
+              Supported Currencies
             </span>
             <div className="w-7 h-7 rounded bg-purple-500/20 text-purple-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-base">dns</span>
+              <span className="material-symbols-outlined text-base">payments</span>
             </div>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-white leading-none">
-              *.x7pos.com
+            <p className="text-2xl sm:text-3xl font-black text-white leading-none font-poppins">
+              {isLoading ? '...' : supportedCurrenciesCount}
             </p>
-            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate">
-              {archivedCount > 0 ? `${archivedCount} archived tenants` : 'Tenant isolation active'}
+            <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins" title={distinctCurrencies.join(', ')}>
+              {distinctCurrencies.length > 0 ? distinctCurrencies.join(', ') : 'None active'}
             </p>
           </div>
         </div>
@@ -498,8 +580,8 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
         {/* ROW 1: Search, View Mode Switcher, Auto-Refresh & Updated Timestamp */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
-            {/* Search Input con estilo canónico Event Log */}
-            <div className="relative flex-1 min-w-[240px] max-w-md">
+            {/* Search Input: Real-time text filter searching across subdomain and theme fields */}
+            <div className="relative flex-1 min-w-[260px] max-w-lg">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
                 search
               </span>
@@ -510,8 +592,8 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Search by subdomain, merchant name, theme or #STR-ID..."
-                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                placeholder="Search by subdomain or theme (e.g. bistro, dark, store-alpha)..."
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200 font-poppins"
               />
               {searchQuery && (
                 <button
@@ -531,12 +613,12 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
 
           {/* Right Toolbar: View Mode Switcher, Auto-Refresh Widget & Updated */}
           <div className="flex items-center gap-2.5 flex-wrap">
-            {/* View Switcher Toggle (Exact KDS Canonical Pattern) */}
+            {/* View Switcher Toggle */}
             <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer font-poppins ${
                   viewMode === 'table'
                     ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
                     : 'text-[#5f5e5e] hover:text-[#ae001a]'
@@ -549,7 +631,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
               <button
                 type="button"
                 onClick={() => setViewMode('cards')}
-                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer font-poppins ${
                   viewMode === 'cards'
                     ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
                     : 'text-[#5f5e5e] hover:text-[#ae001a]'
@@ -561,8 +643,8 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
               </button>
             </div>
 
-            {/* Widget Canónico de Auto-Refresh ("el auto") */}
-            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+            {/* Auto-Refresh Widget */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0 font-poppins">
               <button
                 type="button"
                 onClick={() => void fetchStores(false)}
@@ -577,7 +659,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
               <select
                 value={autoRefreshInterval}
                 onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full font-poppins"
               >
                 <option value={0}>Auto: Off</option>
                 <option value={5}>Auto: 5s</option>
@@ -587,8 +669,8 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
               </select>
             </div>
 
-            {/* Timestamp de última actualización */}
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
+            {/* Last Updated Timestamp */}
+            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0 font-poppins">
               <span className="material-symbols-outlined text-sm">schedule</span>
               <span>Updated:</span>
               <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
@@ -601,119 +683,104 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-[#f0ede6]">
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
-            Status:
-          </span>
-
-          {/* All Pill */}
-          <button
-            type="button"
-            onClick={() => {
-              setStatusFilter('All');
-              setCurrentPage(1);
-            }}
-            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
-              statusFilter === 'All'
-                ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
-                : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
-            }`}
-          >
-            <span>All</span>
-            <span
-              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
-                statusFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
-              }`}
-            >
-              {totalProvisioned}
+              Status:
             </span>
-          </button>
 
-          {/* Published Pill (Icon: check_circle) */}
-          <button
-            type="button"
-            onClick={() => {
-              setStatusFilter(statusFilter === 'Published' ? 'All' : 'Published');
-              setCurrentPage(1);
-            }}
-            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
-              statusFilter === 'Published'
-                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[12px]">check_circle</span>
-            <span>PUBLISHED</span>
-            <span
-              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
-                statusFilter === 'Published' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-              }`}
-            >
-              {publishedCount}
-            </span>
-          </button>
-
-          {/* Maintenance Pill (Icon: construction) */}
-          <button
-            type="button"
-            onClick={() => {
-              setStatusFilter(statusFilter === 'Maintenance' ? 'All' : 'Maintenance');
-              setCurrentPage(1);
-            }}
-            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
-              statusFilter === 'Maintenance'
-                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[12px]">construction</span>
-            <span>MAINTENANCE</span>
-            <span
-              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
-                statusFilter === 'Maintenance' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
-              }`}
-            >
-              {maintenanceCount}
-            </span>
-          </button>
-
-          {/* Archived Pill (Icon: cancel) */}
-          <button
-            type="button"
-            onClick={() => {
-              setStatusFilter(statusFilter === 'Archived' ? 'All' : 'Archived');
-              setCurrentPage(1);
-            }}
-            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
-              statusFilter === 'Archived'
-                ? 'bg-[#ae001a] text-white border-[#ae001a] shadow-xs'
-                : 'bg-red-50 text-[#ae001a] border-red-200 hover:bg-red-100/60 hover:text-[#900015]'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[12px]">cancel</span>
-            <span>ARCHIVED</span>
-            <span
-              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
-                statusFilter === 'Archived' ? 'bg-white/20 text-white' : 'bg-red-100 text-[#ae001a]'
-              }`}
-            >
-              {archivedCount}
-            </span>
-          </button>
-
-          {/* Clear Filter / Reset */}
-          {(statusFilter !== 'All' || searchQuery) && (
+            {/* All Pill */}
             <button
               type="button"
               onClick={() => {
                 setStatusFilter('All');
-                setSearchQuery('');
                 setCurrentPage(1);
               }}
-              className="text-[9.5px] font-bold text-[#5f5e5e] hover:text-[#ae001a] transition-colors ml-1 shrink-0 cursor-pointer flex items-center gap-1"
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'All'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
             >
-              <span className="material-symbols-outlined text-[12px]">filter_alt_off</span>
-              <span>Clear</span>
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {totalProvisioned}
+              </span>
             </button>
-          )}
+
+            {/* Published Pill (Icon: check_circle) */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(statusFilter === 'Published' ? 'All' : 'Published');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Published'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>PUBLISHED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Published' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {publishedCount}
+              </span>
+            </button>
+
+            {/* Maintenance Pill (Icon: construction) */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(statusFilter === 'Maintenance' ? 'All' : 'Maintenance');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Maintenance'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">construction</span>
+              <span>MAINTENANCE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Maintenance' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {maintenanceCount}
+              </span>
+            </button>
+
+            {/* Archived Pill (Icon: cancel) */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(statusFilter === 'Archived' ? 'All' : 'Archived');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Archived'
+                  ? 'bg-[#ae001a] text-white border-[#ae001a] shadow-xs'
+                  : 'bg-red-50 text-[#ae001a] border-red-200 hover:bg-red-100/60 hover:text-[#900015]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">cancel</span>
+              <span>ARCHIVED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Archived' ? 'bg-white/20 text-white' : 'bg-red-100 text-[#ae001a]'
+                }`}
+              >
+                {archivedCount}
+              </span>
+            </button>
+
           </div>
 
           {/* Primary Action Button: Provision Storefront (al nivel de status, exact ProductsView design) */}
@@ -793,42 +860,42 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                 <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                   <tr>
                     {visibleColumns.storeId && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28 min-w-[95px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-24`}>
                         Store Badge
                       </th>
                     )}
                     {visibleColumns.subdomain && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-auto min-w-[200px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-auto`}>
                         Subdomain & Live URL
                       </th>
                     )}
                     {visibleColumns.merchant && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-36 min-w-[125px]`}>
-                        Merchant Context
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28`}>
+                        Merchant
                       </th>
                     )}
                     {visibleColumns.theme && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28 min-w-[95px]`}>
-                        Visual Theme
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-36`}>
+                        Theme
                       </th>
                     )}
                     {visibleColumns.localization && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-36 min-w-[125px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-32`}>
                         Regional Settings
                       </th>
                     )}
                     {visibleColumns.status && (
-                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28 min-w-[95px]`}>
-                        Store Status
+                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28`}>
+                        Status
                       </th>
                     )}
                     {visibleColumns.timestamps && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-32 min-w-[110px]`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28`}>
                         Timestamps
                       </th>
                     )}
                     {visibleColumns.actions && (
-                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-20 min-w-[70px]`}>
+                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-20`}>
                         Actions
                       </th>
                     )}
@@ -883,12 +950,12 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                       return (
                         <tr
                           key={store.id}
-                          className="hover:bg-zinc-50/70 transition-colors group"
+                          className="hover:bg-zinc-50/80 transition-colors duration-200 group"
                         >
                           {/* Store Badge */}
                           {visibleColumns.storeId && (
                             <td className={`${densityPadding} whitespace-nowrap`}>
-                              <span className="font-mono font-bold text-xs bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded shadow-2xs">
+                              <span className="font-mono font-bold text-xs bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded shadow-2xs font-poppins">
                                 #STR-{store.id}
                               </span>
                             </td>
@@ -898,18 +965,18 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                           {visibleColumns.subdomain && (
                             <td className={`${densityPadding} truncate`}>
                               <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-sm text-[#1d1c17] truncate block" title={store.subdomain}>
+                                <span className="font-bold text-sm text-[#1d1c17] truncate block font-poppins" title={store.subdomain}>
                                   {store.subdomain}
                                 </span>
-                                <div className="flex items-center gap-1.5 mt-0.5 text-zinc-500 font-mono text-[11px] whitespace-nowrap">
+                                <div className="flex items-center gap-1.5 mt-0.5 text-zinc-500 font-mono text-[11px] whitespace-nowrap font-poppins">
                                   <a
                                     href={`https://${store.subdomain}.x7pos.com`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-zinc-600 hover:text-[#ae001a] hover:underline flex items-center gap-1 truncate max-w-full"
+                                    className="text-zinc-600 hover:text-[#ae001a] hover:underline flex items-center gap-1 truncate max-w-full transition-colors duration-200"
                                     title={`https://${store.subdomain}.x7pos.com`}
                                   >
-                                    <span className="truncate">https://{store.subdomain}.x7pos.com</span>
+                                    <span className="truncate font-poppins">https://{store.subdomain}.x7pos.com</span>
                                     <span className="material-symbols-outlined text-[13px] text-zinc-400 shrink-0">
                                       open_in_new
                                     </span>
@@ -917,7 +984,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleCopyUrl(store.subdomain)}
-                                    className="text-zinc-400 hover:text-zinc-700 cursor-pointer p-0.5 shrink-0"
+                                    className="text-zinc-400 hover:text-[#ae001a] transition-colors duration-200 cursor-pointer p-0.5 shrink-0"
                                     title="Copy live URL"
                                   >
                                     <span className="material-symbols-outlined text-[13px]">
@@ -946,9 +1013,12 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                           {/* Theme Pill */}
                           {visibleColumns.theme && (
                             <td className={`${densityPadding} whitespace-nowrap`}>
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize">
-                                <span className="material-symbols-outlined text-xs">palette</span>
-                                <span>{store.theme || 'default'}</span>
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 capitalize max-w-full font-poppins"
+                                title={store.theme || 'default'}
+                              >
+                                <span className="material-symbols-outlined text-xs shrink-0">palette</span>
+                                <span className="truncate">{store.theme || 'default'}</span>
                               </span>
                             </td>
                           )}
@@ -956,17 +1026,17 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                           {/* Regional Settings: Currency & Timezone */}
                           {visibleColumns.localization && (
                             <td className={`${densityPadding} whitespace-nowrap`}>
-                              <div className="flex flex-col gap-0.5">
+                              <div className="flex flex-col gap-0.5 min-w-0">
                                 <div className="flex items-center gap-1 text-[11px]">
-                                  <span className="font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono">
+                                  <span className="font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono inline-block font-poppins">
                                     {store.currency || 'USD'}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-medium whitespace-nowrap" title={store.timezone || 'America/New_York'}>
+                                <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-medium whitespace-nowrap font-poppins" title={store.timezone || 'America/New_York'}>
                                   <span className="material-symbols-outlined text-[12px] text-zinc-400 shrink-0">
                                     schedule
                                   </span>
-                                  <span className="truncate">{store.timezone || 'America/New_York'}</span>
+                                  <span className="truncate max-w-[130px]">{store.timezone || 'America/New_York'}</span>
                                 </div>
                               </div>
                             </td>
@@ -979,7 +1049,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                                 <button
                                   type="button"
                                   onClick={() => void handleToggleActive(store)}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30 hover:bg-[#10b981]/25 transition-all cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30 hover:bg-[#10b981]/25 transition-all duration-200 cursor-pointer font-poppins"
                                   title="Published & live. Click to set Maintenance mode"
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse shrink-0" />
@@ -990,7 +1060,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                                 <button
                                   type="button"
                                   onClick={() => void handleToggleActive(store)}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30 hover:bg-[#f59e0b]/25 transition-all cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30 hover:bg-[#f59e0b]/25 transition-all duration-200 cursor-pointer font-poppins"
                                   title="Under maintenance. Click to publish live"
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] shrink-0" />
@@ -998,7 +1068,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                                 </button>
                               )}
                               {isArchived && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30 font-poppins">
                                   <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444] shrink-0" />
                                   <span>Archived</span>
                                 </span>
@@ -1035,39 +1105,56 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                             <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                               <div className="flex justify-center gap-2">
 
-                                {/* Edit Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setModalMode('edit');
-                                    setEditingStore({
-                                      id: store.id,
-                                      subdomain: store.subdomain,
-                                      theme: store.theme,
-                                      currency: store.currency,
-                                      timezone: store.timezone,
-                                      is_active: store.is_active,
-                                    });
-                                    setIsModalOpen(true);
-                                  }}
-                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                  title="Edit storefront"
-                                >
-                                  <span className="material-symbols-outlined text-[20px]">edit</span>
-                                </button>
+                                {/* Actions for Active vs Archived */}
+                                {!isArchived ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setModalMode('edit');
+                                        setEditingStore({
+                                          id: store.id,
+                                          merchant_id: store.merchant_id,
+                                          merchantName: store.merchant?.name,
+                                          subdomain: store.subdomain,
+                                          theme: store.theme,
+                                          currency: store.currency,
+                                          timezone: store.timezone,
+                                          is_active: store.is_active,
+                                          status: store.status,
+                                        });
+                                        setIsModalOpen(true);
+                                      }}
+                                      className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                      title="Edit storefront setup drawer"
+                                    >
+                                      <span className="material-symbols-outlined text-[20px]">edit</span>
+                                    </button>
 
-                                {/* Delete / Archive Button */}
-                                {!isArchived && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setStoreToDelete(store);
+                                        setIsDeleteModalOpen(true);
+                                      }}
+                                      className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                      title="Archive storefront"
+                                    >
+                                      <span className="material-symbols-outlined text-[20px]">block</span>
+                                    </button>
+                                  </>
+                                ) : (
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setStoreToDelete(store);
-                                      setIsDeleteModalOpen(true);
+                                      setStoreToRestore(store);
+                                      setRestoreError(null);
+                                      setIsRestoreModalOpen(true);
                                     }}
-                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                    title="Archive storefront"
+                                    className="p-1 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                                    title="Restore archived storefront"
                                   >
-                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                    <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
                                   </button>
                                 )}
                               </div>
@@ -1116,42 +1203,27 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
             </button>
           </div>
         ) : filteredStores.length === 0 ? (
-          <div className="bg-white rounded border border-[#e8e2d8] p-12 text-center shadow-sm">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-400 flex items-center justify-center mx-auto mb-3">
+          <div
+            style={{ textAlign: 'center' }}
+            className="bg-white rounded-xl border border-[#e8e2d8] p-12 flex flex-col items-center justify-center text-center shadow-sm w-full mx-auto"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-400 flex items-center justify-center mx-auto mb-3 shrink-0">
               <span className="material-symbols-outlined text-2xl">storefront</span>
             </div>
-            <h3 className="text-sm font-bold text-[#1d1c17] uppercase tracking-wide">
+            <h3
+              style={{ textAlign: 'center' }}
+              className="text-sm font-bold text-[#1d1c17] uppercase tracking-wide text-center w-full font-poppins"
+            >
               No Online Stores Found
             </h3>
-            <p className="text-xs text-[#5f5e5e] max-w-md mx-auto mt-1 mb-4">
+            <p
+              style={{ textAlign: 'center', margin: '0.25rem auto 0 auto' }}
+              className="text-xs text-[#5f5e5e] max-w-md mx-auto text-center leading-relaxed w-full font-poppins"
+            >
               {searchQuery || statusFilter !== 'All'
                 ? 'No storefronts match your current filter criteria. Clear filters to see all tenants.'
                 : 'Provision your first storefront tenant to enable online ordering channels, custom subdomain routing, and visual themes.'}
             </p>
-            {searchQuery || statusFilter !== 'All' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('All');
-                }}
-                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold rounded transition-colors cursor-pointer"
-              >
-                Clear Filters
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setModalMode('create');
-                  setEditingStore(null);
-                  setIsModalOpen(true);
-                }}
-                className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-xs font-bold uppercase tracking-wider rounded shadow-md transition-colors cursor-pointer"
-              >
-                + Provision First Store
-              </button>
-            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -1164,12 +1236,12 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
               return (
                 <div
                   key={store.id}
-                  className="bg-white rounded-xl border border-[#e8e2d8] p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group hover:border-[#ae001a]"
+                  className="bg-white rounded-xl border border-[#e8e2d8] p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group hover:border-[#ae001a]"
                 >
                   <div>
                     {/* Card Header: Badge & Status */}
                     <div className="flex items-center justify-between mb-3">
-                      <span className="font-mono font-bold text-xs bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded shadow-2xs">
+                      <span className="font-mono font-bold text-xs bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded shadow-2xs font-poppins">
                         #STR-{store.id}
                       </span>
 
@@ -1178,7 +1250,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                         <button
                           type="button"
                           onClick={() => void handleToggleActive(store)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30 hover:bg-[#10b981]/25 transition-all cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#065f46] border border-[#10b981]/30 hover:bg-[#10b981]/25 transition-all duration-200 cursor-pointer font-poppins"
                           title="Published & live. Click to set Maintenance mode"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
@@ -1189,7 +1261,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                         <button
                           type="button"
                           onClick={() => void handleToggleActive(store)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30 hover:bg-[#f59e0b]/25 transition-all cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f59e0b]/15 text-[#92400e] border border-[#f59e0b]/30 hover:bg-[#f59e0b]/25 transition-all duration-200 cursor-pointer font-poppins"
                           title="Under maintenance. Click to publish live"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
@@ -1197,7 +1269,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                         </button>
                       )}
                       {isArchived && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30 font-poppins">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444]" />
                           <span>Archived</span>
                         </span>
@@ -1205,24 +1277,24 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                     </div>
 
                     {/* Subdomain & URL Context */}
-                    <h3 className="text-base font-black text-[#1d1c17] group-hover:text-[#ae001a] transition-colors flex items-center justify-between">
+                    <h3 className="text-base font-black text-[#1d1c17] group-hover:text-[#ae001a] transition-colors duration-200 flex items-center justify-between font-poppins">
                       <span>{store.subdomain}</span>
                     </h3>
 
-                    <div className="mt-1 p-2 rounded-lg bg-zinc-50 border border-zinc-200 text-xs font-mono text-zinc-600 flex items-center justify-between">
+                    <div className="mt-1 p-2 rounded-lg bg-zinc-50 border border-zinc-200 text-xs font-mono text-zinc-600 flex items-center justify-between font-poppins">
                       <a
                         href={`https://${store.subdomain}.x7pos.com`}
                         target="_blank"
                         rel="noreferrer"
-                        className="truncate text-[#1d1c17] hover:text-[#ae001a] flex items-center gap-1"
+                        className="truncate text-[#1d1c17] hover:text-[#ae001a] transition-colors duration-200 flex items-center gap-1"
                       >
-                        <span className="truncate">https://{store.subdomain}.x7pos.com</span>
+                        <span className="truncate font-poppins">https://{store.subdomain}.x7pos.com</span>
                         <span className="material-symbols-outlined text-xs text-zinc-400">open_in_new</span>
                       </a>
                       <button
                         type="button"
                         onClick={() => handleCopyUrl(store.subdomain)}
-                        className="text-zinc-400 hover:text-zinc-700 cursor-pointer p-0.5 shrink-0"
+                        className="text-zinc-400 hover:text-[#ae001a] transition-colors duration-200 cursor-pointer p-0.5 shrink-0"
                         title="Copy live URL"
                       >
                         <span className="material-symbols-outlined text-xs">content_copy</span>
@@ -1233,24 +1305,24 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                     <div className="mt-3.5 space-y-2 text-xs">
                       {/* Merchant */}
                       <div className="flex items-center justify-between text-zinc-600">
-                        <span className="text-[11px] font-semibold text-zinc-400 uppercase">Merchant</span>
-                        <span className="font-bold text-[#1d1c17]">
+                        <span className="text-[11px] font-semibold text-zinc-400 uppercase font-poppins">Merchant</span>
+                        <span className="font-bold text-[#1d1c17] font-poppins">
                           {store.merchant?.name || `Merchant #${store.merchant_id}`}
                         </span>
                       </div>
 
                       {/* Theme */}
                       <div className="flex items-center justify-between text-zinc-600">
-                        <span className="text-[11px] font-semibold text-zinc-400 uppercase">Theme</span>
-                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold capitalize text-[11px]">
+                        <span className="text-[11px] font-semibold text-zinc-400 uppercase font-poppins">Theme</span>
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold capitalize text-[11px] font-poppins">
                           {store.theme || 'default'}
                         </span>
                       </div>
 
                       {/* Currency & Timezone */}
                       <div className="flex items-center justify-between text-zinc-600">
-                        <span className="text-[11px] font-semibold text-zinc-400 uppercase">Region</span>
-                        <span className="font-mono text-xs font-bold text-zinc-800">
+                        <span className="text-[11px] font-semibold text-zinc-400 uppercase font-poppins">Region</span>
+                        <span className="font-mono text-xs font-bold text-zinc-800 font-poppins">
                           {store.currency || 'USD'} • {store.timezone || 'America/New_York'}
                         </span>
                       </div>
@@ -1266,37 +1338,55 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                     </span>
 
                     <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModalMode('edit');
-                          setEditingStore({
-                            id: store.id,
-                            subdomain: store.subdomain,
-                            theme: store.theme,
-                            currency: store.currency,
-                            timezone: store.timezone,
-                            is_active: store.is_active,
-                          });
-                          setIsModalOpen(true);
-                        }}
-                        className="p-1 rounded-md text-zinc-500 hover:text-[#ae001a] hover:bg-zinc-100 transition-colors cursor-pointer"
-                        title="Edit storefront"
-                      >
-                        <span className="material-symbols-outlined text-base">edit</span>
-                      </button>
+                      {!isArchived ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalMode('edit');
+                              setEditingStore({
+                                id: store.id,
+                                merchant_id: store.merchant_id,
+                                merchantName: store.merchant?.name,
+                                subdomain: store.subdomain,
+                                theme: store.theme,
+                                currency: store.currency,
+                                timezone: store.timezone,
+                                is_active: store.is_active,
+                                status: store.status,
+                              });
+                              setIsModalOpen(true);
+                            }}
+                            className="p-1 rounded-md text-zinc-500 hover:text-[#ae001a] hover:bg-zinc-100 transition-colors cursor-pointer"
+                            title="Edit storefront setup drawer"
+                          >
+                            <span className="material-symbols-outlined text-base">edit</span>
+                          </button>
 
-                      {!isArchived && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStoreToDelete(store);
+                              setIsDeleteModalOpen(true);
+                            }}
+                            className="p-1 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Archive storefront"
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          </button>
+                        </>
+                      ) : (
                         <button
                           type="button"
                           onClick={() => {
-                            setStoreToDelete(store);
-                            setIsDeleteModalOpen(true);
+                            setStoreToRestore(store);
+                            setRestoreError(null);
+                            setIsRestoreModalOpen(true);
                           }}
-                          className="p-1 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                          title="Archive storefront"
+                          className="p-1 rounded-md text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          title="Restore archived storefront"
                         >
-                          <span className="material-symbols-outlined text-base">delete</span>
+                          <span className="material-symbols-outlined text-base">settings_backup_restore</span>
                         </button>
                       )}
                     </div>
@@ -1322,8 +1412,8 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
         </div>
       ))}
 
-      {/* Creation and Edit Modal */}
-      <OnlineStoreModal
+      {/* Store Setup Drawer (Side Drawer Modal) */}
+      <OnlineStoreSetupDrawer
         isOpen={isModalOpen}
         mode={modalMode}
         initialData={editingStore}
@@ -1334,39 +1424,141 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
         onSubmit={handleSaveStore}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete / Archive Confirmation Modal (Exact ProductsView pattern) */}
       {isDeleteModalOpen && storeToDelete && (
-        <AppModal
-          title="Archive Online Storefront"
-          subtitle={`#STR-${storeToDelete.id}`}
-          size="md"
-          onClose={() => {
-            setIsDeleteModalOpen(false);
-            setStoreToDelete(null);
-          }}
-          closeDisabled={isDeleting}
-        >
-          <div className="p-6 text-left space-y-4">
-            <div className="w-12 h-12 rounded bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-              <span className="material-symbols-outlined text-2xl">delete_forever</span>
+        <div className="fixed inset-0 z-[10000] overflow-y-auto flex items-center justify-center p-4 font-sans">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => !isDeleting && setIsDeleteModalOpen(false)}
+          />
+
+          {/* Modal Box */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 animate-scale-in text-left">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-red-50 border border-red-100 text-[#ae001a]">
+                <span className="material-symbols-outlined text-2xl block select-none">
+                  delete_forever
+                </span>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-body-md font-bold text-zinc-900 font-sans">
+                  Confirm Storefront Archival
+                </h3>
+                <p className="text-body-xs text-zinc-500 leading-relaxed font-sans">
+                  Are you sure you want to archive storefront{' '}
+                  <strong className="text-zinc-800">https://{storeToDelete.subdomain}.x7pos.com</strong> (#STR-
+                  {storeToDelete.id})? This will take the store offline and set its logical status to{' '}
+                  <span className="font-semibold text-red-700">Archived</span>.
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-zinc-700 text-center leading-relaxed font-sans">
-              Are you sure you want to archive storefront{' '}
-              <strong className="text-[#1d1c17]">https://{storeToDelete.subdomain}.x7pos.com</strong> (#STR-
-              {storeToDelete.id})? This will take the store offline and set its logical status to Archived.
-            </p>
-            <ModalFormFooter
-              onCancel={() => {
-                setIsDeleteModalOpen(false);
-                setStoreToDelete(null);
-              }}
-              submitLabel={isDeleting ? 'Archiving...' : 'Confirm Archive'}
-              isSubmitting={isDeleting}
-              destructive
-              onSubmit={handleConfirmDelete}
-            />
+
+            {deleteError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-body-xs font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm block">error</span>
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setStoreToDelete(null);
+                  setDeleteError(null);
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2 text-body-xs font-bold border border-zinc-200 rounded-lg text-zinc-700 hover:bg-zinc-50 transition-all duration-200 cursor-pointer font-sans"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-white text-body-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 font-sans bg-red-600 hover:bg-[#ae001a]"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin block">sync</span>
+                    <span>Archiving...</span>
+                  </>
+                ) : (
+                  <span>Archive Storefront</span>
+                )}
+              </button>
+            </div>
           </div>
-        </AppModal>
+        </div>
+      )}
+
+      {/* Restore Confirmation Modal (Exact ProductsView pattern) */}
+      {isRestoreModalOpen && storeToRestore && (
+        <div className="fixed inset-0 z-[10000] overflow-y-auto flex items-center justify-center p-4 font-sans">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => !isRestoring && setIsRestoreModalOpen(false)}
+          />
+
+          {/* Modal Box */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 animate-scale-in text-left">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-emerald-50 border border-emerald-100 text-emerald-600">
+                <span className="material-symbols-outlined text-2xl block select-none">
+                  settings_backup_restore
+                </span>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-body-md font-bold text-zinc-900 font-sans">
+                  Confirm Storefront Restoration
+                </h3>
+                <p className="text-body-xs text-zinc-500 leading-relaxed font-sans">
+                  Are you sure you want to restore storefront <strong className="text-zinc-800">https://{storeToRestore.subdomain}.x7pos.com</strong> (#STR-{storeToRestore.id})? This action will set its logical status back to <span className="font-semibold text-emerald-700">active</span>.
+                </p>
+              </div>
+            </div>
+
+            {restoreError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-body-xs font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm block">error</span>
+                <span>{restoreError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRestoreModalOpen(false);
+                  setStoreToRestore(null);
+                  setRestoreError(null);
+                }}
+                disabled={isRestoring}
+                className="px-4 py-2 text-body-xs font-bold border border-zinc-200 rounded-lg text-zinc-700 hover:bg-zinc-50 transition-all duration-200 cursor-pointer font-sans"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeRestoreStore}
+                disabled={isRestoring}
+                className="px-4 py-2 text-white text-body-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 font-sans bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isRestoring ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin block">sync</span>
+                    <span>Restoring...</span>
+                  </>
+                ) : (
+                  <span>Restore Storefront</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

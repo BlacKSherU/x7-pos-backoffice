@@ -571,22 +571,32 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
                       {visibleColumns.actions && (
                         <td className={`${densityPadding} text-center whitespace-nowrap`}>
                           <div className="flex justify-center gap-3">
-                            <button
-                              onClick={() => handleOpenEditModal(modifier)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title="Edit modifier"
-                            >
-                              <span className="material-symbols-outlined text-[20px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => void handleToggleActive(modifier)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title={modifier.isActive ? "Deactivate modifier" : "Activate modifier"}
-                            >
-                              <span className="material-symbols-outlined text-[20px]">
-                                {modifier.isActive ? 'block' : 'check_circle_outline'}
-                              </span>
-                            </button>
+                            {modifier.isActive ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEditModal(modifier)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Edit modifier"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <button
+                                  onClick={() => void handleToggleActive(modifier)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Deactivate modifier"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">block</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => void handleToggleActive(modifier)}
+                                className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                title="Activate modifier"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}

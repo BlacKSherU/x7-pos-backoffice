@@ -72,6 +72,19 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
     back: 'BUSINESS PARTNERS COMMAND HUB',
     items: ['CUSTOMERS', 'SUPPLIERS'],
   },
+  'online-ordering': {
+    back: 'ONLINE ORDERING COMMAND HUB',
+    items: [
+      'STORES',
+      'PAYMENTS',
+      'MENUS',
+      'CATEGORIES',
+      'ITEMS',
+      'ORDERS',
+      'ORDER ITEMS',
+      'DELIVERY',
+    ],
+  },
 };
 
 const featuresByApp = (): Map<string, string[]> => {
