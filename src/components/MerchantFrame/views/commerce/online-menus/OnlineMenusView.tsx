@@ -56,7 +56,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
     store: true,
     description: true,
     status: true,
-    quickToggle: true,
     timestamps: true,
     actions: true,
   });
@@ -232,6 +231,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
           storeId: formData.storeId,
           name: formData.name,
           description: formData.description || undefined,
+          isActive: formData.isActive,
         }),
       });
 
@@ -244,9 +244,10 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
       await fetchMenus(true);
     } else if (drawerMode === 'edit' && formData.id) {
       const res = await fetch(`${API_BASE}/online-menus/${formData.id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers,
         body: JSON.stringify({
+          storeId: formData.storeId,
           name: formData.name,
           description: formData.description || undefined,
           isActive: formData.isActive,
@@ -283,7 +284,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
       };
 
       const res = await fetch(`${API_BASE}/online-menus/${menu.id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers,
         body: JSON.stringify({
           isActive: newActive,
@@ -295,7 +296,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
       }
 
       showToast(
-        `Menu #${menu.id} is now ${newActive ? 'Published (#10b981)' : 'Draft / Inactive (#64748b)'}`
+        `Menu #${menu.id} is now ${newActive ? 'Published' : 'Draft / Inactive'}`
       );
     } catch (err: unknown) {
       setMenus(previousMenus);
@@ -395,11 +396,13 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
     }
   }, [currentPage, totalPages]);
 
-  // KPI Computations
+  // KPI Computations (Story 4299)
   const totalMenus = menus.length;
   const publishedMenusCount = menus.filter((m) => m.isActive).length;
   const draftMenusCount = menus.filter((m) => !m.isActive).length;
-  const boundStoresCount = new Set(menus.map((m) => m.storeId)).size;
+  const storesWithActiveMenusCount = new Set(
+    menus.filter((m) => m.isActive).map((m) => m.storeId)
+  ).size;
 
   // Action menu handlers for TableOptionsMenu
   const handleExportCSV = () => {
@@ -449,7 +452,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
     (visibleColumns.store ? 1 : 0) +
     (visibleColumns.description ? 1 : 0) +
     (visibleColumns.status ? 1 : 0) +
-    (visibleColumns.quickToggle ? 1 : 0) +
     (visibleColumns.timestamps ? 1 : 0) +
     (visibleColumns.actions ? 1 : 0);
   const activeColSpan = Math.max(1, dataColumnsCount);
@@ -497,11 +499,11 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
 
       {/* 2. Hero KPIs Strip (4 Cards strictly in 1 single horizontal row, dark #222222) */}
       <div className="grid grid-cols-4 gap-3 w-full">
-        {/* KPI 1: Total Menus */}
+        {/* KPI 1: Total Digital Menus */}
         <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-t-blue-500 shadow-xs flex flex-col justify-between h-28 group transition-all">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors font-poppins">
-              Total Online Menus
+              Total Digital Menus
             </span>
             <div className="w-7 h-7 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center">
               <span className="material-symbols-outlined text-base">restaurant_menu</span>
@@ -532,7 +534,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
               {isLoading ? '...' : publishedMenusCount}
             </p>
             <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
-              is_active = true (#10b981)
+              Live & visible to customers
             </p>
           </div>
         </div>
@@ -541,7 +543,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
         <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-t-slate-500 shadow-xs flex flex-col justify-between h-28 group transition-all">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors font-poppins">
-              Draft / Inactive
+              Draft / Inactive Menus
             </span>
             <div className="w-7 h-7 rounded bg-slate-500/20 text-slate-300 flex items-center justify-center">
               <span className="material-symbols-outlined text-base">pause_circle</span>
@@ -552,16 +554,16 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
               {isLoading ? '...' : draftMenusCount}
             </p>
             <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
-              is_active = false (#64748b)
+              Hidden from storefront
             </p>
           </div>
         </div>
 
-        {/* KPI 4: Bound Stores */}
+        {/* KPI 4: Stores with Active Menus (Story 4299) */}
         <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-t-purple-500 shadow-xs flex flex-col justify-between h-28 group transition-all">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors font-poppins">
-              Bound Online Stores
+              Stores with Active Menus
             </span>
             <div className="w-7 h-7 rounded bg-purple-500/20 text-purple-400 flex items-center justify-center">
               <span className="material-symbols-outlined text-base">storefront</span>
@@ -569,10 +571,10 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
           </div>
           <div>
             <p className="text-2xl sm:text-3xl font-black text-white leading-none font-poppins">
-              {isLoading ? '...' : boundStoresCount}
+              {isLoading ? '...' : storesWithActiveMenusCount}
             </p>
             <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
-              Multi-channel binding
+              Channels with live catalogs
             </p>
           </div>
         </div>
@@ -622,7 +624,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                   setSelectedStoreFilter(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[220px] transition-colors duration-200"
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-poppins text-[#1d1c17] cursor-pointer max-w-[220px] transition-colors duration-200"
                 aria-label="Filter by online store"
               >
                 <option value="all">All Stores ({stores.length})</option>
@@ -716,7 +718,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                 setStatusFilter('All');
                 setCurrentPage(1);
               }}
-              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold font-poppins transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
                 statusFilter === 'All'
                   ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
                   : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
@@ -724,7 +726,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
             >
               <span>All</span>
               <span
-                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold font-poppins ${
                   statusFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
                 }`}
               >
@@ -739,7 +741,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                 setStatusFilter(statusFilter === 'Published' ? 'All' : 'Published');
                 setCurrentPage(1);
               }}
-              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold font-poppins transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
                 statusFilter === 'Published'
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                   : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
@@ -748,7 +750,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
               <span className="material-symbols-outlined text-[12px]">check_circle</span>
               <span>PUBLISHED</span>
               <span
-                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold font-poppins ${
                   statusFilter === 'Published' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
                 }`}
               >
@@ -763,7 +765,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                 setStatusFilter(statusFilter === 'Draft' ? 'All' : 'Draft');
                 setCurrentPage(1);
               }}
-              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold font-poppins transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
                 statusFilter === 'Draft'
                   ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
                   : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200/60 hover:text-slate-900'
@@ -772,7 +774,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
               <span className="material-symbols-outlined text-[12px]">pause_circle</span>
               <span>DRAFT / INACTIVE</span>
               <span
-                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold font-poppins ${
                   statusFilter === 'Draft' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                 }`}
               >
@@ -825,7 +827,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                 { key: 'store', label: 'Bound Store Subdomain' },
                 { key: 'description', label: 'Description Preview' },
                 { key: 'status', label: 'Publication Status' },
-                { key: 'quickToggle', label: 'Quick Publish Switch' },
                 { key: 'timestamps', label: 'Timestamps' },
                 { key: 'actions', label: 'Actions' },
               ]}
@@ -857,12 +858,12 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                 <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                   <tr>
                     {visibleColumns.menuId && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-44`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-52`}>
                         Menu Badge & Title
                       </th>
                     )}
                     {visibleColumns.store && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-48`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-44`}>
                         Bound Store
                       </th>
                     )}
@@ -872,22 +873,17 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                       </th>
                     )}
                     {visibleColumns.status && (
-                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-36`}>
+                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-44`}>
                         Publication Status
                       </th>
                     )}
-                    {visibleColumns.quickToggle && (
-                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-24`}>
-                        Publish Switch
-                      </th>
-                    )}
                     {visibleColumns.timestamps && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-32`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-40`}>
                         Timestamps
                       </th>
                     )}
                     {visibleColumns.actions && (
-                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-20`}>
+                      <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28 min-w-[90px]`}>
                         Actions
                       </th>
                     )}
@@ -940,16 +936,16 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                       return (
                         <tr
                           key={menu.id}
-                          className="hover:bg-[#fcfcfb] transition-colors group cursor-pointer"
+                          className="hover:bg-[#f8f3eb] transition-colors duration-200 group cursor-pointer"
                         >
                           {/* Column 1: Menu Badge & Title */}
                           {visibleColumns.menuId && (
                             <td className={`${densityPadding} font-sans`}>
                               <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-[#ae001a] bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
+                                <span className="font-mono text-xs font-bold text-[#ae001a] bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0 font-poppins">
                                   #MNU-{menu.id}
                                 </span>
-                                <span className="font-bold text-[#1d1c17] truncate group-hover:text-[#ae001a] transition-colors" title={menu.name}>
+                                <span className="font-bold text-[#1d1c17] truncate group-hover:text-[#ae001a] transition-colors duration-200 font-poppins" title={menu.name}>
                                   {menu.name}
                                 </span>
                               </div>
@@ -963,11 +959,11 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                                 <span className="material-symbols-outlined text-base text-blue-600 shrink-0">
                                   storefront
                                 </span>
-                                <span className="font-mono font-medium text-[#1d1c17] truncate" title={`${storeSub}.x7pos.com`}>
+                                <span className="font-mono font-medium text-[#1d1c17] truncate font-poppins" title={`${storeSub}.x7pos.com`}>
                                   {storeSub}.x7pos.com
                                 </span>
                               </div>
-                              <span className="text-[10px] text-[#5f5e5e] font-mono block pl-5">
+                              <span className="text-[10px] text-[#5f5e5e] font-mono block pl-5 font-poppins">
                                 Store #{menu.storeId}
                               </span>
                             </td>
@@ -977,11 +973,11 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                           {visibleColumns.description && (
                             <td className={`${densityPadding} font-sans max-w-xs`}>
                               {menu.description ? (
-                                <p className="text-[#5f5e5e] line-clamp-2 text-xs" title={menu.description}>
+                                <p className="text-[#5f5e5e] line-clamp-2 text-xs font-poppins" title={menu.description}>
                                   {menu.description}
                                 </p>
                               ) : (
-                                <span className="text-[#8c857b] italic text-[11px] flex items-center gap-1">
+                                <span className="text-[#8c857b] italic text-[11px] flex items-center gap-1 font-poppins">
                                   <span className="material-symbols-outlined text-[13px] text-[#8c857b]">notes</span>
                                   No description provided
                                 </span>
@@ -989,73 +985,77 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                             </td>
                           )}
 
-                          {/* Column 4: Publication Status Pill (#10b981 vs #64748b) */}
+                          {/* Column 4: Publication Status Pill & Switch */}
                           {visibleColumns.status && (
                             <td className={`${densityPadding} text-center font-sans`}>
-                              {menu.isActive ? (
-                                <span
-                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-2xs tracking-wide uppercase"
-                                  style={{ backgroundColor: '#10b981' }}
-                                >
-                                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
-                                  Published
-                                </span>
-                              ) : (
-                                <span
-                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-2xs tracking-wide uppercase"
-                                  style={{ backgroundColor: '#64748b' }}
-                                >
-                                  <span className="material-symbols-outlined text-[12px]">pause_circle</span>
-                                  Draft / Inactive
-                                </span>
-                              )}
-                            </td>
-                          )}
+                              <div className="inline-flex items-center justify-center gap-2">
+                                {menu.isActive ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-2xs tracking-wide uppercase font-poppins"
+                                    style={{ backgroundColor: '#10b981' }}
+                                  >
+                                    <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                                    Published
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-2xs tracking-wide uppercase font-poppins"
+                                    style={{ backgroundColor: '#64748b' }}
+                                  >
+                                    <span className="material-symbols-outlined text-[12px]">pause_circle</span>
+                                    Draft
+                                  </span>
+                                )}
 
-                          {/* Column 5: Quick Publication Switch */}
-                          {visibleColumns.quickToggle && (
-                            <td className={`${densityPadding} text-center font-sans`}>
-                              <button
-                                type="button"
-                                role="switch"
-                                aria-checked={menu.isActive}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleTogglePublication(menu);
-                                }}
-                                title={menu.isActive ? 'Click to set as Draft' : 'Click to Publish'}
-                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                  menu.isActive ? 'bg-[#10b981]' : 'bg-[#64748b]'
-                                }`}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                    menu.isActive ? 'translate-x-4' : 'translate-x-0'
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={menu.isActive}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleTogglePublication(menu);
+                                  }}
+                                  title={menu.isActive ? 'Click to set as Draft' : 'Click to Publish'}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                    menu.isActive ? 'bg-[#10b981]' : 'bg-[#64748b]'
                                   }`}
-                                />
-                              </button>
-                            </td>
-                          )}
-
-                          {/* Column 6: Timestamps */}
-                          {visibleColumns.timestamps && (
-                            <td className={`${densityPadding} text-[#5f5e5e] font-sans text-[11px]`}>
-                              <div>
-                                <span className="text-[#8c857b]">Created: </span>
-                                <span className="font-medium text-[#1d1c17]">{formatDate(menu.createdAt)}</span>
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                      menu.isActive ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
                               </div>
-                              {menu.updatedAt && menu.updatedAt !== menu.createdAt && (
-                                <div className="text-[10px] text-[#8c857b] mt-0.5">
-                                  Updated: {formatDate(menu.updatedAt)}
-                                </div>
-                              )}
                             </td>
                           )}
 
-                          {/* Column 7: Actions */}
+                          {/* Column 5: Timestamps (Created & Updated separated vertically, dates on single line) */}
+                          {visibleColumns.timestamps && (
+                            <td className={`${densityPadding} text-xs font-sans whitespace-nowrap`}>
+                              <div className="flex flex-col gap-0.5 leading-tight">
+                                <div className="text-[11px] text-[#1d1c17] flex items-center gap-1.5 whitespace-nowrap">
+                                  <span className="text-[#8c857b] font-normal text-[10px]">Created:</span>
+                                  <span className="text-[#1d1c17] text-[10.5px]">
+                                    {formatDate(menu.createdAt)}
+                                  </span>
+                                </div>
+                                {menu.updatedAt && menu.updatedAt !== menu.createdAt && (
+                                  <div className="text-[11px] text-[#1d1c17] flex items-center gap-1.5 whitespace-nowrap">
+                                    <span className="text-[#8c857b] font-normal text-[10px]">Updated:</span>
+                                    <span className="text-[#1d1c17] text-[10.5px]">
+                                      {formatDate(menu.updatedAt)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Column: Actions */}
                           {visibleColumns.actions && (
-                            <td className={`${densityPadding} text-center font-sans`}>
-                              <div className="flex items-center justify-center gap-1">
+                            <td className={`text-center whitespace-nowrap ${densityPadding}`}>
+                              <div className="flex justify-center gap-3">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1070,10 +1070,10 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                                     });
                                     setIsDrawerOpen(true);
                                   }}
-                                  className="w-7 h-7 rounded hover:bg-[#ece8e0] text-[#5f5e5e] hover:text-[#1d1c17] flex items-center justify-center transition-colors cursor-pointer"
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
                                   title="Edit Menu"
                                 >
-                                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
                                 </button>
                                 <button
                                   type="button"
@@ -1083,10 +1083,10 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                                     setDeleteError(null);
                                     setIsDeleteModalOpen(true);
                                   }}
-                                  className="w-7 h-7 rounded hover:bg-red-50 text-[#8c857b] hover:text-[#ae001a] flex items-center justify-center transition-colors cursor-pointer"
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
                                   title="Delete Menu"
                                 >
-                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                                  <span className="material-symbols-outlined text-[20px]">block</span>
                                 </button>
                               </div>
                             </td>
@@ -1147,16 +1147,16 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
               return (
                 <div
                   key={menu.id}
-                  className="bg-white border border-[#e8e2d8] rounded p-5 shadow-xs hover:border-[#ae001a] transition-all flex flex-col justify-between group"
+                  className="bg-white border border-[#e8e2d8] rounded p-5 shadow-xs hover:border-[#ae001a] transition-all duration-200 flex flex-col justify-between group"
                 >
                   <div>
                     {/* Header: Badge & Status */}
                     <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#f0ede6]">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs font-bold text-[#ae001a] bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs font-bold text-[#ae001a] bg-red-50 border border-red-200 px-2 py-0.5 rounded font-poppins">
                           #MNU-{menu.id}
                         </span>
-                        <span className="font-mono text-[11px] text-[#5f5e5e]">
+                        <span className="font-mono text-[11px] text-[#5f5e5e] font-poppins">
                           Store #{menu.storeId}
                         </span>
                       </div>
@@ -1164,7 +1164,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                       <div className="flex items-center gap-2">
                         {menu.isActive ? (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-2xs tracking-wide uppercase"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-poppins text-white shadow-2xs tracking-wide uppercase"
                             style={{ backgroundColor: '#10b981' }}
                           >
                             <span className="material-symbols-outlined text-[12px]">check_circle</span>
@@ -1172,7 +1172,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                           </span>
                         ) : (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-2xs tracking-wide uppercase"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-poppins text-white shadow-2xs tracking-wide uppercase"
                             style={{ backgroundColor: '#64748b' }}
                           >
                             <span className="material-symbols-outlined text-[12px]">pause_circle</span>
@@ -1207,7 +1207,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                     {/* Bound Store Context */}
                     <div className="flex items-center gap-1.5 mt-2 text-xs text-[#5f5e5e] bg-[#fcfcfb] p-2 rounded border border-[#e8e2d8]">
                       <span className="material-symbols-outlined text-base text-blue-600">storefront</span>
-                      <span className="font-mono font-bold text-[#1d1c17]">
+                      <span className="font-mono font-bold text-[#1d1c17] font-poppins">
                         {storeSub}.x7pos.com
                       </span>
                     </div>
@@ -1232,7 +1232,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                       Created: {formatDate(menu.createdAt)}
                     </span>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => {
@@ -1246,10 +1246,10 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                           });
                           setIsDrawerOpen(true);
                         }}
-                        className="w-7 h-7 rounded hover:bg-[#ece8e0] text-[#5f5e5e] hover:text-[#1d1c17] flex items-center justify-center transition-colors cursor-pointer"
+                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
                         title="Edit Menu"
                       >
-                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                        <span className="material-symbols-outlined text-[20px]">edit</span>
                       </button>
 
                       <button
@@ -1259,10 +1259,10 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                           setDeleteError(null);
                           setIsDeleteModalOpen(true);
                         }}
-                        className="w-7 h-7 rounded hover:bg-red-50 text-[#8c857b] hover:text-[#ae001a] flex items-center justify-center transition-colors cursor-pointer"
+                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
                         title="Delete Menu"
                       >
-                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                        <span className="material-symbols-outlined text-[20px]">block</span>
                       </button>
                     </div>
                   </div>
@@ -1302,71 +1302,69 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
         onSubmit={handleSaveMenu}
       />
 
-      {/* Delete Confirmation Modal (Standard x7POS modal design) */}
+      {/* Delete / Soft-Delete Confirmation Modal (Agreed standard pattern) */}
       {isDeleteModalOpen && menuToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-lg max-w-md w-full shadow-2xl border border-[#e8e2d8] overflow-hidden transform transition-all font-sans">
-            <div className="p-6">
-              <div className="w-12 h-12 rounded-full bg-red-100 text-[#ae001a] flex items-center justify-center mb-4 mx-auto">
-                <span className="material-symbols-outlined text-[28px]">delete_forever</span>
-              </div>
+        <div className="fixed inset-0 z-[10000] overflow-y-auto flex items-center justify-center p-4 font-sans">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => !isDeleting && setIsDeleteModalOpen(false)}
+          />
 
-              <div className="text-center mb-2">
-                <span className="font-mono text-xs font-bold text-[#ae001a] bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-                  #MNU-{menuToDelete.id}
+          {/* Modal Box */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 animate-scale-in text-left">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-red-50 border border-red-100 text-[#ae001a]">
+                <span className="material-symbols-outlined text-2xl block select-none">
+                  delete_forever
                 </span>
               </div>
-
-              <h3 className="text-xl font-black text-[#1d1c17] text-center uppercase tracking-tight font-poppins">
-                Delete Digital Menu?
-              </h3>
-
-              <p className="text-xs text-[#5f5e5e] mt-2 text-center leading-relaxed">
-                Are you sure you want to delete <strong className="text-[#1d1c17]">"{menuToDelete.name}"</strong>? It is currently bound to storefront <strong className="font-mono text-[#1d1c17]">{getStoreSubdomain(menuToDelete)}.x7pos.com</strong>.
-              </p>
-
-              <div className="mt-4 p-3 rounded bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
-                <span className="material-symbols-outlined text-[16px] text-amber-700 shrink-0 mt-0.5">warning</span>
-                <span>This action cannot be undone. Customers will immediately lose access to this digital catalog on the public storefront.</span>
+              <div className="space-y-2">
+                <h3 className="text-body-md font-bold text-zinc-900 font-sans">
+                  Confirm Digital Menu Deletion
+                </h3>
+                <p className="text-body-xs text-zinc-500 leading-relaxed font-sans">
+                  Are you sure you want to delete digital menu{' '}
+                  <strong className="text-zinc-800">"{menuToDelete.name}"</strong> (#MNU-
+                  {menuToDelete.id})? Customers will immediately lose access to this digital catalog on storefront{' '}
+                  <span className="font-semibold text-zinc-700">{getStoreSubdomain(menuToDelete)}.x7pos.com</span>.
+                </p>
               </div>
-
-              {deleteError && (
-                <div className="mt-3 p-3 rounded bg-red-50 border border-red-200 text-[#ae001a] text-xs flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px]">error</span>
-                  <span>{deleteError}</span>
-                </div>
-              )}
             </div>
 
-            <div className="px-6 py-4 bg-[#fcfcfb] border-t border-[#e8e2d8] flex items-center justify-end gap-3">
+            {deleteError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-body-xs font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm block">error</span>
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setIsDeleteModalOpen(false);
                   setMenuToDelete(null);
+                  setDeleteError(null);
                 }}
                 disabled={isDeleting}
-                className="px-4 py-2 text-xs font-bold text-[#5f5e5e] hover:text-[#1d1c17] hover:bg-[#ece8e0] rounded transition-colors font-sans cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 text-body-xs font-bold border border-zinc-200 rounded-lg text-zinc-700 hover:bg-zinc-50 transition-all duration-200 cursor-pointer font-sans"
               >
                 Cancel
               </button>
-
               <button
                 type="button"
                 onClick={() => void handleDeleteMenu()}
                 disabled={isDeleting}
-                className="px-5 py-2 text-xs font-bold text-white bg-[#ae001a] hover:bg-[#8e0015] rounded shadow-xs transition-all flex items-center gap-1.5 font-sans cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 text-white text-body-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 font-sans bg-red-600 hover:bg-[#ae001a]"
               >
                 {isDeleting ? (
                   <>
-                    <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                    <span className="material-symbols-outlined text-sm animate-spin block">sync</span>
                     <span>Deleting...</span>
                   </>
                 ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                    <span>Confirm Delete</span>
-                  </>
+                  <span>Delete Menu</span>
                 )}
               </button>
             </div>

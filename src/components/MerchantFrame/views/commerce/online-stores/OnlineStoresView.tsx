@@ -529,7 +529,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate }
               {isLoading ? '...' : publishedCount}
             </p>
             <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
-              is_active = true & active
+              Live & accepting orders
             </p>
           </div>
         </div>
@@ -549,7 +549,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate }
               {isLoading ? '...' : maintenanceCount}
             </p>
             <p className="text-[10px] text-zinc-400 mt-1 font-medium truncate font-poppins">
-              is_active = false (offline)
+              Temporarily offline
             </p>
           </div>
         </div>
@@ -860,12 +860,12 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate }
                 <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                   <tr>
                     {visibleColumns.storeId && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-24`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-28`}>
                         Store Badge
                       </th>
                     )}
                     {visibleColumns.subdomain && (
-                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-auto`}>
+                      <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} whitespace-nowrap w-44`}>
                         Subdomain & Live URL
                       </th>
                     )}
@@ -950,7 +950,7 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate }
                       return (
                         <tr
                           key={store.id}
-                          className="hover:bg-zinc-50/80 transition-colors duration-200 group"
+                          className="hover:bg-[#f8f3eb] transition-colors duration-200 group"
                         >
                           {/* Store Badge */}
                           {visibleColumns.storeId && (

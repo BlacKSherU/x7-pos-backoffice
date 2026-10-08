@@ -100,7 +100,7 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
 
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setFormError('Menu title (name) is required.');
+      setFormError('Menu title is required.');
       return;
     }
 
@@ -109,8 +109,8 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
       return;
     }
 
-    if (mode === 'create' && (!storeId || storeId <= 0)) {
-      setFormError('Please select a valid Online Store to bind this menu.');
+    if (!storeId || storeId <= 0) {
+      setFormError('Please select a valid Online Store channel.');
       return;
     }
 
@@ -204,54 +204,42 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
             </div>
           )}
 
-          {/* Section 1: Online Store Relational Association */}
+          {/* Section 1: Store Channel Switcher (Store Catalog Switcher) */}
           <div className="p-4 bg-white rounded-xl border border-[#e8e2d8] shadow-2xs space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-[#1d1c17] flex items-center gap-1.5 font-poppins">
                 <span className="material-symbols-outlined text-base text-blue-600">storefront</span>
-                Online Store Association *
+                Store Channel *
               </label>
               <span className="text-[10px] font-mono text-[#5f5e5e] bg-zinc-100 px-2 py-0.5 rounded">
-                store_id (CASCADE)
+                {mode === 'create' ? 'Channel Assignment' : 'Channel Switcher'}
               </span>
             </div>
 
-            {mode === 'create' ? (
-              <div>
-                <select
-                  value={storeId}
-                  onChange={(e) => setStoreId(Number(e.target.value))}
-                  disabled={isSubmitting || stores.length === 0}
-                  className="w-full px-3.5 py-2.5 bg-[#fcfcfb] border border-[#d5cfc4] rounded-lg text-xs text-[#1d1c17] font-medium focus:border-[#ae001a] focus:outline-none transition-colors font-poppins"
-                  required
-                >
-                  <option value={0} disabled>
-                    {stores.length === 0 ? 'No online stores available' : 'Select target storefront channel...'}
+            <div>
+              <select
+                value={storeId}
+                onChange={(e) => setStoreId(Number(e.target.value))}
+                disabled={isSubmitting || stores.length === 0}
+                className="w-full px-3.5 py-2.5 bg-[#fcfcfb] border border-[#d5cfc4] rounded-lg text-xs text-[#1d1c17] font-medium focus:border-[#ae001a] focus:outline-none transition-colors font-poppins"
+                required
+              >
+                <option value={0} disabled>
+                  {stores.length === 0 ? 'No online stores available' : 'Select target storefront channel...'}
+                </option>
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.subdomain}.x7pos.com (Store #{s.id}) — {s.is_active ? 'Active' : 'Maintenance'}
                   </option>
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.subdomain}.x7pos.com (Store #{s.id}) — {s.is_active ? 'Active' : 'Maintenance'}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-[#5f5e5e] mt-2 flex items-center gap-1.5 font-poppins">
-                  <span className="material-symbols-outlined text-sm text-[#8c857b]">info</span>
-                  This catalog will be bound directly to the selected storefront domain.
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between bg-[#fcfcfb] px-3.5 py-2.5 rounded-lg border border-[#e8e2d8]">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#5f5e5e] text-base">domain</span>
-                  <span className="font-bold text-xs text-[#1d1c17] font-mono">
-                    {selectedStore?.subdomain ? `${selectedStore.subdomain}.x7pos.com` : `Store #${storeId}`}
-                  </span>
-                </div>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-zinc-100 text-[#5f5e5e] font-mono">
-                  Store ID: {storeId}
-                </span>
-              </div>
-            )}
+                ))}
+              </select>
+              <p className="text-[11px] text-[#5f5e5e] mt-2 flex items-center gap-1.5 font-poppins">
+                <span className="material-symbols-outlined text-sm text-[#8c857b]">info</span>
+                {mode === 'create'
+                  ? 'This catalog will be bound directly to the selected storefront domain.'
+                  : 'Reassign this catalog to a different online storefront channel at any time.'}
+              </p>
+            </div>
           </div>
 
           {/* Section 2: Menu Title & Copy */}
@@ -260,7 +248,7 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-[#1d1c17] flex items-center gap-1.5 font-poppins">
                   <span className="material-symbols-outlined text-base text-[#ae001a]">badge</span>
-                  Menu Title (name) *
+                  Menu Title *
                 </label>
                 <span className="text-[11px] text-[#8c857b] font-mono">{name.length}/100</span>
               </div>
@@ -302,7 +290,7 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
                   <span className="material-symbols-outlined text-base text-[#5f5e5e]">description</span>
                   Description (optional)
                 </label>
-                <span className="text-[10px] text-[#8c857b] italic font-poppins">Graceful null handling</span>
+                <span className="text-[10px] text-[#8c857b] italic font-poppins">Optional</span>
               </div>
               <textarea
                 value={description}
@@ -326,7 +314,7 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
                     className="w-2.5 h-2.5 rounded-full inline-block"
                     style={{ backgroundColor: isActive ? '#10b981' : '#64748b' }}
                   />
-                  Publication Availability (is_active)
+                  Publication Availability
                 </span>
                 <p className="text-[11px] text-[#5f5e5e] mt-0.5 font-poppins">
                   Controls live catalog visibility on the public online ordering storefront.
@@ -363,12 +351,8 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
             <div className="p-3 rounded-lg bg-[#fcfcfb] border border-[#e8e2d8] text-[11px] text-[#5f5e5e] flex items-start gap-2">
               <span className="material-symbols-outlined text-[16px] text-emerald-600 mt-0.5">verified</span>
               <div>
-                <strong className="text-[#1d1c17]">High-Performance Storefront Index: </strong>
-                Public queries utilize the composite index{' '}
-                <code className="bg-zinc-200/60 px-1 py-0.5 rounded text-[10px] font-mono text-[#1d1c17]">
-                  ['store_id', 'is_active', 'created_at']
-                </code>
-                . Multiple menus per store are fully supported.
+                <strong className="text-[#1d1c17]">High-Performance Storefront: </strong>
+                Optimized for instant catalog rendering on public storefronts with multi-menu support per store.
               </div>
             </div>
           </div>
@@ -388,7 +372,7 @@ const OnlineMenuSetupDrawerContent: React.FC<ContentProps> = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !name.trim() || (mode === 'create' && !storeId)}
+            disabled={isSubmitting || !name.trim() || !storeId}
             className="px-6 py-2.5 rounded-lg bg-[#ae001a] hover:bg-[#d2272f] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-2 shadow-xs shrink-0 disabled:opacity-50 font-poppins"
           >
             {isSubmitting ? (
