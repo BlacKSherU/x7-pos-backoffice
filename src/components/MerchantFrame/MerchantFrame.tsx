@@ -938,7 +938,7 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-pool-members');
-        try { navigate('/tips/pool-members'); } catch { /* noop */ }
+        try { navigate('/tips/pool-members'); } catch (e) {}
       } else if (
         target === '/store-operations/tips-settlements' ||
         target === '/store-operations/tip-settlements' ||
@@ -948,11 +948,11 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-settlements');
-        try { navigate('/tips/settlements'); } catch { /* noop */ }
+        try { navigate('/tips/settlements'); } catch (e) {}
       } else if (target === '/tips/cash-movements' || target === 'tips-cash-movements' || target === 'cash-tip-movements') {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-cash-movements');
-        try { navigate('/tips/cash-movements'); } catch { /* noop */ }
+        try { navigate('/tips/cash-movements'); } catch (e) {}
       } else {
         setActiveTab(target);
       }

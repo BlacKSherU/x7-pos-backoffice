@@ -111,7 +111,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 

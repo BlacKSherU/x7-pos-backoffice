@@ -472,9 +472,13 @@ export function parseItemModifiers(
 // 4. MÉTODOS DE TRADUCCIÓN REACTIVA
 // ====================================================================
 
-export function getLocalizedDishName(originalName: string, _lang: KDSLanguage = 'en'): string {
-  // Los nombres de los productos se mantienen tal cual aparecen en la base de datos (requerimiento de cocina)
-  return originalName || '';
+export function getLocalizedDishName(originalName: string, lang: KDSLanguage = 'en'): string {
+  if (!originalName) return '';
+  const lower = originalName.toLowerCase().trim();
+  if (DISH_TRANSLATIONS[lower]) {
+    return DISH_TRANSLATIONS[lower][lang];
+  }
+  return originalName;
 }
 
 export function getLocalizedCourse(course: string, lang: KDSLanguage = 'en'): string {
@@ -507,7 +511,7 @@ export function getDeviceLanguage(stationId?: number | string | null): KDSLangua
   return 'en';
 }
 
-export function getLocalizedVariantName(variantName?: string | null, _lang: KDSLanguage = 'en'): string {
+export function getLocalizedVariantName(variantName?: string | null): string {
   if (!variantName) return '';
   const trimmed = variantName.trim();
   if (!trimmed || trimmed.toLowerCase() === 'estándar' || trimmed.toLowerCase() === 'standard') return '';
