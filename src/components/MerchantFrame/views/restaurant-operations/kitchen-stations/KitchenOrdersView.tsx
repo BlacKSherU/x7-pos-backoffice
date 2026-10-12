@@ -107,70 +107,60 @@ const CANCELLATION_REASONS: Array<{ value: KitchenCancellationReason; label: str
   },
 ];
 
-const DATE_RANGE_TABS: Array<{
-  id: 'all' | 'today' | 'yesterday' | 'week' | 'custom';
-  label: string;
-  dot?: boolean;
-}> = [
-  { id: 'all', label: 'All Time' },
-  { id: 'today', label: 'Today', dot: true },
-  { id: 'yesterday', label: 'Yesterday' },
-  { id: 'week', label: 'Last 7 Days' },
-  { id: 'custom', label: 'Custom Date Range' },
-];
+
 
 const DEFAULT_MENU_PRODUCTS = [
-  'Smash Burger Doble',
-  'Ensalada Caesar con Pollo',
+  'Double Smash Burger',
+  'Caesar Salad with Grilled Chicken',
   'Pizza Margherita',
-  'Tacos al Pastor (3 uds)',
-  'Sushi Roll California',
-  'Cappuccino Italiano 12oz',
+  'Al Pastor Tacos (3 pcs)',
+  'California Sushi Roll',
+  'Italian Cappuccino 12oz',
   'Iced Latte',
-  'Croissant de Mantequilla',
+  'Butter Croissant',
 ];
 
 const DEFAULT_PRODUCT_VARIANTS: Record<string, string[]> = {
-  'Smash Burger Doble': [
-    'Con Queso Cheddar',
-    'Doble Carne & Queso',
-    'Con Papas Fritas',
-    'Sin Cebolla',
+  'Double Smash Burger': [
+    'With Cheddar Cheese',
+    'Double Meat & Cheese',
+    'With French Fries',
+    'No Onions',
   ],
-  'Ensalada Caesar con Pollo': [
-    'Con Pollo a la Plancha',
-    'Con Pollo Crispy',
+  'Caesar Salad with Grilled Chicken': [
+    'With Grilled Chicken',
+    'With Crispy Chicken',
     'No Croutons (Gluten Free)',
   ],
   'Pizza Margherita': [
-    'Mediana 12"',
-    'Familiar 16"',
-    'Queso Extra',
+    'Medium 12"',
+    'Large 16"',
+    'Extra Cheese',
   ],
-  'Tacos al Pastor (3 uds)': [
-    'Tradicionales',
-    'Con Queso (Gringas)',
+  'Al Pastor Tacos (3 pcs)': [
+    'Traditional',
+    'With Cheese (Gringas)',
     'No Pineapple',
   ],
-  'Sushi Roll California': [
-    'Roll 8 Piezas',
-    'Roll 12 Piezas',
-    'Picante (Spicy Sriracha)',
+  'California Sushi Roll': [
+    '8-Piece Roll',
+    '12-Piece Roll',
+    'Spicy (Sriracha)',
   ],
-  'Cappuccino Italiano 12oz': [
-    'Mediano 12oz',
-    'Grande 16oz',
-    'Leche de Almendras',
-    'Leche Entera',
+  'Italian Cappuccino 12oz': [
+    'Medium 12oz',
+    'Large 16oz',
+    'Almond Milk',
+    'Whole Milk',
   ],
   'Iced Latte': [
-    'Iced Latte Regular',
-    'Iced Latte Almond Premium',
+    'Regular Iced Latte',
+    'Premium Almond Iced Latte',
   ],
-  'Croissant de Mantequilla': [
-    'Natural',
+  'Butter Croissant': [
+    'Plain',
     'Ham & Cheese Filling',
-    'Relleno de Chocolate',
+    'Chocolate Filled',
   ],
 };
 
@@ -230,6 +220,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   // Workspace Mode (Live Bump Screen vs Historical Audit Table)
   const [workspaceMode, setWorkspaceMode] = useState<'bump' | 'audit'>('bump');
@@ -252,9 +244,36 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     }
     return '';
   });
-  const [dateRangePreset, setDateRangePreset] = useState<'all' | 'today' | 'yesterday' | 'week' | 'custom'>('all');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [datePreset, setDatePreset] = useState<'all' | 'today' | 'last24h' | 'last7d' | 'custom'>('all');
+  const [startTime, setStartTime] = useState<string>('');
+  const [endTime, setEndTime] = useState<string>('');
+
+  const handlePresetChange = (preset: 'all' | 'today' | 'last24h' | 'last7d' | 'custom') => {
+    setDatePreset(preset);
+    setCurrentPage(1);
+    const now = new Date();
+    const toISOStringWithTZ = (d: Date) => {
+      const offset = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+    };
+
+    if (preset === 'all') {
+      setStartTime('');
+      setEndTime('');
+    } else if (preset === 'today') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      setStartTime(toISOStringWithTZ(start));
+      setEndTime(toISOStringWithTZ(now));
+    } else if (preset === 'last24h') {
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      setStartTime(toISOStringWithTZ(start));
+      setEndTime(toISOStringWithTZ(now));
+    } else if (preset === 'last7d') {
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      setStartTime(toISOStringWithTZ(start));
+      setEndTime(toISOStringWithTZ(now));
+    }
+  };
   const [cancellationFilter, setCancellationFilter] = useState<'ALL' | KitchenCancellationReason>('ALL');
 
   // Table options
@@ -426,6 +445,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
   // 2. Fetch all orders
   const loadOrders = useCallback(async (isBackground = false, isSilent = false) => {
     if (!isBackground && !isSilent) setLoading(true);
+    setIsRefreshing(true);
     setLoadError(null);
     try {
       const token = getAccessToken();
@@ -485,12 +505,14 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       }));
 
       setOrders(parsedOrders);
+      setLastUpdated(new Date());
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Error syncing kitchen orders';
       setLoadError(message);
       showToast(message, 'warning');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -516,7 +538,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     return () => window.removeEventListener('x7_kds_data_reset', handleReset);
   }, [loadOrders]);
 
-  // Flush de cola offline al reconectar
+  // Flush offline queue upon reconnection
   const triggerAutoSync = useCallback(async () => {
     try {
       const queued = await getQueuedActions();
@@ -540,7 +562,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     }
   }, [loadOrders]);
 
-  // Control de red Online/Offline y heartbeat ping
+  // Online/offline network monitor and heartbeat ping
   useEffect(() => {
     getQueuedActions()
       .then((q) => setQueuedActionsCount(q.length))
@@ -590,7 +612,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     };
   }, [triggerAutoSync]);
 
-  // Keepalive de estaciones: latido inmediato al abrir la vista y cada 15 segundos
+  // Station keepalive: immediate heartbeat on mount and every 15 seconds
   useEffect(() => {
     void sendStationKeepaliveHeartbeat('ALL');
     const keepaliveTimer = setInterval(() => {
@@ -644,62 +666,16 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     [stationOrders]
   );
 
-  // Segmented Date Range Counts (Image 2 style)
-  const dateCounts = useMemo(() => {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-    const weekStart = todayStart - 7 * 24 * 60 * 60 * 1000;
-
-    let base = stationOrders;
-    if (statusFilter !== 'ALL') {
-      base = base.filter(o => o.businessStatus === statusFilter);
-    }
-    if (cancellationFilter !== 'ALL') {
-      base = base.filter(
-        o => o.businessStatus === 'cancelled' && o.cancellationReason === cancellationFilter
-      );
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      base = base.filter(
-        o =>
-          (o.orderNumber && o.orderNumber.toLowerCase().includes(q)) ||
-          (o.displayId && o.displayId.toLowerCase().includes(q)) ||
-          (o.sourceOrderId && o.sourceOrderId.toLowerCase().includes(q))
-      );
-    }
-
-    let todayCount = 0;
-    let yesterdayCount = 0;
-    let weekCount = 0;
-    let customCount = 0;
-
-    base.forEach(o => {
-      const t = new Date(o.createdAt).getTime();
-      if (t >= todayStart) todayCount++;
-      if (t >= yesterdayStart && t < todayStart) yesterdayCount++;
-      if (t >= weekStart) weekCount++;
-      if (customStartDate || customEndDate) {
-        let matchCustom = true;
-        if (customStartDate) {
-          matchCustom = matchCustom && t >= new Date(`${customStartDate}T00:00:00`).getTime();
-        }
-        if (customEndDate) {
-          matchCustom = matchCustom && t <= new Date(`${customEndDate}T23:59:59`).getTime();
-        }
-        if (matchCustom) customCount++;
-      }
-    });
-
+  // Real-time status counts for filter pills (Event Log Image 1 style)
+  const statusCounts = useMemo(() => {
     return {
-      all: base.length,
-      today: todayCount,
-      yesterday: yesterdayCount,
-      week: weekCount,
-      custom: customCount,
+      all: stationOrders.length,
+      pending: stationOrders.filter(o => o.businessStatus === 'pending').length,
+      started: stationOrders.filter(o => o.businessStatus === 'started').length,
+      completed: stationOrders.filter(o => o.businessStatus === 'completed').length,
+      cancelled: stationOrders.filter(o => o.businessStatus === 'cancelled').length,
     };
-  }, [stationOrders, statusFilter, cancellationFilter, searchQuery, customStartDate, customEndDate]);
+  }, [stationOrders]);
 
   // Multi-Filter Matrix Evaluation
   const filteredOrders = useMemo(() => {
@@ -718,31 +694,13 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     }
 
     // 3. Date Range Filter
-    if (dateRangePreset !== 'all') {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-      const weekStart = todayStart - 7 * 24 * 60 * 60 * 1000;
-
-      if (dateRangePreset === 'today') {
-        result = result.filter(o => new Date(o.createdAt).getTime() >= todayStart);
-      } else if (dateRangePreset === 'yesterday') {
-        result = result.filter(o => {
-          const t = new Date(o.createdAt).getTime();
-          return t >= yesterdayStart && t < todayStart;
-        });
-      } else if (dateRangePreset === 'week') {
-        result = result.filter(o => new Date(o.createdAt).getTime() >= weekStart);
-      } else if (dateRangePreset === 'custom' && (customStartDate || customEndDate)) {
-        if (customStartDate) {
-          const s = new Date(`${customStartDate}T00:00:00`).getTime();
-          result = result.filter(o => new Date(o.createdAt).getTime() >= s);
-        }
-        if (customEndDate) {
-          const e = new Date(`${customEndDate}T23:59:59`).getTime();
-          result = result.filter(o => new Date(o.createdAt).getTime() <= e);
-        }
-      }
+    if (startTime) {
+      const s = new Date(startTime).getTime();
+      result = result.filter(o => new Date(o.createdAt).getTime() >= s);
+    }
+    if (endTime) {
+      const e = new Date(endTime).getTime();
+      result = result.filter(o => new Date(o.createdAt).getTime() <= e);
     }
 
     // 4. Universal Search Input
@@ -765,9 +723,9 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     }
 
     // 5. Dynamic Sorting (Option 1):
-    // Tier 1: Active Orders (started / pending) -> Al inicio, orden de llegada (el más viejo primero)
-    // Tier 2: Completed Orders (completed / ready) -> Abajo de activas, orden de llegada (el más viejo primero)
-    // Tier 3: Cancelled Orders (cancelled) -> Al fondo de todo, orden de llegada
+    // Tier 1: Active Orders (started / pending) -> Start of queue, arrival order (oldest first)
+    // Tier 2: Completed Orders (completed / ready) -> Below active, arrival order (oldest first)
+    // Tier 3: Cancelled Orders (cancelled) -> Bottom of queue, arrival order
     const getStatusTier = (status: KitchenOrderBusinessStatus | string): number => {
       switch (status) {
         case 'started':
@@ -794,7 +752,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       else cancelledOrders.push(o);
     });
 
-    // 1. Ordenar activas cronológicamente (orden de llegada al sistema)
+    // 1. Sort active orders chronologically (arrival order in system)
     activeOrders.sort((a, b) => {
       const timeA = new Date(a.createdAt).getTime();
       const timeB = new Date(b.createdAt).getTime();
@@ -802,10 +760,9 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       return a.id - b.id;
     });
 
-    // 2. Simulación de cola en tiempo real con Escudo SLA:
-    // - Las órdenes existentes NO saltan hacia adelante al cumplir 15 min; se quedan exactamente donde están.
-    // - Pero una vez que una orden tiene el escudo SLA (espera >= 15 min), NINGUNA orden creada con posterioridad
-    //   puede colocarse por delante de ella (el escudo SLA protege su posición contra nuevas órdenes entrantes).
+    // 2. Real-time queue simulation with SLA Shield:
+    // - Existing orders DO NOT jump ahead upon reaching 15 min; they remain exactly where they are.
+    // - Once an order has SLA shield (waiting >= 15 min), NO order created later can be placed ahead of it.
     const activeQueue: KitchenOrderTicket[] = [];
 
     for (const item of activeOrders) {
@@ -840,7 +797,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       activeQueue.splice(insertIndex, 0, item);
     }
 
-    // Tier 2 y Tier 3: Completadas y canceladas en orden cronológico correlativo (FIFO)
+    // Tier 2 and Tier 3: Completed and cancelled in chronological FIFO order
     completedOrders.sort((a, b) => {
       const timeA = new Date(a.createdAt).getTime();
       const timeB = new Date(b.createdAt).getTime();
@@ -855,7 +812,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     });
 
     return [...activeQueue, ...completedOrders, ...cancelledOrders];
-  }, [stationOrders, statusFilter, cancellationFilter, dateRangePreset, customStartDate, customEndDate, searchQuery, criticalSlaMinutes]);
+  }, [stationOrders, statusFilter, cancellationFilter, startTime, endTime, searchQuery, criticalSlaMinutes]);
 
   // Paginated records for table view
   const paginatedOrders = useMemo(() => {
@@ -1553,11 +1510,16 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       )}
 
       {/* 1. Header Card Workspace (Title only) */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
         <div>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
-            KITCHEN ORDERS &amp; HISTORICAL AUDIT WORKSPACE
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              receipt_long
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              KITCHEN ORDERS &amp; HISTORICAL AUDIT WORKSPACE
+            </h2>
+          </div>
           <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
             Multi-filter inspection matrix, preparation bottleneck analysis &amp; complete timestamp audit trail.
           </p>
@@ -1652,231 +1614,360 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       </div>
 
       {/* 2. Multi-criteria Toolbar identical to Kitchen Devices */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4 mb-6">
-        {/* Row 1: Search on left and View Switcher on right (identical to Kitchen Devices) */}
-        <div className="flex flex-row items-center justify-between gap-3 w-full">
-          <div className="relative flex-1 min-w-0">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#5f5e5e] font-sans">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Search #KO-{id}, POS #ORD, #ONL, dish..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md transition-all font-sans"
-              aria-label="Search kitchen orders"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5f5e5e] hover:text-[#1d1c17] text-xs cursor-pointer"
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4 mb-6">
+        {/* Row 1: Search + Station Selector on left, and View Switcher + Auto-Refresh on right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[220px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search #KO-{id}, POS #ORD, #ONL, dish..."
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search kitchen orders"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="material-symbols-outlined text-base">soup_kitchen</span>
+              <select
+                value={selectedStationId}
+                onChange={e => {
+                  setSelectedStationId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer max-w-[180px] transition-colors duration-200"
+                aria-label="Filter by kitchen station"
               >
-                ✕
-              </button>
-            )}
+                <option value="ALL">All Stations ({stations.length})</option>
+                {stations.map(st => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* View Switcher Toggle & Auto-Refresh al lado derecho */}
+          {/* Right Toolbar: View Switcher Toggle & Auto-Refresh */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* View Switcher Toggle (Same design and color as Kitchen Devices) */}
-            <div className="flex items-center bg-[#f2ede5] p-1 rounded border border-[#e8e2d8] shrink-0">
+            {/* View Switcher Toggle */}
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
               <button
                 type="button"
                 onClick={() => setWorkspaceMode('bump')}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   workspaceMode === 'bump'
                     ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
                     : 'text-[#5f5e5e] hover:text-[#ae001a]'
                 }`}
                 title="Interactive Real-Time Kitchen Bump Screen"
               >
-                <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                <span className={`material-symbols-outlined text-[16px] ${workspaceMode === 'bump' ? 'text-[#ae001a]' : ''}`}>receipt_long</span>
                 Live Bump Screen
               </button>
               <button
                 type="button"
                 onClick={() => setWorkspaceMode('audit')}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   workspaceMode === 'audit'
                     ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
                     : 'text-[#5f5e5e] hover:text-[#ae001a]'
                 }`}
                 title="Historical Inspection & Bottleneck Table"
               >
-                <span className="material-symbols-outlined text-[16px]">table_rows</span>
-                Historical Audit Table
+                <span className={`material-symbols-outlined text-[16px] ${workspaceMode === 'audit' ? 'text-[#ae001a]' : ''}`}>table_rows</span>
+                Audit Table
               </button>
             </div>
 
-            {/* Auto Refresh al lado derecho */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs text-[#5f5e5e] shrink-0 h-[38px]">
-              <span className="material-symbols-outlined text-sm text-[#5f5e5e]">sync</span>
-              <span className="text-[11px] font-bold text-[#5f5e5e] uppercase">Auto:</span>
+            {/* Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => loadOrders(false)}
+                disabled={loading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh orders now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
               <select
                 value={autoRefreshInterval}
                 onChange={e => setAutoRefreshInterval(Number(e.target.value))}
-                className="bg-transparent text-[#1d1c17] font-semibold focus:outline-none cursor-pointer text-xs"
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
               >
-                <option value={5}>5s</option>
-                <option value={10}>10s</option>
-                <option value={30}>30s</option>
-                <option value={60}>60s</option>
-                <option value={0}>Off</option>
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
               </select>
+            </div>
+
+            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
+              <span className="material-symbols-outlined text-sm">schedule</span>
+              <span>Updated:</span>
+              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>
 
-        {/* Row 2: Date Range Tabs (Segmented Pill Buttons in middle, between Search and Filters) */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {DATE_RANGE_TABS.map(tab => {
-              const isActive = dateRangePreset === tab.id;
+        {/* ROW 2: Date & Time Range Controls + Presets */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-1">
+              Date Range:
+            </span>
+            {([
+              { id: 'all', label: 'All Time' },
+              { id: 'today', label: 'Today' },
+              { id: 'last24h', label: 'Last 24h' },
+              { id: 'last7d', label: 'Last 7 Days' },
+              { id: 'custom', label: 'Custom' },
+            ] as const).map((p) => {
+              const isActive = datePreset === p.id;
               return (
                 <button
-                  key={tab.id}
+                  key={p.id}
                   type="button"
-                  onClick={() => {
-                    setDateRangePreset(tab.id);
-                    setCurrentPage(1);
-                  }}
-                  className={`px-3.5 py-1.5 rounded text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                  onClick={() => handlePresetChange(p.id)}
+                  className={`h-[34px] px-3 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border flex items-center justify-center ${
                     isActive
-                      ? 'bg-[#ae001a] text-white shadow-xs'
-                      : 'text-[#5f5e5e] hover:text-[#1d1c17] hover:bg-[#f2ede5]'
+                      ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                      : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
                   }`}
                 >
-                  {tab.dot && (
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        isActive ? 'bg-white' : 'bg-emerald-500 animate-pulse'
-                      }`}
-                    />
-                  )}
-                  <span>{tab.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                      isActive ? 'bg-white text-[#ae001a]' : 'bg-[#e8e2d8] text-[#5f5e5e]'
-                    }`}
-                  >
-                    {dateCounts[tab.id]}
-                  </span>
+                  {p.label}
                 </button>
               );
             })}
           </div>
 
-          {/* Custom Date Inputs when Custom Date Range is selected */}
-          {dateRangePreset === 'custom' && (
-            <div className="flex items-center gap-2 bg-[#fef9f1] px-3 py-1.5 rounded border border-[#e8e2d8] text-xs">
-              <span className="font-bold text-[#1d1c17] text-[11px] uppercase tracking-wider">Range:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[#5f5e5e] text-[11px]">From:</span>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={e => {
-                    setCustomStartDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="bg-white border border-[#e8e2d8] rounded px-2 py-0.5 text-xs text-[#1d1c17] focus:outline-none focus:border-[#ae001a]"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[#5f5e5e] text-[11px]">To:</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={e => {
-                    setCustomEndDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="bg-white border border-[#e8e2d8] rounded px-2 py-0.5 text-xs text-[#1d1c17] focus:outline-none focus:border-[#ae001a]"
-                />
-              </div>
-              {(customStartDate || customEndDate) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomStartDate('');
-                    setCustomEndDate('');
-                    setCurrentPage(1);
-                  }}
-                  className="text-xs text-[#ae001a] hover:underline font-bold cursor-pointer ml-1"
-                >
-                  Clear
-                </button>
-              )}
+          {/* Custom Date & Time Inputs */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="text-[11px] font-medium">From:</span>
+              <input
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  setDatePreset('custom');
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
+              />
             </div>
-          )}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="text-[11px] font-medium">To:</span>
+              <input
+                type="datetime-local"
+                value={endTime}
+                onChange={(e) => {
+                  setEndTime(e.target.value);
+                  setDatePreset('custom');
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
+              />
+            </div>
+            {(startTime || endTime) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartTime('');
+                  setEndTime('');
+                  setDatePreset('all');
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] text-[11px] text-[#ae001a] hover:underline font-semibold cursor-pointer ml-1 flex items-center"
+                title="Clear date filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Row 3: Filters on left and Action Buttons on right on SAME line */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Izquierda: Filtros desplegables */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Station Filter */}
-            <select
-              value={selectedStationId}
-              onChange={e => {
-                setSelectedStationId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
+        {/* ROW 3: Status Multi-Select Pills (Event Log Pattern) & Action Buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6]">
+          {/* Left: Status Filter Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Status:
+            </span>
+
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('ALL');
                 setCurrentPage(1);
               }}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by kitchen station"
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'ALL'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
             >
-              <option value="ALL">All Stations</option>
-              {stations.map(st => (
-                <option key={st.id} value={st.id}>
-                  {st.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={e => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by order status"
-            >
-              <option value="ALL">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="started">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-
-            {/* Cancellation Reasons Filter */}
-            {(statusFilter === 'cancelled' || workspaceMode === 'audit') && (
-              <select
-                value={cancellationFilter}
-                onChange={e => setCancellationFilter(e.target.value as KitchenCancellationReason | 'ALL')}
-                className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-                aria-label="Filter by cancellation reason"
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
               >
-                <option value="ALL">All Cancellation Reasons</option>
-                {CANCELLATION_REASONS.map(r => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+                {statusCounts.all}
+              </span>
+            </button>
+
+            {/* PENDING Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('pending');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'pending'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">schedule</span>
+              <span>PENDING</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'pending' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {statusCounts.pending}
+              </span>
+            </button>
+
+            {/* STARTED Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('started');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'started'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-blue-50/50 text-blue-800 border-blue-200 hover:bg-blue-100/50 hover:text-blue-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">play_circle</span>
+              <span>STARTED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'started' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                }`}
+              >
+                {statusCounts.started}
+              </span>
+            </button>
+
+            {/* COMPLETED Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('completed');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'completed'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>COMPLETED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {statusCounts.completed}
+              </span>
+            </button>
+
+            {/* CANCELLED Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('cancelled');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'cancelled'
+                  ? 'bg-[#ae001a] text-white border-[#ae001a] shadow-xs'
+                  : 'bg-red-50 text-[#ae001a] border-red-200 hover:bg-red-100/60 hover:text-[#900015]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">cancel</span>
+              <span>CANCELLED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'cancelled' ? 'bg-white/20 text-white' : 'bg-red-100 text-[#ae001a]'
+                }`}
+              >
+                {statusCounts.cancelled}
+              </span>
+            </button>
+
+            {/* Cancellation Reasons Filter when Cancelled or Audit */}
+            {(statusFilter === 'cancelled' || workspaceMode === 'audit') && (
+              <div className="flex items-center gap-1.5 ml-1 text-xs text-[#5f5e5e]">
+                <span className="material-symbols-outlined text-sm text-amber-600">warning</span>
+                <select
+                  value={cancellationFilter}
+                  onChange={e => setCancellationFilter(e.target.value as KitchenCancellationReason | 'ALL')}
+                  className="h-[28px] px-2 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer"
+                  aria-label="Filter by cancellation reason"
+                >
+                  <option value="ALL">All Reasons</option>
+                  {CANCELLATION_REASONS.map(r => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
 
           {/* Right: Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* SLA Configuration Button */}
             <button
               type="button"
               onClick={() => setIsSlaModalOpen(true)}
-              className="px-3.5 py-2 bg-[#fef9f1] border border-[#e8e2d8] hover:border-[#ae001a] text-[#1d1c17] rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs group"
+              className="h-[34px] px-3 bg-[#fcfcfb] border border-[#d5cfc4] hover:border-[#ae001a] text-[#1d1c17] rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs group"
               title="Configure Kitchen SLA Threshold"
             >
               <span className="material-symbols-outlined text-[16px] text-red-600 group-hover:scale-110 transition-transform">
@@ -1900,7 +1991,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                 setCreateError(null);
                 setIsCreateModalOpen(true);
               }}
-              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+              className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs"
               title="Create new kitchen ticket"
             >
               <span className="material-symbols-outlined text-[18px]">add</span>
@@ -1912,21 +2003,20 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
               <button
                 type="button"
                 onClick={handleRecallOrder}
-                className="px-4 py-2 border border-[#e8e2d8] bg-white text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors cursor-pointer flex items-center gap-1.5 rounded"
+                className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#5f5e5e] text-xs font-bold uppercase tracking-wider hover:bg-[#f2ede5] hover:text-[#1d1c17] transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 title="Undo last bumped ticket"
               >
                 <span className="material-symbols-outlined text-sm text-amber-700">undo</span>
                 RECALL #KO-{lastBumpedOrder.id}
               </button>
             )}
-
           </div>
         </div>
       </div>
 
       {/* 3. Core Workspace Grid (Historical Audit Table vs Live Bump Screen) */}
       {workspaceMode === 'audit' ? (
-        <div className="bg-white border border-[#e8e2d8] rounded shadow-sm relative">
+        <div className="bg-white border border-[#e8e2d8] rounded-xl shadow-sm relative overflow-hidden">
           <HeaderQuickTabs
             title="HISTORICAL AUDIT TRAIL"
             badgeCount={
@@ -1996,22 +2086,22 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse font-sans">
+              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <table className="w-full table-fixed text-left text-xs border-collapse font-sans">
                   <thead>
-                    <tr className="bg-[#ece8e0] text-[#5f5e5e] uppercase tracking-wider text-[11px] font-bold border-b border-[#e8e2d8]">
-                      {visibleColumns.orderRef && <th className={densityPadding}>Order Reference</th>}
-                      {visibleColumns.stationPriority && <th className={densityPadding}>Station &amp; Priority</th>}
-                      {visibleColumns.lifecycleStatus && <th className={`${densityPadding} text-center`}>Lifecycle Status</th>}
-                      {visibleColumns.createdTimestamp && <th className={densityPadding}>Created Timestamp</th>}
-                      {visibleColumns.startedDelay && <th className={densityPadding}>Started / Delay</th>}
-                      {visibleColumns.completedPrepTime && <th className={densityPadding}>Completed / Prep Time</th>}
-                      {visibleColumns.cancellationAudit && <th className={densityPadding}>Cancellation Audit</th>}
-                      {visibleColumns.items && <th className={`${densityPadding} text-center`}>Items</th>}
-                      {visibleColumns.actions && <th className={`${densityPadding} text-right`}>Actions</th>}
+                    <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
+                      {visibleColumns.orderRef && <th className={`${densityPadding} w-36 min-w-[120px]`}>Order Reference</th>}
+                      {visibleColumns.stationPriority && <th className={`${densityPadding} w-44 min-w-[130px]`}>Station &amp; Priority</th>}
+                      {visibleColumns.lifecycleStatus && <th className={`${densityPadding} text-center w-32 min-w-[100px]`}>Lifecycle Status</th>}
+                      {visibleColumns.createdTimestamp && <th className={`${densityPadding} w-36 min-w-[110px]`}>Created Timestamp</th>}
+                      {visibleColumns.startedDelay && <th className={`${densityPadding} w-36 min-w-[110px]`}>Started / Delay</th>}
+                      {visibleColumns.completedPrepTime && <th className={`${densityPadding} w-36 min-w-[110px]`}>Completed / Prep Time</th>}
+                      {visibleColumns.cancellationAudit && <th className={`${densityPadding} w-40 min-w-[120px]`}>Cancellation Audit</th>}
+                      {visibleColumns.items && <th className={`${densityPadding} text-center w-24 min-w-[70px]`}>Items</th>}
+                      {visibleColumns.actions && <th className={`${densityPadding} text-right w-28 min-w-[90px]`}>Actions</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e8e2d8]">
+                  <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                     {loading ? (
                       <tr>
                         <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -2110,29 +2200,29 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                         {/* Station & Priority */}
                         {visibleColumns.stationPriority && (
                           <td className={densityPadding}>
-                            <span className="font-semibold text-[#1d1c17] block">
+                            <span className="font-normal text-[#1d1c17] text-xs block">
                               {order.stationName || 'Unassigned Station'}
                             </span>
                             <div className="flex items-center gap-1 mt-0.5">
                               {order.priority >= 3 ? (
-                                <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded border bg-purple-50 text-purple-700 border-purple-200">
+                                <span className="text-[10px] font-normal uppercase px-1.5 py-0.2 rounded border bg-purple-50 text-purple-700 border-purple-200">
                                   VIP Rush (+3)
                                 </span>
                               ) : order.priority === 2 ? (
-                                <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded border bg-red-50 text-red-700 border-red-200">
+                                <span className="text-[10px] font-normal uppercase px-1.5 py-0.2 rounded border bg-red-50 text-red-700 border-red-200">
                                   Urgent (+2)
                                 </span>
                               ) : order.priority === 1 ? (
-                                <span className="text-[10px] font-bold uppercase px-1.5 py-0.2 rounded border bg-amber-50 text-amber-700 border-amber-200">
+                                <span className="text-[10px] font-normal uppercase px-1.5 py-0.2 rounded border bg-amber-50 text-amber-700 border-amber-200">
                                   High (+1)
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-medium uppercase px-1.5 py-0.2 rounded border bg-zinc-100 text-zinc-600 border-zinc-200">
+                                <span className="text-[10px] font-normal uppercase px-1.5 py-0.2 rounded border bg-zinc-100 text-zinc-600 border-zinc-200">
                                   Normal (0)
                                 </span>
                               )}
                               {elapsedMinutes >= criticalSlaMinutes && !isCompleted && !isCancelled && (
-                                <span className="text-[10px] bg-red-600 text-white border border-red-700 px-1.5 py-0.2 rounded font-black tracking-wide flex items-center gap-0.5 shadow-xs animate-pulse">
+                                <span className="text-[10px] bg-red-600 text-white border border-red-700 px-1.5 py-0.2 rounded font-bold tracking-wide flex items-center gap-0.5 shadow-xs animate-pulse">
                                   <span className="material-symbols-outlined text-[10px]">shield</span>
                                   SLA
                                 </span>
@@ -3020,7 +3110,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                     })),
                   };
 
-                  // Envia latido keepalive para asegurar que la estación esté fresca y online
+                  // Send keepalive heartbeat to ensure station is fresh and online
                   await sendStationKeepaliveHeartbeat('ALL');
 
                   const res = await fetch(`${API_BASE}/kitchen-orders`, {

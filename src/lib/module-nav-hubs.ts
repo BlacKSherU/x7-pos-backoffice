@@ -1,34 +1,30 @@
-// Barras de navegación persistentes (NavHubBar) de los módulos del backoffice.
+// Persistent navigation hub bars (NavHubBar) for backoffice modules.
 //
-// Cash Drawers (X7P-4264) usa etiquetas deducidas del patrón de las demás historias: la suya
-// no se ha recibido todavía. Si trae otras, se cambian aquí y en module-nav-hubs.test.ts.
+// Single map per module: return button to its Command Hub and direct links to
+// ALL its 3rd level options (features from Features.txt), with exact story labels.
+// MerchantFrame references this with active featureId and mounts the bar once
+// for the active view, its error states, and "In Development" stubs.
 //
-// Un único mapa por módulo: el botón de regreso a su Command Hub y los accesos directos a
-// TODAS sus opciones de 3er nivel (las features de Features.txt), con las etiquetas exactas
-// de las historias. MerchantFrame lo consulta con el featureId activo y monta la barra una
-// sola vez para la vista, sus estados de error y los stubs "In Development" — así una opción
-// que aún no tiene vista sigue siendo navegable hacia sus hermanas.
-//
-// Kitchen Display System NO está aquí: sus vistas montan su propia NavHubBar desde antes.
+// Kitchen Display System and Products / Inventory System mount their own operational Hub and NavHubBar.
 
 export interface ModuleNavItem {
-  /** featureId real de Features.txt, que es lo que MerchantFrame resuelve. */
+  /** Real featureId from Features.txt resolved by MerchantFrame. */
   featureId: string;
   label: string;
-  /** Símbolo de Material Symbols Outlined. */
+  /** Material Symbols Outlined glyph name. */
   icon: string;
-  /** Descripción para la tarjeta del Command Hub. */
+  /** Description for Command Hub card. */
   description: string;
-  /** Tiene vista propia; false = cae en el stub "In Development". */
+  /** Has its own view; false falls into "In Development" stub. */
   live: boolean;
 }
 
 export interface ModuleNavHub {
-  /** Application_Id de Applications.txt. */
+  /** Application_Id from Applications.txt. */
   appId: string;
-  /** featureId sintético de la página Command Hub del módulo. */
+  /** Synthetic featureId for module Command Hub page. */
   hubId: string;
-  /** Etiqueta del botón de regreso (y título del hub). */
+  /** Back button label (and hub title). */
   hubLabel: string;
   title: string;
   category: string;
@@ -250,6 +246,22 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
       { featureId: 'qr-code-menu-items', label: 'QR MENU ITEMS', icon: 'fastfood', live: false, description: 'Configure items and modifiers for QR access.' },
       { featureId: 'qr-code-orders', label: 'QR CODE ORDERS', icon: 'shopping_bag', live: false, description: 'Track live orders originated from QR scans.' },
       { featureId: 'qr-order-items', label: 'QR ORDER ITEMS', icon: 'receipt', live: false, description: 'Detailed line items from QR customer orders.' },
+    appId: 'online-ordering',
+    hubId: 'online-ordering-hub',
+    hubLabel: 'ONLINE ORDERING COMMAND HUB',
+    title: 'Online Ordering Command Hub',
+    category: 'Commerce',
+    icon: 'storefront',
+    description: 'Centralized operational hub for digital storefronts, multi-tenant web portals, menu catalogs, digital payments, live dispatch orders, and delivery logistics.',
+    items: [
+      { featureId: 'online-stores', label: 'STORES', icon: 'storefront', live: true, description: 'Manage digital storefronts, subdomains, themes, currency and operational status.' },
+      { featureId: 'online-payments', label: 'PAYMENTS', icon: 'payments', live: false, description: 'Payment gateways, Stripe/PayPal accounts and digital checkout configurations.' },
+      { featureId: 'online-menus', label: 'MENUS', icon: 'restaurant_menu', live: true, description: 'Curated digital menus, seasonal offerings and time-based availability.' },
+      { featureId: 'online-menu-categories', label: 'CATEGORIES', icon: 'category', live: false, description: 'Menu taxonomy, sections, families and dish categorization.' },
+      { featureId: 'online-menu-items', label: 'ITEMS', icon: 'lunch_dining', live: false, description: 'Online dish catalog, pricing, modifier linkages and stock availability.' },
+      { featureId: 'online-orders', label: 'ORDERS', icon: 'shopping_bag', live: false, description: 'Live incoming web orders, customer tracking and dispatch statuses.' },
+      { featureId: 'online-order-items', label: 'ORDER ITEMS', icon: 'receipt_long', live: false, description: 'Detailed cart item breakdown, custom modifiers and customer instructions.' },
+      { featureId: 'online-delivery-info', label: 'DELIVERY', icon: 'local_shipping', live: false, description: 'Delivery coverage zones, courier fees, minimum order amounts and dispatch timing.' },
     ],
   },
 ];

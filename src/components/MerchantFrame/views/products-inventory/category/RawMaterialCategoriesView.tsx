@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
+import { NavHubBar } from '../../../../shared/NavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -375,7 +376,7 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
                   columns={[
                     { key: 'name', label: 'Category Name' },
                     { key: 'description', label: 'Description' },
-                    { key: 'status', label: 'Status Badge' },
+                    { key: 'status', label: 'Status' },
                     { key: 'actions', label: 'Actions' },
                   ]}
                   visibleColumns={visibleColumns}
@@ -401,33 +402,33 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
               {activeColSpan === 0 ? (
                 <NoColumnsEmptyState />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <table className="w-full table-fixed border-collapse font-sans text-xs">
                     <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                       <tr>
                         {visibleColumns.name && (
-                          <th className={`text-left text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-auto min-w-[200px]`}>
                             Category Name
                           </th>
                         )}
                         {visibleColumns.description && (
-                          <th className={`text-left text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-64 min-w-[160px]`}>
                             Description
                           </th>
                         )}
                         {visibleColumns.status && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
-                            Status Badge
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-28 min-w-[90px]`}>
+                            Status
                           </th>
                         )}
                         {visibleColumns.actions && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-28 min-w-[90px]`}>
                             Actions
                           </th>
                         )}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#e8e2d8]">
+                    <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                       {isLoading ? (
                         <tr>
                           <td colSpan={activeColSpan} className="py-12 px-6 text-center text-secondary font-sans bg-white">
@@ -460,15 +461,15 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
                         paginatedCategories.map((c) => (
                           <tr key={c.id} className="hover:bg-[#fcfbf9] transition-all font-sans">
                             {visibleColumns.name && (
-                              <td className={`font-bold text-[#1d1c17] text-sm ${densityPadding}`}>{c.name}</td>
+                              <td className={`font-bold text-[#1d1c17] text-sm truncate ${densityPadding}`}>{c.name}</td>
                             )}
                             {visibleColumns.description && (
-                              <td className={`text-sm text-[#666666] ${densityPadding}`}>{c.description || 'No description'}</td>
+                              <td className={`text-xs text-[#5f5e5e] font-normal truncate ${densityPadding}`}>{c.description || 'No description'}</td>
                             )}
                             {visibleColumns.status && (
-                              <td className={`text-center ${densityPadding}`}>
+                              <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                                 <span
-                                  className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                                  className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase whitespace-nowrap ${
                                     c.isActive
                                       ? 'bg-emerald-100 text-emerald-700'
                                       : 'bg-zinc-100 text-zinc-600'
@@ -482,22 +483,32 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
                             {visibleColumns.actions && (
                               <td className={`text-center ${densityPadding}`}>
                                 <div className="flex justify-center gap-2.5">
-                                  <button
-                                    onClick={(e) => handleOpenEdit(e, c)}
-                                    className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
-                                    title="Edit category"
-                                  >
-                                    <span className="material-symbols-outlined text-lg">edit</span>
-                                  </button>
-                                  <button
-                                    onClick={(e) => handleOpenToggleActive(e, c)}
-                                    className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
-                                    title={c.isActive ? 'Deactivate category' : 'Activate category'}
-                                  >
-                                    <span className="material-symbols-outlined text-lg">
-                                      {c.isActive ? 'block' : 'check_circle'}
-                                    </span>
-                                  </button>
+                                  {c.isActive ? (
+                                    <>
+                                      <button
+                                        onClick={(e) => handleOpenEdit(e, c)}
+                                        className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
+                                        title="Edit category"
+                                      >
+                                        <span className="material-symbols-outlined text-lg">edit</span>
+                                      </button>
+                                      <button
+                                        onClick={(e) => handleOpenToggleActive(e, c)}
+                                        className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
+                                        title="Deactivate category"
+                                      >
+                                        <span className="material-symbols-outlined text-lg">block</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => handleOpenToggleActive(e, c)}
+                                      className="p-1 text-gray-500 hover:text-emerald-600 transition-all cursor-pointer"
+                                      title="Activate category"
+                                    >
+                                      <span className="material-symbols-outlined text-lg">check_circle</span>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             )}
@@ -676,6 +687,55 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
 
       {/* Persistent Quick Links Hub */}
       <StockQuickLinks current="raw-material-categories" onNavigate={onNavigate} />
+
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
+        activeModuleId="raw-material-categories"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'RM CATEGORIES',
+            icon: 'category',
+            active: true,
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'STOCK LEVELS',
+            icon: 'table_rows',
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate?.('movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            onClick: () => onNavigate?.('locations'),
+          },
+        ]}
+      />
 
       {/* Support Modal */}
       {isSupportOpen && (

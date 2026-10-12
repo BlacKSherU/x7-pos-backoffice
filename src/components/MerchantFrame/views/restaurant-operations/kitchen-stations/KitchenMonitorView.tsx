@@ -232,9 +232,9 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     severity: 'critical' | 'warning';
   } | null>(null);
 
-  // Cronómetro de duración desconectado (Offline Duration Tracker):
-  // Al llegar a >= 60 segundos sin red o heartbeat, la terminal KDS reconoce de forma autónoma
-  // el estado de falla de hardware/red e inicia la contingencia con el banner de emergencia.
+  // Offline duration tracker:
+  // Upon reaching >= 60 seconds without network or heartbeat, KDS terminal autonomously
+  // recognizes hardware/network failure state and activates emergency contingency banner.
   useEffect(() => {
     if (!isOffline) {
       return;
@@ -544,7 +544,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         setTickets(mapped);
         cacheTicketsLocally(mapped);
 
-        // Purgar del historial local de bumps cualquier orden que el backend confirme que está activa
+        // Purge from local bump history any order confirmed active by backend
         const activeBackendIds = new Set(mapped.map((t) => t.backendOrderId).filter(Boolean));
         setBumpedOrdersHistory((prev) => {
           const next = prev.filter((o) => !activeBackendIds.has(o.id));
@@ -673,14 +673,14 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     return () => clearInterval(interval);
   }, [fetchBackendOrders, isOffline]);
 
-  // Escuchar evento global de reinicio KDS
+  // Listen for global KDS reset event
   useEffect(() => {
     const handleReset = (e: Event) => {
       const detail = (e as CustomEvent)?.detail;
-      // Si el evento viene de un recall (offline o online), NO borrar la cola de acciones pendientes.
-      // Solo el botón de reset de dev/test debe borrar toda la cola.
+      // If event comes from a recall (offline or online), DO NOT clear pending actions queue.
+      // Only the dev/test reset button should clear the entire queue.
       if (detail?.action === 'recall') {
-        // Solo refrescar órdenes del backend si estamos online
+        // Only refresh backend orders if online
         if (!isOffline && navigator.onLine) {
           fetchBackendOrders(true);
         }
@@ -693,7 +693,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     return () => window.removeEventListener('x7_kds_data_reset', handleReset);
   }, [fetchBackendOrders, isOffline]);
 
-  // Sincronizar automáticamente el estado de tickets con la caché local de IndexedDB (offline_tickets)
+  // Automatically synchronize ticket state with IndexedDB local cache (offline_tickets)
   useEffect(() => {
     if (tickets && tickets.length > 0) {
       void cacheTicketsLocally(tickets);
@@ -1595,10 +1595,10 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     [kitchenStations]
   );
 
-  // Estación activa seleccionada directamente como fuente de verdad
+  // Active station selected directly as single source of truth
   const effectiveStationFilter = selectedStationFilter;
 
-  // Resolver estación activa para el Recall Tray garantizando aislamiento por estación
+  // Resolve active station for Recall Tray guaranteeing station isolation
   const resolvedStation = (() => {
     if (activeKdsView === 'EXPO') {
       if (effectiveStationFilter === 'ALL') return { id: 'ALL' as const, name: 'All Stations' };
@@ -1607,7 +1607,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       );
       return st ? { id: st.id, name: st.name } : { id: 'ALL' as const, name: 'All Stations' };
     }
-    // Para vistas específicas (MANUAL, AUTO, SUMMARY, GRID):
+    // For specific views (MANUAL, AUTO, SUMMARY, GRID):
     const stByName = kitchenStations.find(
       (s) => s.name.trim().toLowerCase() === effectiveStationFilter.trim().toLowerCase()
     );
@@ -1619,9 +1619,9 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     return { id: 'ALL' as const, name: 'All Stations' };
   })();
 
-  // Historia X7P-4211: Station Terminal Keepalive Heartbeat
-  // Mientras la pantalla esté ONLINE, envía periódicamente el latido del terminal de la estación activa.
-  // Si pasa a OFFLINE (red caída o simulación), el latido se detiene por completo.
+  // Story X7P-4211: Station Terminal Keepalive Heartbeat
+  // While screen is ONLINE, periodically send keepalive heartbeat for active station terminal.
+  // If transitioned to OFFLINE (network down or simulated), heartbeat halts completely.
   const sendStationHeartbeat = useCallback(
     async (stationId: number | string) => {
       if (isOffline || !navigator.onLine) return;
@@ -1644,12 +1644,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
   useEffect(() => {
     if (isOffline || !navigator.onLine) return;
 
-    // Latido keepalive para todas las estaciones activas del restaurante mientras la pantalla esté ONLINE
+    // Keepalive heartbeat for all active stations in restaurant while screen is ONLINE
     void sendStationHeartbeat('ALL').then(() => {
       void fetchRerouteStatuses();
     });
 
-    // Latido periódico cada 15 segundos mientras esté ONLINE
+    // Periodic heartbeat every 15 seconds while ONLINE
     const heartbeatTimer = setInterval(() => {
       void sendStationHeartbeat('ALL');
     }, 15000);
@@ -1693,7 +1693,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       return baseStatuses;
     }
 
-    // Al llegar a >= 60s offline sin conexión, todas las terminales del restaurante se consideran en contingencia de hardware
+    // Upon reaching >= 60s offline without network, all terminals in restaurant enter hardware contingency
     return baseStatuses.map((st) => ({
       ...st,
       isDevicesOffline: true,
@@ -1831,7 +1831,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
   // Filtered and dynamically prioritized tickets with SLA Critical Shield
   const filteredTickets = (() => {
     const matched = tickets.filter((t) => {
-      // 1. Filtrar por Estación y Vista KDS:
+      // 1. Filter by station and KDS view:
       if (activeKdsView === 'EXPO') {
         if (effectiveStationFilter !== 'ALL' && t.stationName !== effectiveStationFilter) {
           return false;
@@ -1849,7 +1849,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       return t.items.some((i) => i.course === activeCourseFilter);
     });
 
-    // 1. Separar tickets con pulso activo (recién fired / bumped van al frente)
+    // 1. Separate pulsing tickets (freshly fired / bumped go to the front)
     const pulsing: KitchenTicket[] = [];
     const nonPulsing: KitchenTicket[] = [];
 
@@ -1865,7 +1865,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       normal: 0,
     };
 
-    // 2. Ordenar cronológicamente por momento de creación (orden de llegada FIFO)
+    // 2. Sort chronologically by creation timestamp (FIFO arrival order)
     nonPulsing.sort((a, b) => {
       const timeA = a.createdAtMs ?? 0;
       const timeB = b.createdAtMs ?? 0;
@@ -1873,10 +1873,9 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       return (a.backendOrderId ?? 0) - (b.backendOrderId ?? 0);
     });
 
-    // 3. Simulación de cola en tiempo real con Escudo SLA:
-    // - Una orden que alcanza 15 min NO salta hacia adelante por encima de órdenes que ya estaban antes en la cola.
-    // - Se queda exactamente donde está, pero activa el Escudo SLA: ninguna orden creada después de ese momento
-    //   puede colocarse por delante de ella (la protege contra nuevas órdenes VIP, Urgent o High entrantes).
+    // 3. Real-time queue simulation with SLA Shield:
+    // - An order reaching 15 min DOES NOT jump forward above orders already ahead in queue.
+    // - It remains where it is, but activates SLA Shield: no order created later can be placed ahead.
     const queue: KitchenTicket[] = [];
 
     for (const item of nonPulsing) {
@@ -1886,8 +1885,8 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       );
       const itemScore = (prioScoreMap[item.priority] || 0) * 10 + (isPreparingItem ? 1 : 0);
 
-      // Determinar la barrera mínima permitida: debe ser posterior a cualquier orden que YA tenía SLA
-      // (espera >= criticalSlaMinutes) al momento en que esta nueva orden fue creada.
+      // Determine minimum allowed boundary: must be after any order that ALREADY had SLA
+      // (waiting >= criticalSlaMinutes) at the time this new order was created.
       let minInsertIndex = 0;
       for (let i = 0; i < queue.length; i++) {
         const qTime = queue[i].createdAtMs ?? 0;
@@ -1897,8 +1896,8 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         }
       }
 
-      // Dentro del rango permitido (>= minInsertIndex), si la orden entrante tiene MAYOR prioridad
-      // que la orden en esa posición, se adelanta a ella. Si tiene igual o menor prioridad, se ubica detrás (FIFO).
+      // Within allowed range (>= minInsertIndex), if incoming order has HIGHER priority,
+      // it inserts ahead. If equal or lower, placed behind (FIFO).
       let insertIndex = queue.length;
       for (let i = minInsertIndex; i < queue.length; i++) {
         const q = queue[i];
@@ -1918,7 +1917,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     return [...pulsing, ...queue];
   })();
 
-  // Todas las estaciones registradas siempre visibles en el selector (sin desaparecer)
+  // All registered stations always visible in selector (without disappearing)
   const visibleStations = useMemo(() => {
     const set = new Set<string>();
     kitchenStations.forEach((s) => {
@@ -2948,7 +2947,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
           <button
             onClick={() => setActiveAlertToast(null)}
             className="ml-1 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer flex items-center justify-center"
-            title="Cerrar"
+            title="Close"
           >
             <span className="material-symbols-outlined text-xs">close</span>
           </button>
@@ -4070,7 +4069,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
           if (!isOffline && navigator.onLine) {
             fetchBackendOrders(true);
           }
-          // Purgar del historial local de bumps
+          // Purge from local bump history
           setBumpedOrdersHistory((prev) => {
             const next = prev.filter((o) => o.id !== recalledOrderId);
             try {

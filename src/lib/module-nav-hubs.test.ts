@@ -105,6 +105,17 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
       'QR MENU ITEMS',
       'QR CODE ORDERS',
       'QR ORDER ITEMS',
+  'online-ordering': {
+    back: 'ONLINE ORDERING COMMAND HUB',
+    items: [
+      'STORES',
+      'PAYMENTS',
+      'MENUS',
+      'CATEGORIES',
+      'ITEMS',
+      'ORDERS',
+      'ORDER ITEMS',
+      'DELIVERY',
     ],
   },
 };
@@ -154,6 +165,7 @@ describe('module NavHubBars', () => {
     expect(navHubForFeature('collaborators-contracts')?.appId).toBe('hr');
     expect(navHubForFeature('receipt-orders')?.hubLabel).toBe('BILLING & TRANSACTIONS COMMAND HUB');
     expect(navHubForFeature('kitchen-stations')).toBeNull(); // el KDS monta su propia barra
+    expect(navHubForFeature('products')).toBeNull(); // Products / Inventory System monta su propia barra igual que el KDS
     expect(navHubById('pos-hub')?.appId).toBe('pos');
     expect(navHubById('collaborators')).toBeNull();
   });
