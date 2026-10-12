@@ -136,6 +136,33 @@ export const navigationService = {
               isSaaS: false,
             }
           ];
+        } else if (app.id === 'shifts') {
+          app.features = [
+            {
+              id: 'shifts-hub',
+              name: 'Shifts Command Hub',
+              applicationId: 'shifts',
+              planId: 2,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'tips') {
+          app.features = [
+            {
+              id: 'tips-hub',
+              name: 'Tips Command Hub',
+              applicationId: 'tips',
+              planId: 2,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'configuration') {
+          app.features = [
+            {
+              id: 'configuration-hub',
+              name: 'Configuration Command Hub',
+              applicationId: 'configuration',
+              planId: 2,
         } else if (app.id === 'products-inventory') {
           app.features = [
             {
