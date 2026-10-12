@@ -105,6 +105,8 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
       'QR MENU ITEMS',
       'QR CODE ORDERS',
       'QR ORDER ITEMS',
+    ],
+  },
   'online-ordering': {
     back: 'ONLINE ORDERING COMMAND HUB',
     items: [

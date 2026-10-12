@@ -1621,8 +1621,11 @@ export const MerchantFrame: React.FC = () => {
                         const isShiftsApp = app.id === 'shifts' || app.name === 'Shifts';
                         const isTipsApp = app.id === 'tips' || app.name === 'Tips';
                         const isConfigApp = app.id === 'configuration' || app.name === 'Configuration';
-                        const isSingleHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp;
-                        const isAppExpanded = !isSingleHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
+                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
+                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
+                        const isDirectHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
+                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
                           : isShiftsApp
@@ -1631,14 +1634,6 @@ export const MerchantFrame: React.FC = () => {
                           ? ['tips-hub', 'tips', 'tips-ledger', 'tips-pools', 'tip-pools', 'tip-pool-members', 'tips-pool-members', 'tips-allocations', 'tip-allocations', 'tip-settlements', 'tips-settlements', 'tip-movements', 'tips-cash-movements'].includes(activeTab)
                           : isConfigApp
                           ? ['configuration-hub', 'merchant-overtime-rules', 'merchant-payroll-rules', 'merchant-tax-rules', 'merchant-tips-rules'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab);
-                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
-                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
-                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
-                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
-                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
-                        const isAppSelected = isKDSApp
-                          ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
                           : isProductsApp
                           ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
                           : isRawMaterialsApp
@@ -1698,9 +1693,7 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* L3: Features (Omitted for Kitchen Display System & Shifts since they navigate internally from their hub) */}
-                            {isAppExpanded && !isSingleHubApp && (
-                            {/* L3: Features (Omitted for Kitchen Display System and Products/Inventory System) */}
+                            {/* L3: Features (Omitted for direct hub apps since they navigate internally from their hub) */}
                             {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
@@ -1788,8 +1781,11 @@ export const MerchantFrame: React.FC = () => {
                         const isShiftsApp = app.id === 'shifts' || app.name === 'Shifts';
                         const isTipsApp = app.id === 'tips' || app.name === 'Tips';
                         const isConfigApp = app.id === 'configuration' || app.name === 'Configuration';
-                        const isSingleHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp;
-                        const isAppExpanded = !isSingleHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
+                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
+                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
+                        const isDirectHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
+                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
                           : isShiftsApp
@@ -1798,14 +1794,6 @@ export const MerchantFrame: React.FC = () => {
                           ? ['tips-hub', 'tips', 'tips-ledger', 'tips-pools', 'tip-pools', 'tip-pool-members', 'tips-pool-members', 'tips-allocations', 'tip-allocations', 'tip-settlements', 'tips-settlements', 'tip-movements', 'tips-cash-movements'].includes(activeTab)
                           : isConfigApp
                           ? ['configuration-hub', 'merchant-overtime-rules', 'merchant-payroll-rules', 'merchant-tax-rules', 'merchant-tips-rules'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab);
-                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
-                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
-                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
-                        const isDirectHubApp = isKDSApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
-                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
-                        const isAppSelected = isKDSApp
-                          ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
                           : isProductsApp
                           ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
                           : isRawMaterialsApp
@@ -1865,9 +1853,7 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* Level 3: Features (Omitted for Kitchen Display System & Shifts since they navigate internally from their hub) */}
-                            {isAppExpanded && !isSingleHubApp && (
-                            {/* Level 3: Features (Omitted for Kitchen Display System and Products/Inventory System) */}
+                            {/* Level 3: Features (Omitted for direct hub apps since they navigate internally from their hub) */}
                             {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {

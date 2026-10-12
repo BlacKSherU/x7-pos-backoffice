@@ -163,6 +163,9 @@ export const navigationService = {
               name: 'Configuration Command Hub',
               applicationId: 'configuration',
               planId: 2,
+              isSaaS: false,
+            }
+          ];
         } else if (app.id === 'products-inventory') {
           app.features = [
             {
