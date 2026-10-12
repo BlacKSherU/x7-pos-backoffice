@@ -1241,7 +1241,10 @@ export const ShiftAssignmentView: React.FC<ShiftAssignmentViewProps> = ({
           {/* Calendar View Mode Toggle */}
           <div className="flex bg-[#f1ece4] border border-[#e8e2d8] rounded p-1">
             <button
-              onClick={() => setViewMode('weekly')}
+              onClick={() => {
+                setViewMode('weekly');
+                onNavigate?.('shift-assignment');
+              }}
               className={`px-3 py-1.5 font-bold text-xs uppercase tracking-wider rounded transition-colors flex items-center gap-1 ${
                 viewMode === 'weekly'
                   ? 'bg-[#222222] text-white shadow-sm'
@@ -1252,7 +1255,10 @@ export const ShiftAssignmentView: React.FC<ShiftAssignmentViewProps> = ({
               Weekly Matrix
             </button>
             <button
-              onClick={() => setViewMode('daily')}
+              onClick={() => {
+                setViewMode('daily');
+                onNavigate?.('shifts');
+              }}
               className={`px-3 py-1.5 font-bold text-xs uppercase tracking-wider rounded transition-colors flex items-center gap-1 ${
                 viewMode === 'daily'
                   ? 'bg-[#222222] text-white shadow-sm'
@@ -1263,7 +1269,10 @@ export const ShiftAssignmentView: React.FC<ShiftAssignmentViewProps> = ({
               Daily Timeline
             </button>
             <button
-              onClick={() => setViewMode('monthly')}
+              onClick={() => {
+                setViewMode('monthly');
+                onNavigate?.('staff-roster');
+              }}
               className={`px-3 py-1.5 font-bold text-xs uppercase tracking-wider rounded transition-colors flex items-center gap-1 ${
                 viewMode === 'monthly'
                   ? 'bg-[#222222] text-white shadow-sm'
@@ -1274,7 +1283,10 @@ export const ShiftAssignmentView: React.FC<ShiftAssignmentViewProps> = ({
               Monthly
             </button>
             <button
-              onClick={() => setViewMode('swaps')}
+              onClick={() => {
+                setViewMode('swaps');
+                onNavigate?.('staff-swaps');
+              }}
               className={`px-3 py-1.5 font-bold text-xs uppercase tracking-wider rounded transition-colors flex items-center gap-1 ${
                 viewMode === 'swaps'
                   ? 'bg-[#222222] text-white shadow-sm'

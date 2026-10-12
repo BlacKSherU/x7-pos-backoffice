@@ -60,6 +60,30 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
       'CASH TRANSACTIONS',
     ],
   },
+  shifts: {
+    back: 'SHIFTS COMMAND HUB',
+    items: ['SHIFT ASSIGNMENT', 'SHIFTS'],
+  },
+  tips: {
+    back: 'TIPS COMMAND HUB',
+    items: [
+      'TIP MOVEMENTS',
+      'TIP POOL MEMBERS',
+      'TIP SETTLEMENTS',
+      'TIPS',
+      'TIPS ALLOCATIONS',
+      'TIPS POOLS',
+    ],
+  },
+  configuration: {
+    back: 'CONFIGURATION COMMAND HUB',
+    items: [
+      'MERCHANT OVERTIME RULES',
+      'MERCHANT PAYROLL RULES',
+      'MERCHANT TAX RULES',
+      'MERCHANT TIPS RULES',
+    ],
+  },
   'billing-transactions': {
     back: 'BILLING & TRANSACTIONS COMMAND HUB',
     items: ['RECEIPT ITEMS', 'RECEIPTS', 'RECEIPTS TAXES'],
@@ -71,6 +95,17 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
   'business-partners': {
     back: 'BUSINESS PARTNERS COMMAND HUB',
     items: ['CUSTOMERS', 'SUPPLIERS'],
+  },
+  'qr-code': {
+    back: 'QR CODE SYSTEM COMMAND HUB',
+    items: [
+      'QR CODE LOCATIONS',
+      'QR CODE MENUS',
+      'QR MENU SECTIONS',
+      'QR MENU ITEMS',
+      'QR CODE ORDERS',
+      'QR ORDER ITEMS',
+    ],
   },
 };
 
