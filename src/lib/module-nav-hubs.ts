@@ -246,6 +246,9 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
       { featureId: 'qr-code-menu-items', label: 'QR MENU ITEMS', icon: 'fastfood', live: false, description: 'Configure items and modifiers for QR access.' },
       { featureId: 'qr-code-orders', label: 'QR CODE ORDERS', icon: 'shopping_bag', live: false, description: 'Track live orders originated from QR scans.' },
       { featureId: 'qr-order-items', label: 'QR ORDER ITEMS', icon: 'receipt', live: false, description: 'Detailed line items from QR customer orders.' },
+    ],
+  },
+  {
     appId: 'online-ordering',
     hubId: 'online-ordering-hub',
     hubLabel: 'ONLINE ORDERING COMMAND HUB',
