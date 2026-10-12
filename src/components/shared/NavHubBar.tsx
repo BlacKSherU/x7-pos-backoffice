@@ -67,6 +67,36 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
   // barra siempre en left-0, metida bajo el menú lateral.
   const leftOffsetClass = collapsed ? 'left-0' : 'left-64';
 
+  const scrollToPageTop = () => {
+    const scrollTargets = [
+      document.querySelector('main'),
+      document.documentElement,
+      document.body,
+    ];
+    for (const el of scrollTargets) {
+      if (el) {
+        el.scrollTop = 0;
+        try {
+          el.scrollTo({ top: 0, behavior: 'instant' });
+        } catch {
+          // fallback
+        }
+      }
+    }
+    window.scrollTo(0, 0);
+
+    requestAnimationFrame(() => {
+      const mainEl = document.querySelector('main');
+      if (mainEl) mainEl.scrollTop = 0;
+      window.scrollTo(0, 0);
+    });
+    setTimeout(() => {
+      const mainEl = document.querySelector('main');
+      if (mainEl) mainEl.scrollTop = 0;
+      window.scrollTo(0, 0);
+    }, 30);
+  };
+
   return (
     <div
       className={`fixed bottom-0 ${leftOffsetClass} right-0 z-40 bg-[#222222] border-t-2 border-[#ae001a] text-white py-2 px-4 shadow-2xl font-sans transition-all duration-300 ease-in-out ${className}`}
@@ -77,7 +107,7 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
           <button
             type="button"
             onClick={() => {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              scrollToPageTop();
               handleBack();
             }}
             className="flex items-center justify-center w-8 h-8 bg-[#ae001a] hover:bg-[#900015] text-white rounded transition-all shadow-xs cursor-pointer absolute left-2 sm:left-4 select-none shrink-0"
@@ -105,7 +135,10 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
               <button
                 key={item.id}
                 type="button"
-                onClick={item.onClick}
+                onClick={() => {
+                  scrollToPageTop();
+                  item.onClick();
+                }}
                 aria-current={isActive ? 'page' : undefined}
                 className={`px-3 py-1.5 rounded text-xs font-bold transition-colors duration-200 flex items-center gap-1.5 cursor-pointer font-sans select-none whitespace-nowrap ${
                   isActive

@@ -114,8 +114,11 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
   const [selectedStationId, setSelectedStationId] = useState<number | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [refreshInterval, setRefreshInterval] = useState<number>(10); // 10s default
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [actionInProgressId, setActionInProgressId] = useState<number | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
 
   // Table options menu states
   const [density, setDensity] = useState<TableDensity>('comfortable');
@@ -184,6 +187,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
   // 2. Fetch all kitchen order items
   const loadItems = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
+    setIsRefreshing(true);
     setError(null);
     try {
       const token = getAccessToken();
@@ -208,6 +212,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       const resData = await res.json();
       const rawItems: KitchenOrderItemDetail[] = resData.data || [];
       setItems(rawItems);
+      setLastUpdated(new Date());
     } catch (err: unknown) {
       if (!isBackground) {
         const msg = err instanceof Error ? err.message : 'Error loading kitchen items';
@@ -215,6 +220,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       }
     } finally {
       if (!isBackground) setLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -748,7 +754,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       }
     };
 
-    // 1. Agrupar items por comanda (kitchenOrderId) para mantener todas las órdenes intactas
+    // 1. Group items by kitchen order (kitchenOrderId) to keep orders grouped together
     const orderGroupsMap = new Map<number, {
       kitchenOrderId: number;
       orderId?: number | null;
@@ -786,10 +792,10 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
 
     const orderGroups = Array.from(orderGroupsMap.values());
 
-    // 2. Ordenar las comandas (Opción C):
-    // - Tier 1: Activas (pending/started) -> Prioridad VIP mayor primero, luego FIFO (más antigua primero)
-    // - Tier 2: Completadas -> más reciente primero
-    // - Tier 3: Canceladas -> más reciente primero
+    // 2. Sort kitchen orders (Option C):
+    // - Tier 1: Active (pending/started) -> Higher VIP priority first, then FIFO (oldest first)
+    // - Tier 2: Completed -> newest first
+    // - Tier 3: Cancelled -> newest first
     orderGroups.sort((a, b) => {
       if (a.tier !== b.tier) return a.tier - b.tier;
 
@@ -801,7 +807,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-    // 3. Ordenar los ítems DENTRO de cada comanda por su estado operativo:
+    // 3. Sort line-items WITHIN each kitchen order by operational state:
     // in_preparation > pending > ready > held
     const rankItem = (st: string) => {
       if (st === 'in_preparation') return 1;
@@ -820,7 +826,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       });
     }
 
-    // 4. Aplanar la lista ordenada manteniendo los platos de cada orden juntos
+    // 4. Flatten the sorted list keeping items of each order together
     const flatItems: KitchenOrderItemRecord[] = [];
     for (const grp of orderGroups) {
       flatItems.push(...grp.items);
@@ -829,7 +835,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
     return flatItems;
   }, [stationFilteredItems, activeTab, searchQuery]);
 
-  // Grupos por comanda para renderizar separadores visuales (Opción C)
+  // Groups by order for visual section dividers (Option C)
   const groupedOrderItems = useMemo(() => {
     const groups: Array<{
       kitchenOrderId: number;
@@ -866,6 +872,26 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
 
     return groups;
   }, [filteredItems]);
+
+  const toggleGroup = (id: number) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const expandAllGroups = () => {
+    setCollapsedGroups(new Set());
+  };
+
+  const collapseAllGroups = () => {
+    setCollapsedGroups(new Set(groupedOrderItems.map(g => g.kitchenOrderId)));
+  };
 
   // Paginated items for table view
   const paginatedItems = useMemo(() => {
@@ -928,11 +954,16 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       )}
 
       {/* 1. Header Card Workspace (Title only) */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
         <div>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
-            KDS ITEM PREPARATION CONTROL &amp; DISPATCH WORKSPACE
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              lunch_dining
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              KDS ITEM PREPARATION CONTROL &amp; DISPATCH WORKSPACE
+            </h2>
+          </div>
           <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
             Atomic line-item tracking, multi-serve partial quantity incrementer, station queues &amp; automated dish dispatch.
           </p>
@@ -1025,229 +1056,279 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
         </div>
       </div>
 
-      {/* 2. Multi-criteria Toolbar identical to Kitchen Orders */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
-        {/* Row 1: Search on left and View Switcher + Auto-Refresh on right */}
-        <div className="flex flex-row items-center justify-between gap-3 w-full">
-          <div className="relative flex-1 min-w-0">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#5f5e5e] font-sans">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Search dish, #KO-{id}, POS #ORD, notes..."
-              value={searchQuery}
-              onChange={e => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md transition-all font-sans text-[#1d1c17]"
-              aria-label="Search kitchen order items"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search and Station Selector on left, View Switcher + Auto-Refresh on right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[220px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search dish, #KO-{id}, POS #ORD, notes..."
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5f5e5e] hover:text-[#1d1c17] text-xs cursor-pointer"
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search kitchen order items"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="material-symbols-outlined text-base">soup_kitchen</span>
+              <select
+                value={selectedStationId}
+                onChange={e => {
+                  setSelectedStationId(
+                    e.target.value === 'ALL' ? 'ALL' : Number(e.target.value)
+                  );
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer max-w-[190px] transition-colors duration-200"
+                aria-label="Filter by kitchen station"
               >
-                ✕
-              </button>
-            )}
+                <option value="ALL">All Stations ({stations.length})</option>
+                {stations.map(st => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* View Switcher Toggle & Auto-Refresh al lado derecho */}
+          {/* Right: View Switcher Toggle & Auto-Refresh */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* View Switcher Toggle (Same design and color as Kitchen Orders / Devices) */}
-            <div className="flex items-center bg-[#f2ede5] p-1 rounded border border-[#e8e2d8] shrink-0">
+            {/* View Switcher Toggle */}
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   viewMode === 'grid'
                     ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
                     : 'text-[#5f5e5e] hover:text-[#ae001a]'
                 }`}
                 title="Station Card Grid (Tap-to-Increment)"
               >
-                <span className="material-symbols-outlined text-[16px]">grid_view</span>
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'grid' ? 'text-[#ae001a]' : ''}`}>grid_view</span>
                 Dish Cards
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   viewMode === 'table'
                     ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
                     : 'text-[#5f5e5e] hover:text-[#ae001a]'
                 }`}
                 title="Comprehensive Line-Item Table"
               >
-                <span className="material-symbols-outlined text-[16px]">table_rows</span>
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'table' ? 'text-[#ae001a]' : ''}`}>table_rows</span>
                 Audit Table
               </button>
             </div>
 
-            {/* Auto Refresh al lado derecho del cambio de modo */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs text-[#5f5e5e] shrink-0 h-[38px]">
-              <span className="material-symbols-outlined text-sm text-[#5f5e5e]">sync</span>
-              <span className="text-[11px] font-bold text-[#5f5e5e] uppercase">Auto:</span>
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => loadItems(false)}
+                disabled={loading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh items now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
               <select
                 value={refreshInterval}
                 onChange={e => setRefreshInterval(Number(e.target.value))}
-                className="bg-transparent text-[#1d1c17] font-semibold focus:outline-none cursor-pointer text-xs"
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
               >
-                <option value={5}>5s</option>
-                <option value={10}>10s</option>
-                <option value={30}>30s</option>
-                <option value={60}>60s</option>
-                <option value={0}>Off</option>
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
               </select>
+            </div>
+
+            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
+              <span className="material-symbols-outlined text-sm">schedule</span>
+              <span>Updated:</span>
+              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>
 
-        {/* Row 2: Status Tabs (Segmented Pill Buttons in middle, between Search and Filters, without divider line) */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('ALL');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
-                activeTab === 'ALL'
-                  ? 'bg-[#ae001a] text-white shadow-xs'
-                  : 'text-[#5f5e5e] hover:text-[#1d1c17] hover:bg-[#f2ede5]'
+        {/* Row 2: TYPES Pills Strip + Expand/Collapse Buttons */}
+        <div className="flex items-center gap-1 pt-2.5 border-t border-[#f0ede6] overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+            Types:
+          </span>
+
+          {/* All Pill */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('ALL');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              activeTab === 'ALL'
+                ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+            }`}
+          >
+            <span>All</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                activeTab === 'ALL' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
               }`}
             >
-              <span>All Items</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeTab === 'ALL' ? 'bg-white text-[#ae001a]' : 'bg-[#e8e2d8] text-[#5f5e5e]'
-                }`}
-              >
-                {counts.total}
-              </span>
-            </button>
+              {counts.total}
+            </span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('HELD');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
-                activeTab === 'HELD'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-[#5f5e5e] hover:text-[#1d1c17] hover:bg-[#f2ede5]'
+          {/* HELD Pill (Icon: lock_clock) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('HELD');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              activeTab === 'HELD'
+                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">lock_clock</span>
+            <span>HELD</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                activeTab === 'HELD' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
               }`}
             >
-              <span className="material-symbols-outlined text-xs">lock_clock</span>
-              <span>Held Courses</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeTab === 'HELD' ? 'bg-white text-amber-700' : 'bg-[#e8e2d8] text-[#5f5e5e]'
-                }`}
-              >
-                {counts.held}
-              </span>
-            </button>
+              {counts.held}
+            </span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('PENDING');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
-                activeTab === 'PENDING'
-                  ? 'bg-[#ae001a] text-white shadow-xs'
-                  : 'text-[#5f5e5e] hover:text-[#1d1c17] hover:bg-[#f2ede5]'
+          {/* PENDING Pill (Icon: schedule) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('PENDING');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              activeTab === 'PENDING'
+                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">schedule</span>
+            <span>PENDING</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                activeTab === 'PENDING' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
               }`}
             >
-              <span>Pending</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeTab === 'PENDING' ? 'bg-white text-[#ae001a]' : 'bg-[#e8e2d8] text-[#5f5e5e]'
-                }`}
-              >
-                {counts.pending}
-              </span>
-            </button>
+              {counts.pending}
+            </span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('IN_PREPARATION');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
-                activeTab === 'IN_PREPARATION'
-                  ? 'bg-[#ae001a] text-white shadow-xs'
-                  : 'text-[#5f5e5e] hover:text-[#1d1c17] hover:bg-[#f2ede5]'
+          {/* IN PREPARATION Pill (Icon: play_circle) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('IN_PREPARATION');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              activeTab === 'IN_PREPARATION'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                : 'bg-blue-50/50 text-blue-800 border-blue-200 hover:bg-blue-100/50 hover:text-blue-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">play_circle</span>
+            <span>IN PREPARATION</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                activeTab === 'IN_PREPARATION' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
               }`}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              <span>In Preparation</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeTab === 'IN_PREPARATION' ? 'bg-white text-[#ae001a]' : 'bg-[#e8e2d8] text-[#5f5e5e]'
-                }`}
-              >
-                {counts.inPrep}
-              </span>
-            </button>
+              {counts.inPrep}
+            </span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('READY');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
-                activeTab === 'READY'
-                  ? 'bg-[#ae001a] text-white shadow-xs'
-                  : 'text-[#5f5e5e] hover:text-[#1d1c17] hover:bg-[#f2ede5]'
+          {/* READY Pill (Icon: check_circle) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('READY');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+              activeTab === 'READY'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">check_circle</span>
+            <span>READY</span>
+            <span
+              className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                activeTab === 'READY' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
               }`}
             >
-              <span>Ready</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeTab === 'READY' ? 'bg-white text-[#ae001a]' : 'bg-[#e8e2d8] text-[#5f5e5e]'
-                }`}
-              >
-                {counts.ready}
-              </span>
-            </button>
-          </div>
-        </div>
+              {counts.ready}
+            </span>
+          </button>
 
-        {/* Row 3: Station Filter with identical design to Kitchen Orders */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedStationId}
-              onChange={e => {
-                setSelectedStationId(
-                  e.target.value === 'ALL' ? 'ALL' : Number(e.target.value)
-                );
-                setCurrentPage(1);
-              }}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by kitchen station"
-            >
-              <option value="ALL">All Kitchen Stations</option>
-              {stations.map(st => (
-                <option key={st.id} value={st.id}>
-                  {st.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Expand All / Collapse All Buttons on the right side */}
+          {viewMode === 'grid' && (
+            <div className="flex items-center gap-1.5 ml-auto shrink-0 pr-0.5">
+              <button
+                type="button"
+                onClick={expandAllGroups}
+                className="h-[28px] px-2.5 rounded-lg border border-[#d5cfc4] bg-white text-[#5f5e5e] hover:border-[#ae001a] hover:text-[#ae001a] hover:bg-[#fcfcfb] text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                title="Expand all orders"
+              >
+                <span className="material-symbols-outlined text-[15px]">unfold_more</span>
+                <span>Expand All</span>
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllGroups}
+                className="h-[28px] px-2.5 rounded-lg border border-[#d5cfc4] bg-white text-[#5f5e5e] hover:border-[#ae001a] hover:text-[#ae001a] hover:bg-[#fcfcfb] text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                title="Collapse all orders"
+              >
+                <span className="material-symbols-outlined text-[15px]">unfold_less</span>
+                <span>Collapse All</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1296,11 +1377,15 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
               const inPrepCount = group.items.filter(i => i.preparationStatus === 'in_preparation').length;
               const pendingCount = group.items.filter(i => i.preparationStatus === 'pending').length;
               const heldCount = group.items.filter(i => i.preparationStatus === 'held').length;
+              const isCollapsed = collapsedGroups.has(group.kitchenOrderId);
 
               return (
                 <div key={group.kitchenOrderId} className="space-y-3">
                   {/* Visual Order Separator & Header Banner (Opción C) */}
-                  <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#f6f2e9] border border-[#e2dcce] rounded-xl shadow-xs">
+                  <div
+                    onClick={() => toggleGroup(group.kitchenOrderId)}
+                    className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#f6f2e9] border border-[#e2dcce] rounded-xl shadow-xs cursor-pointer select-none hover:border-[#d5cfc4] transition-colors"
+                  >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono font-black text-xs text-[#ae001a] bg-red-100/90 border border-red-200 px-2.5 py-1 rounded-md">
                         #KO-{group.kitchenOrderId}
@@ -1360,12 +1445,26 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                         <span className="material-symbols-outlined text-xs">schedule</span>
                         {formatElapsedTime(group.createdAt)}
                       </span>
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          toggleGroup(group.kitchenOrderId);
+                        }}
+                        className="p-1 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-black/5 cursor-pointer transition-colors"
+                        title={isCollapsed ? 'Expand this order' : 'Collapse this order'}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          {isCollapsed ? 'expand_more' : 'expand_less'}
+                        </span>
+                      </button>
                     </div>
                   </div>
 
                   {/* Cards Grid for this Order */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {group.items.map(item => {
+                  {!isCollapsed && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {group.items.map(item => {
             const isHeld = item.preparationStatus === 'held';
             const isReady = item.preparationStatus === 'ready';
             const isInPrep = item.preparationStatus === 'in_preparation';
@@ -1695,6 +1794,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                     );
                   })}
                   </div>
+                )}
                 </div>
               );
             })}
@@ -1702,7 +1802,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
         )
       ) : (
         /* VIEW MODE 2: DETAILED TABLE VIEW (Audit & Multi-Item Density) */
-        <div className="bg-white border border-[#e8e2d8] rounded shadow-sm relative overflow-hidden">
+        <div className="bg-white border border-[#e8e2d8] rounded-xl shadow-sm relative overflow-hidden">
           <HeaderQuickTabs
             title="KITCHEN ORDER ITEMS DIRECTORY"
             badgeCount={
@@ -1775,21 +1875,21 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <table className="w-full table-fixed text-left text-xs border-collapse font-sans">
                   <thead>
-                    <tr className="border-b border-[#e8e2d8] bg-[#ece8e0] text-[#5f5e5e] uppercase tracking-wider text-[11px] font-bold">
-                      {visibleColumns.itemDish && <th className={densityPadding}>Item / Dish</th>}
-                      {visibleColumns.ticket && <th className={densityPadding}>Ticket</th>}
-                      {visibleColumns.station && <th className={densityPadding}>Station</th>}
-                      {visibleColumns.multiplier && <th className={`${densityPadding} text-center`}>Multiplier</th>}
-                      {visibleColumns.progress && <th className={`${densityPadding} text-center`}>Progress (Prepared)</th>}
-                      {visibleColumns.prepState && <th className={`${densityPadding} text-center`}>Preparation State</th>}
-                      {visibleColumns.notes && <th className={densityPadding}>Notes / Callouts</th>}
-                      {visibleColumns.actions && <th className={`${densityPadding} text-right`}>Actions</th>}
+                    <tr className="border-b border-[#e8e2d8] bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs">
+                      {visibleColumns.itemDish && <th className={`${densityPadding} w-auto min-w-[200px]`}>Item / Dish</th>}
+                      {visibleColumns.ticket && <th className={`${densityPadding} w-32 min-w-[100px]`}>Ticket</th>}
+                      {visibleColumns.station && <th className={`${densityPadding} w-36 min-w-[110px]`}>Station</th>}
+                      {visibleColumns.multiplier && <th className={`${densityPadding} text-center w-24 min-w-[70px]`}>Multiplier</th>}
+                      {visibleColumns.progress && <th className={`${densityPadding} text-center w-36 min-w-[110px]`}>Progress (Prepared)</th>}
+                      {visibleColumns.prepState && <th className={`${densityPadding} text-center w-36 min-w-[110px]`}>Preparation State</th>}
+                      {visibleColumns.notes && <th className={`${densityPadding} w-44 min-w-[130px]`}>Notes / Callouts</th>}
+                      {visibleColumns.actions && <th className={`${densityPadding} text-right w-28 min-w-[90px]`}>Actions</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e8e2d8]">
+                  <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                     {loading ? (
                       <tr>
                         <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -1848,7 +1948,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                                 <td colSpan={activeColSpan} className="px-4 py-2 font-bold text-xs text-[#1d1c17]">
                                   <div className="flex items-center justify-between flex-wrap gap-2">
                                     <div className="flex items-center gap-2">
-                                      <span className="font-mono font-black text-[#ae001a] bg-red-100/90 border border-red-200 px-2 py-0.5 rounded text-[11px]">
+                                      <span className="font-mono font-bold text-[#ae001a] bg-red-100/90 border border-red-200 px-2 py-0.5 rounded text-[11px]">
                                         #KO-{item.kitchenOrderId}
                                       </span>
                                       {item.kitchenOrder?.orderId && (
@@ -1861,7 +1961,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                                           {item.kitchenOrder.stationName}
                                         </span>
                                       )}
-                                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
                                         {item.kitchenOrder?.businessStatus?.toUpperCase() || 'PENDING'}
                                       </span>
                                     </div>
@@ -1887,34 +1987,38 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                         }`}
                       >
                         {visibleColumns.itemDish && (
-                          <td className={densityPadding}>
-                            <div className="font-bold text-[#1d1c17] text-sm">
-                              <span className={isReady ? 'line-through text-emerald-800/60' : ''}>
-                                {item.product?.name || 'Dish Item'}
-                              </span>
-                              {item.variant?.name && (
-                                <span className="text-[#5f5e5e] text-xs font-normal ml-1">
-                                  ({item.variant.name})
+                          <td className={`${densityPadding} truncate`}>
+                            <div className="min-w-0 flex flex-col justify-center">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={`font-bold text-[#1d1c17] text-sm truncate ${isReady ? 'line-through text-emerald-800/60' : ''}`} title={item.product?.name}>
+                                  {item.product?.name || 'Dish Item'}
                                 </span>
-                              )}
-                              {item.course && (
-                                <span className="ml-2 text-[9px] uppercase font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 inline-block">
-                                  {item.course.replace('_', ' ')}
+                                {item.variant?.name && (
+                                  <span className="text-[#5f5e5e] text-xs font-normal shrink-0">
+                                    ({item.variant.name})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[11px] text-[#5f5e5e] font-mono font-normal shrink-0">
+                                  #{item.id}
                                 </span>
-                              )}
+                                {item.course && (
+                                  <span className="text-[9px] uppercase font-normal px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                                    {item.course.replace('_', ' ')}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <span className="text-[10px] text-[#5f5e5e] font-mono">
-                              ID: #{item.id} • {formatElapsedTime(item.createdAt)} ago
-                            </span>
                           </td>
                         )}
 
                         {visibleColumns.ticket && (
-                          <td className={`${densityPadding} font-mono font-bold text-[#1d1c17]`}>
+                          <td className={`${densityPadding} font-mono font-normal text-xs text-[#1d1c17]`}>
                             <div className="flex items-center gap-1.5">
                               <span className="text-[#ae001a]">#KO-{item.kitchenOrderId}</span>
                               {isOrderClosed && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] font-black uppercase tracking-wider bg-zinc-200 text-zinc-700 border border-zinc-300 px-1 py-0.2 rounded">
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider bg-zinc-200 text-zinc-700 border border-zinc-300 px-1 py-0.2 rounded">
                                   <span className="material-symbols-outlined text-[10px]">lock</span>
                                   {item.kitchenOrder?.businessStatus?.toUpperCase() || 'CLOSED'}
                                 </span>
@@ -1938,7 +2042,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
 
                         {visibleColumns.multiplier && (
                           <td className={`${densityPadding} text-center`}>
-                            <span className="inline-block px-2 py-0.5 rounded bg-[#f0ebe1] border border-[#e8e2d8] font-bold text-xs text-[#1d1c17]">
+                            <span className="inline-block px-2 py-0.5 rounded bg-[#f0ebe1] border border-[#e8e2d8] font-normal text-xs text-[#1d1c17]">
                               {item.quantity}x
                             </span>
                           </td>
@@ -1947,7 +2051,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                         {visibleColumns.progress && (
                           <td className={`${densityPadding} text-center`}>
                             <div className="inline-flex flex-col items-center">
-                              <span className="font-mono font-bold text-xs text-[#1d1c17]">
+                              <span className="font-mono font-normal text-xs text-[#1d1c17]">
                                 <span
                                   className={
                                     isReady
@@ -1978,17 +2082,17 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                         {visibleColumns.prepState && (
                           <td className={`${densityPadding} text-center`}>
                             {isReady ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase">
                                 <span className="material-symbols-outlined text-xs">check</span>
                                 READY
                               </span>
                             ) : isHeld ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-400 uppercase">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-400 uppercase">
                                 <span className="material-symbols-outlined text-xs">lock_clock</span>
                                 HELD
                               </span>
                             ) : isInPrep ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300 uppercase">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 uppercase">
                                 IN PREP
                               </span>
                             ) : (
@@ -2055,7 +2159,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                                 </button>
                               </div>
                             ) : isReady ? (
-                              /* Cuando está READY, en acciones solo va el botón Undo (el badge READY ya está en la columna prepState) */
+                              /* When READY, only show Undo button in actions (READY badge is already rendered in prepState column) */
                               <div className="inline-flex items-center gap-1.5">
                                 <button
                                   onClick={e => handleRevertItemToPending(item, e)}

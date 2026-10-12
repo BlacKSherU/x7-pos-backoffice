@@ -53,17 +53,17 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   // Standardized list of all backoffice features for quick search
   const ALL_BACKOFFICE_FEATURES: Array<{ id: string; name: string; categoryId: string; categoryName: string }> = [
-    { id: 'products', name: 'Products Catalog', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
-    { id: 'categories', name: 'Product Categories', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
-    { id: 'modifiers', name: 'Product Modifiers', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
-    { id: 'variants', name: 'Product Variants', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
-    { id: 'raw-materials', name: 'Raw Materials Workspace', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
-    { id: 'raw-material-categories', name: 'Raw Material Categories', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
-    { id: 'recipes', name: 'Product Recipes (BOM)', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
-    { id: 'purchase-orders', name: 'Purchase Orders', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
-    { id: 'locations', name: 'Inventory Locations', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
-    { id: 'stock-movements', name: 'Stock & Inventory Control', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
-    { id: 'movements', name: 'Inventory Movements Log', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'products', name: 'Products Catalog', categoryId: 'products', categoryName: 'Products' },
+    { id: 'categories', name: 'Product Categories', categoryId: 'products', categoryName: 'Products' },
+    { id: 'modifiers', name: 'Product Modifiers', categoryId: 'products', categoryName: 'Products' },
+    { id: 'variants', name: 'Product Variants', categoryId: 'products', categoryName: 'Products' },
+    { id: 'raw-materials', name: 'Raw Materials Workspace', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'raw-material-categories', name: 'Raw Material Categories', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'recipes', name: 'Product Recipes (BOM)', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'purchase-orders', name: 'Purchase Orders', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'locations', name: 'Inventory Locations', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'stock-movements', name: 'Stock & Inventory Control', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'movements', name: 'Inventory Movements Log', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
     { id: 'kitchen-stations', name: 'Kitchen Stations routing', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'kitchen-display-devices', name: 'KDS Display Devices Inventory', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'floor-plans', name: 'Floor Plans Workspace', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
@@ -92,6 +92,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     { id: 'user-management', name: 'User Management', categoryId: 'saas', categoryName: 'Platform SaaS' },
     { id: 'company-profile', name: 'Company Profile', categoryId: 'saas', categoryName: 'Platform SaaS' },
     { id: 'company-configurations', name: 'Company Configurations', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'online-stores', name: 'Online Stores Workspace', categoryId: 'commerce', categoryName: 'Commerce' },
   ];
 
   const menuSearchResults = menuSearchQuery.trim() === '' ? [] : ALL_BACKOFFICE_FEATURES.filter(item =>
@@ -120,26 +121,26 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   }, [refreshTrigger, API_BASE]);
 
   // Resolve breadcrumbs and titles reactively and dynamically from navCategories
-  let parentAppName = '';
+  let categoryName = '';
   let activeFeatureName = '';
 
-  // 1. Attempt to resolve parentAppName and activeFeatureName dynamically from navCategories searching by activeTab
+  // 1. Attempt to resolve categoryName and activeFeatureName dynamically from navCategories searching by activeTab
   if (navCategories.length > 0) {
     for (const cat of navCategories) {
       for (const app of cat.applications) {
         const feat = app.features.find(f => f.id === activeTab);
         if (feat) {
-          parentAppName = cat.name || app.name;
+          categoryName = cat.name;
           activeFeatureName = feat.name;
           break;
         }
         if (app.id === activeTab) {
-          parentAppName = cat.name;
+          categoryName = cat.name;
           activeFeatureName = app.name;
           break;
         }
       }
-      if (parentAppName) break;
+      if (categoryName) break;
     }
   }
 
@@ -147,7 +148,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   // from module-nav-hubs.ts so the header doesn't fall back to "SYSTEM / RESERVATIONS HUB".
   const commandHub = navHubById(activeTab);
   if (commandHub) {
-    parentAppName = commandHub.category;
+    categoryName = commandHub.category;
     activeFeatureName = commandHub.title;
   }
 
@@ -179,18 +180,25 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'cash-tip-movements',
   ];
 
-  const productsInventoryTabs = [
+  const productsCatalogTabs = [
     'products',
     'categories',
     'variants',
     'modifiers',
-    'recipes',
+    'inventory-dashboard',
+    'products-inventory-hub',
+  ];
+
+  const rawMaterialsTabs = [
     'raw-materials',
     'raw-material-categories',
+    'recipes',
+    'purchase-orders',
+    'locations',
     'stock-movements',
     'movements',
-    'locations',
-    'purchase-orders',
+    'raw-materials-dashboard',
+    'raw-materials-hub',
   ];
 
   const accountsPayableTabs = [
@@ -224,44 +232,82 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'saas-dashboard',
   ];
 
-  // Force real parent category according to open view (activeTab)
-  if (restaurantOpsTabs.includes(activeTab)) {
-    parentAppName = 'Restaurant Operations';
-  } else if (productsInventoryTabs.includes(activeTab)) {
-    parentAppName = 'Products & Inventory System';
-  } else if (accountsPayableTabs.includes(activeTab)) {
-    parentAppName = 'Accounts Payable';
-  } else if (financialEngineTabs.includes(activeTab)) {
-    parentAppName = 'Financial Engine';
-  } else if (ruleConfigTabs.includes(activeTab)) {
-    parentAppName = 'Rule Configuration';
-  } else if (saasTabs.includes(activeTab)) {
-    parentAppName = 'Platform SaaS';
-  } else if (activeTab === 'dashboard') {
-    parentAppName = 'CORE';
-  } else if (!parentAppName) {
-    parentAppName = 'SYSTEM';
-  }
+  const onlineOrderingTabs = [
+    'online-ordering-hub',
+    'online-ordering-dashboard',
+    'online-stores',
+    'online-payments',
+    'online-menus',
+    'online-menu-categories',
+    'online-menu-items',
+    'online-orders',
+    'online-order-items',
+    'online-delivery-info',
+  ];
 
-  // Fallback de nombres de features si no vinieron en navCategories
-  if (!activeFeatureName) {
+  // Specific domain mappings according to catalog architecture
+  if (productsCatalogTabs.includes(activeTab)) {
+    categoryName = 'Inventory';
     if (activeTab === 'products') activeFeatureName = 'Products';
     else if (activeTab === 'categories') activeFeatureName = 'Categories';
-    else if (activeTab === 'variants') activeFeatureName = 'Product Variants';
-    else if (activeTab === 'modifiers') activeFeatureName = 'Product Modifiers';
-    else if (activeTab === 'recipes') activeFeatureName = 'Product Recipes (BOM)';
-    else if (activeTab === 'raw-materials') activeFeatureName = 'Raw Materials Workspace';
+    else if (activeTab === 'variants') activeFeatureName = 'Variants';
+    else if (activeTab === 'modifiers') activeFeatureName = 'Modifiers';
+    else if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') activeFeatureName = 'Products Command Hub';
+  } else if (rawMaterialsTabs.includes(activeTab)) {
+    categoryName = 'Inventory';
+    if (activeTab === 'raw-materials') activeFeatureName = 'Raw Materials Workspace';
     else if (activeTab === 'raw-material-categories') activeFeatureName = 'Raw Material Categories';
-    else if (activeTab === 'stock-movements') activeFeatureName = 'Stock & Inventory Control';
-    else if (activeTab === 'movements') activeFeatureName = 'Inventory Movements Log';
-    else if (activeTab === 'locations') activeFeatureName = 'Inventory Locations';
+    else if (activeTab === 'recipes') activeFeatureName = 'Recipes';
     else if (activeTab === 'purchase-orders') activeFeatureName = 'Purchase Orders';
-    else if (activeTab === 'suppliers') activeFeatureName = 'Master Suppliers';
-    else if (activeTab === 'kds-dashboard' || activeTab === 'kitchen-kds-hub') activeFeatureName = 'KDS Command Hub';
-    else if (activeTab === 'kitchen-stations') activeFeatureName = 'Kitchen Stations Directory';
-    else if (activeTab === 'kitchen-display-devices') activeFeatureName = 'KDS Display Devices Inventory';
-    else activeFeatureName = activeTab.replace(/-/g, ' ').toUpperCase();
+    else if (activeTab === 'locations') activeFeatureName = 'Locations';
+    else if (activeTab === 'stock-movements') activeFeatureName = 'Stock & Movements';
+    else if (activeTab === 'movements') activeFeatureName = 'Movements Log';
+    else if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') activeFeatureName = 'Raw Materials Command Hub';
+  } else if (restaurantOpsTabs.includes(activeTab)) {
+    categoryName = 'Restaurant Operations';
+  } else if (accountsPayableTabs.includes(activeTab)) {
+    if (activeTab === 'suppliers') {
+      categoryName = 'CORE';
+      activeFeatureName = 'Master Suppliers';
+    } else {
+      categoryName = 'Finance & HR';
+    }
+  } else if (financialEngineTabs.includes(activeTab)) {
+    categoryName = 'CORE';
+  } else if (ruleConfigTabs.includes(activeTab)) {
+    categoryName = 'CORE';
+  } else if (saasTabs.includes(activeTab)) {
+    categoryName = 'Platform SaaS';
+  } else if (onlineOrderingTabs.includes(activeTab)) {
+    categoryName = 'Commerce';
+    if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') activeFeatureName = 'Online Ordering Command Hub';
+    else if (activeTab === 'online-stores') activeFeatureName = 'Online Stores';
+    else if (activeTab === 'online-payments') activeFeatureName = 'Online Payments';
+    else if (activeTab === 'online-menus') activeFeatureName = 'Menus';
+    else if (activeTab === 'online-menu-categories') activeFeatureName = 'Categories';
+    else if (activeTab === 'online-menu-items') activeFeatureName = 'Menu Items';
+    else if (activeTab === 'online-orders') activeFeatureName = 'Online Orders';
+    else if (activeTab === 'online-order-items') activeFeatureName = 'Order Items';
+    else if (activeTab === 'online-delivery-info') activeFeatureName = 'Delivery Info';
+  } else if (activeTab === 'dashboard') {
+    categoryName = 'CORE';
+    activeFeatureName = 'Restaurant Dashboard';
   }
+
+  // Fallbacks
+  if (!categoryName) categoryName = 'SYSTEM';
+  if (!activeFeatureName) activeFeatureName = activeTab.replace(/-/g, ' ').toUpperCase();
+
+  // Breadcrumb: Solo primero (Categoría L1) y tercero (Feature L3 activa), saltándose la aplicación intermedia
+  const rawBreadcrumbItems: string[] = [];
+  if (categoryName) rawBreadcrumbItems.push(categoryName);
+  if (activeFeatureName) rawBreadcrumbItems.push(activeFeatureName);
+
+  // Filter out any consecutive duplicates (case-insensitive)
+  const breadcrumbItems = rawBreadcrumbItems.filter((item, index, arr) => {
+    if (index === 0) return true;
+    return item.trim().toLowerCase() !== arr[index - 1].trim().toLowerCase();
+  });
 
 
 
@@ -272,6 +318,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Restaurant Dashboard';
   } else if (activeTab === 'saas-dashboard') {
     friendlyTitle = 'Platform SaaS / Overview';
+  } else if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') {
+    friendlyTitle = 'Products Command Hub';
+  } else if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') {
+    friendlyTitle = 'Raw Materials Command Hub';
+  } else if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') {
+    friendlyTitle = 'Online Ordering Command Hub';
   } else if (activeTab === 'categories') {
     friendlyTitle = 'Categories';
   } else if (activeTab === 'products') {
@@ -462,11 +514,18 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           <div className="flex flex-col text-left">
             {/* Breadcrumb location tracking */}
             <nav className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e] mb-0.5">
-              <span>{parentAppName}</span>
-              <span className="material-symbols-outlined text-[10px] text-text/40" style={{ fontVariationSettings: "'wght' 700" }}>
-                chevron_right
-              </span>
-              <span className="text-primary font-bold">{activeFeatureName}</span>
+              {breadcrumbItems.map((item, idx) => (
+                <React.Fragment key={idx}>
+                  {idx > 0 && (
+                    <span className="material-symbols-outlined text-[10px] text-text/40" style={{ fontVariationSettings: "'wght' 700" }}>
+                      chevron_right
+                    </span>
+                  )}
+                  <span className={idx === breadcrumbItems.length - 1 ? 'text-primary font-bold' : ''}>
+                    {item}
+                  </span>
+                </React.Fragment>
+              ))}
             </nav>
             
             {/* Main Headline */}

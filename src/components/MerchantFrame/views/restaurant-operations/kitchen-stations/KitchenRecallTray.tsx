@@ -156,7 +156,7 @@ export const KitchenRecallTray: React.FC<KitchenRecallTrayProps> = ({
     }
   }, [activeStationId]);
 
-  // Cargar al abrir o cambiar de estación
+  // Load upon opening or station change
   useEffect(() => {
     if (isOpen) {
       void Promise.resolve().then(() => {
@@ -165,14 +165,14 @@ export const KitchenRecallTray: React.FC<KitchenRecallTrayProps> = ({
     }
   }, [isOpen, fetchRecentBumps]);
 
-  // Combinar órdenes completadas del backend con el historial completo de bumps local
+  // Combine completed backend orders with full local bump history
   const displayOrders = React.useMemo(() => {
     const map = new Map<number, BumpedOrderRecord>();
 
-    // Primero las del backend si existen
+    // First backend orders if present
     completedOrders.forEach((o) => map.set(o.id, o));
 
-    // Luego el historial de bumps acumulado localmente (incluyendo offline)
+    // Then locally accumulated bump history (including offline)
     if (bumpedOrdersHistory && bumpedOrdersHistory.length > 0) {
       bumpedOrdersHistory.forEach((o) => {
         if (!map.has(o.id)) map.set(o.id, o);
@@ -185,14 +185,14 @@ export const KitchenRecallTray: React.FC<KitchenRecallTrayProps> = ({
 
     let list = Array.from(map.values());
 
-    // Ordenar de más reciente a más antiguo
+    // Sort from newest to oldest
     list.sort((a, b) => {
       const timeA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
       const timeB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
       return timeB - timeA;
     });
 
-    // Si el filtro es por estación actual
+    // If filtering by current station
     if (viewScope === 'STATION' && activeStationId && activeStationId !== 'ALL') {
       list = list.filter((o) => {
         if (o.stationId) return o.stationId === activeStationId;
@@ -203,7 +203,7 @@ export const KitchenRecallTray: React.FC<KitchenRecallTrayProps> = ({
       });
     }
 
-    // Excluir órdenes que estén actualmente activas en la pantalla KDS
+    // Exclude orders that are currently active on KDS screen
     if (activeOrderIds && activeOrderIds.length > 0) {
       const activeSet = new Set(activeOrderIds.map(String));
       list = list.filter((o) => !activeSet.has(String(o.id)) && (!o.orderId || !activeSet.has(String(o.orderId))));
@@ -237,7 +237,7 @@ export const KitchenRecallTray: React.FC<KitchenRecallTrayProps> = ({
         type: 'success',
       });
 
-      // Notificar a KDS de la restauración local
+      // Notify KDS of local restore
       window.dispatchEvent(
         new CustomEvent('x7_kds_data_reset', {
           detail: { action: 'recall', orderId, order: targetOrder, isOffline: true },
@@ -255,7 +255,7 @@ export const KitchenRecallTray: React.FC<KitchenRecallTrayProps> = ({
       }, 900);
     };
 
-    // Si la pantalla KDS está en offline o el navegador no tiene red, encolar localmente
+    // If KDS screen is offline or browser has no network, queue locally
     if (isOffline || !navigator.onLine) {
       try {
         await doOfflineRecall();
@@ -291,7 +291,7 @@ export const KitchenRecallTray: React.FC<KitchenRecallTrayProps> = ({
         type: 'success',
       });
 
-      // Notificar a KDS de la restauración
+      // Notify KDS of restore
       window.dispatchEvent(
         new CustomEvent('x7_kds_data_reset', {
           detail: { action: 'recall', orderId, order: targetOrder, isOffline: false },

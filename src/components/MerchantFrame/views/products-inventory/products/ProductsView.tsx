@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
+import { InventoryNavHubBar } from '../InventoryNavHubBar';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
@@ -510,39 +511,39 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
         {dataColumnsCount === 0 ? (
           <NoColumnsEmptyState />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <table className="w-full table-fixed border-collapse">
               <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                 <tr>
                   <th className={`w-10 text-left ${densityPadding}`}></th>
                   {visibleColumns.product && (
-                    <th className={`text-left text-label-caps font-bold text-text-muted font-sans ${densityPadding}`}>
+                    <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-auto min-w-[200px]`}>
                       Product Name
                     </th>
                   )}
                   {visibleColumns.category && (
-                    <th className={`text-left text-label-caps font-bold text-text-muted font-sans ${densityPadding}`}>
+                    <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-44 min-w-[120px]`}>
                       Category
                     </th>
                   )}
                   {visibleColumns.basePrice && (
-                    <th className={`text-right text-label-caps font-bold text-text-muted font-sans ${densityPadding}`}>
+                    <th className={`text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-32 min-w-[100px]`}>
                       Base Price
                     </th>
                   )}
                   {visibleColumns.status && (
-                    <th className={`text-center text-label-caps font-bold text-text-muted font-sans ${densityPadding}`}>
+                    <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                       Status
                     </th>
                   )}
                   {visibleColumns.actions && (
-                    <th className={`text-center text-label-caps font-bold text-text-muted font-sans ${densityPadding}`}>
+                    <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                       Actions
                     </th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e8e2d8]">
+              <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                 {isLoading ? (
                   <tr>
                     <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -600,7 +601,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                                   [product.id]: !prev[product.id]
                                 }))}
                                 className="text-secondary hover:text-[#ae001a] transition-colors cursor-pointer"
-                                title={isExpanded ? 'Colapsar detalles' : 'Expandir variantes y modificadores'}
+                                title={isExpanded ? 'Collapse details' : 'Expand variants and modifiers'}
                               >
                                 <span className="material-symbols-outlined text-[20px] align-middle select-none">
                                   {isExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right'}
@@ -608,35 +609,38 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                               </button>
                             </td>
                             {visibleColumns.product && (
-                              <td className={`flex items-center gap-3 ${densityPadding}`}>
-                                <div className={`w-1 h-8 rounded-full ${isInactive ? 'bg-zinc-400' : 'bg-[#ae001a]'}`}></div>
-                                <div>
-                                  <p className={`font-bold text-[#1d1c17] font-sans ${isInactive ? 'line-through' : ''}`}>
+                              <td className={`${densityPadding} truncate`}>
+                                <div className="min-w-0 flex flex-col justify-center">
+                                  <span className={`font-bold text-[#1d1c17] font-sans text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`} title={product.name}>
                                     {product.name}
-                                  </p>
-                                  <p className={`text-[11px] text-secondary font-mono tracking-wider ${isInactive ? 'line-through' : ''}`}>
-                                    SKU: {product.sku}
-                                  </p>
+                                  </span>
+                                  {product.sku && (
+                                    <span className={`font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5 ${isInactive ? 'line-through' : ''}`}>
+                                      SKU: {product.sku}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                             )}
 
                             {visibleColumns.category && (
-                              <td className={`text-body-md text-[#1d1c17] font-sans ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
-                                {product.category ? product.category.name : 'No Category'}
+                              <td className={`text-xs text-[#5f5e5e] font-normal font-sans truncate ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
+                                <span title={product.category ? product.category.name : 'No Category'}>
+                                  {product.category ? product.category.name : 'No Category'}
+                                </span>
                               </td>
                             )}
 
                             {visibleColumns.basePrice && (
-                              <td className={`text-right font-mono font-bold text-[#1d1c17] ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
+                              <td className={`text-right font-mono font-normal text-xs text-[#1d1c17] whitespace-nowrap ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
                                 {formatPrice(product.basePrice)}
                               </td>
                             )}
 
                             {visibleColumns.status && (
-                              <td className={`text-center ${densityPadding}`}>
+                              <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                                 <span
-                                  className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans ${
+                                  className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
                                     product.isActive
                                       ? 'bg-emerald-100 text-emerald-700'
                                       : 'bg-zinc-200 text-[#5f5e5e]'
@@ -648,24 +652,34 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                             )}
 
                             {visibleColumns.actions && (
-                              <td className={`text-center ${densityPadding}`}>
+                              <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                                 <div className="flex justify-center gap-3">
-                                  <button
-                                    onClick={() => handleOpenEditModal(product)}
-                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                    title="Edit product"
-                                  >
-                                    <span className="material-symbols-outlined text-[20px]">edit</span>
-                                  </button>
-                                  <button
-                                    onClick={() => void handleToggleActive(product)}
-                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                    title={product.isActive ? "Deactivate product" : "Activate product"}
-                                  >
-                                    <span className="material-symbols-outlined text-[20px]">
-                                      {product.isActive ? 'block' : 'check_circle_outline'}
-                                    </span>
-                                  </button>
+                                  {product.isActive ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleOpenEditModal(product)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                        title="Edit product"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                      </button>
+                                      <button
+                                        onClick={() => void handleToggleActive(product)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                        title="Deactivate product"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">block</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => void handleToggleActive(product)}
+                                      className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                      title="Activate product"
+                                    >
+                                      <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             )}
@@ -950,6 +964,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
 
       {/* Persistent Quick Links Hub */}
       <CatalogQuickLinks current="products" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="products" onNavigate={onNavigate} />
     </div>
   );
 };

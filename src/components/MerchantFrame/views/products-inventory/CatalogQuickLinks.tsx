@@ -9,7 +9,7 @@ export type CatalogQuickLinkAnchorKey =
   | 'variants';
 
 interface CatalogQuickLinksProps {
-  current: CatalogQuickLinkAnchorKey;
+  current?: CatalogQuickLinkAnchorKey;
   onNavigate?: (view: string) => void;
 }
 
