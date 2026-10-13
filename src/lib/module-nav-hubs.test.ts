@@ -6,6 +6,19 @@ import { MODULE_NAV_HUBS, navHubById, navHubForFeature } from './module-nav-hubs
 
 // Etiquetas EXACTAS de las historias de cada módulo.
 const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
+  'subscription-system': {
+    back: 'SUBSCRIPTION SYSTEM COMMAND HUB',
+    items: [
+      'APPLICATIONS',
+      'FEATURES',
+      'MERCHANT SUBSCRIPTIONS',
+      'PLAN APPLICATIONS',
+      'PLAN FEATURES',
+      'SUBSCRIPTION PLANS',
+      'SUBSCRIPTION APPLICATIONS',
+      'SUBSCRIPTION PAYMENTS',
+    ],
+  },
   hr: {
     back: 'HR COMMAND HUB',
     items: ['COLLABORATORS', 'COLLABORATORS CONTRACTS', 'COLLABORATORS TIME ENTRIES'],
@@ -58,6 +71,16 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
       'CASH MOVEMENTS',
       'CASH SHIFTS',
       'CASH TRANSACTIONS',
+    ],
+  },
+  'delivery-management': {
+    back: 'DELIVERY MANAGEMENT COMMAND HUB',
+    items: [
+      'DELIVERY ASSIGNMENTS',
+      'DELIVERY DRIVERS',
+      'DELIVERY FEES',
+      'DELIVERY TRACKING',
+      'DELIVERY ZONES',
     ],
   },
   'billing-transactions': {

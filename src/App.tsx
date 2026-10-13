@@ -270,6 +270,14 @@ export default function App() {
           }
         />
         <Route
+          path="/delivery/*"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/store-operations/tips-ledger"
           element={
             <ProtectedRoute>

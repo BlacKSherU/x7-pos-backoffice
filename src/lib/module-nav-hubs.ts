@@ -9,6 +9,9 @@
 // sola vez para la vista, sus estados de error y los stubs "In Development" — así una opción
 // que aún no tiene vista sigue siendo navegable hacia sus hermanas.
 //
+// Subscription System: la historia escribe "SUBCRIPTION PLANS"; se usa la ortografía
+// correcta (SUBSCRIPTION PLANS), igual que el resto de sus etiquetas.
+//
 // Kitchen Display System NO está aquí: sus vistas montan su propia NavHubBar desde antes.
 
 export interface ModuleNavItem {
@@ -38,6 +41,25 @@ export interface ModuleNavHub {
 }
 
 export const MODULE_NAV_HUBS: ModuleNavHub[] = [
+  {
+    appId: 'subscription-system',
+    hubId: 'subscription-system-hub',
+    hubLabel: 'SUBSCRIPTION SYSTEM COMMAND HUB',
+    title: 'Subscription System Command Hub',
+    category: 'Platform SaaS',
+    icon: 'grid_view',
+    description: 'Plans, the applications and features they unlock, and merchant subscriptions and payments.',
+    items: [
+      { featureId: 'apps-config', label: 'APPLICATIONS', icon: 'apps', live: true, description: 'Platform application catalog and configuration.' },
+      { featureId: 'features-control', label: 'FEATURES', icon: 'toggle_on', live: true, description: 'Feature catalog and feature flags.' },
+      { featureId: 'merchant-subs-link', label: 'MERCHANT SUBSCRIPTIONS', icon: 'storefront', live: false, description: 'Which plan each merchant is subscribed to.' },
+      { featureId: 'plan-apps-rules', label: 'PLAN APPLICATIONS', icon: 'widgets', live: true, description: 'Applications included in each plan.' },
+      { featureId: 'plan-features-mapping', label: 'PLAN FEATURES', icon: 'checklist', live: true, description: 'Features unlocked by each plan.' },
+      { featureId: 'sub-plans-core', label: 'SUBSCRIPTION PLANS', icon: 'workspace_premium', live: true, description: 'Plan tiers, pricing and billing cycles.' },
+      { featureId: 'sub-apps-mapping', label: 'SUBSCRIPTION APPLICATIONS', icon: 'apps_outage', live: false, description: 'Applications active on each merchant subscription.' },
+      { featureId: 'sub-payments-billing', label: 'SUBSCRIPTION PAYMENTS', icon: 'payments', live: false, description: 'Subscription invoices and payment history.' },
+    ],
+  },
   {
     appId: 'hr',
     hubId: 'hr-hub',
@@ -146,6 +168,22 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
       { featureId: 'cash-movements', label: 'CASH MOVEMENTS', icon: 'swap_vert', live: true, description: 'Cash in and cash out outside sales.' },
       { featureId: 'cash-shifts', label: 'CASH SHIFTS', icon: 'schedule', live: true, description: 'Cashier shifts on each drawer.' },
       { featureId: 'cash-transactions', label: 'CASH TRANSACTIONS', icon: 'receipt_long', live: true, description: 'Every cash transaction recorded.' },
+    ],
+  },
+  {
+    appId: 'delivery-management',
+    hubId: 'delivery-management-hub',
+    hubLabel: 'DELIVERY MANAGEMENT COMMAND HUB',
+    title: 'Delivery Management Command Hub',
+    category: 'Commerce',
+    icon: 'local_shipping',
+    description: 'Coverage zones, delivery pricing, drivers, assignments and live tracking.',
+    items: [
+      { featureId: 'delivery-assignments', label: 'DELIVERY ASSIGNMENTS', icon: 'assignment_turned_in', live: true, description: 'Which driver takes each delivery order.' },
+      { featureId: 'delivery-drivers', label: 'DELIVERY DRIVERS', icon: 'two_wheeler', live: true, description: 'Driver roster, vehicles and availability.' },
+      { featureId: 'delivery-fees', label: 'DELIVERY FEES', icon: 'payments', live: true, description: 'Base fee, per-km rate, minimum order and free-delivery thresholds.' },
+      { featureId: 'delivery-tracking', label: 'DELIVERY TRACKING', icon: 'my_location', live: true, description: 'Driver positions and delivery progress on the map.' },
+      { featureId: 'delivery-zones', label: 'DELIVERY ZONES', icon: 'map', live: true, description: 'Geofenced coverage polygons and zone availability.' },
     ],
   },
   {
