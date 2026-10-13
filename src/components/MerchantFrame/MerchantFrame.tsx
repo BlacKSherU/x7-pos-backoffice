@@ -100,6 +100,12 @@ import { ReservationsView } from './views/reservations/ReservationsView';
 import { ReservationTablesView } from './views/reservations/ReservationTablesView';
 import { ReservationNotesView } from './views/reservations/ReservationNotesView';
 import { ReservationGuestsView } from './views/reservations/ReservationGuestsView';
+import { featureIdForDeliveryPath } from '../../lib/delivery-navigation';
+import { DeliveryZonesView } from './views/delivery/DeliveryZonesView';
+import { DeliveryFeesView } from './views/delivery/DeliveryFeesView';
+import { DeliveryDriversView } from './views/delivery/DeliveryDriversView';
+import { DeliveryTrackingView } from './views/delivery/DeliveryTrackingView';
+import { DeliveryAssignmentsView } from './views/delivery/DeliveryAssignmentsView';
 import { ReservationStatusHistoryView } from './views/reservations/ReservationStatusHistoryView';
 import { featureIdForReservationPath } from '../../lib/reservation-navigation';
 import { navHubById, navHubForFeature } from '../../lib/module-nav-hubs';
@@ -200,6 +206,8 @@ const getNavFromPath = (
     return { category: 'restaurant-operations', tab: 'time-clock-kiosk' };
   } else if (path.startsWith('/reservations/')) {
     return { category: 'restaurant-operations', tab: featureIdForReservationPath(path) };
+  } else if (path === '/delivery' || path.startsWith('/delivery/')) {
+    return { category: 'commerce', tab: featureIdForDeliveryPath(path) };
   } else if (path === '/store-operations/tips-ledger' || path === '/tips/ledger') {
     return { category: 'restaurant-operations', tab: 'tips-ledger' };
   } else if (path === '/store-operations/tips-allocations' || path === '/tips/allocations') {
@@ -1074,6 +1082,27 @@ export const MerchantFrame: React.FC = () => {
       return <PlanFeaturesView plan={selectedPlan} onNavigate={handleNavigateView} />;
     }
 
+    // Desde la NavHubBar se llega sin plan elegido: la vista lo necesita, así que se pide
+    // elegirlo en vez de caer en el stub "In Development" de una vista que sí existe.
+    if (activeTab === 'plan-features-mapping') {
+      return (
+        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
+          <span className="material-symbols-outlined text-[#ae001a] text-6xl" aria-hidden="true">checklist</span>
+          <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">Plan Features</h2>
+          <p className="text-body-md text-[#666666] mt-2 max-w-md">
+            Select a subscription plan to manage the features it unlocks.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigateToFeature('sub-plans-core')}
+            className="mt-6 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-colors duration-200"
+          >
+            Choose a plan
+          </button>
+        </div>
+      );
+    }
+
     if (activeTab === 'merchant-directory') {
       return <MerchantDirectoryView />;
     }
@@ -1250,6 +1279,51 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'reservation-guests') {
       return (
         <ReservationGuestsView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'delivery-zones') {
+      return (
+        <DeliveryZonesView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'delivery-fees') {
+      return (
+        <DeliveryFeesView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'delivery-drivers') {
+      return (
+        <DeliveryDriversView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'delivery-assignments') {
+      return (
+        <DeliveryAssignmentsView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'delivery-tracking') {
+      return (
+        <DeliveryTrackingView
           onNavigate={(view) => setActiveTab(view)}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
