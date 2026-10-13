@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
+import { NavHubBar } from '../../../../shared/NavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -145,7 +146,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -627,6 +628,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
   // Calculate total pending items for inspector and total received cost
 
+  let totalRequestedOrderAmount = 0;
   let totalPendingItemsCount = 0;
   let totalReceivedAmount = 0;
   if (selectedOrderForInspect?.purchaseOrderItems) {
@@ -634,43 +636,53 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       // For raw materials use quantityOrdered; fallback to quantity for compatibility
       const requested = Number(item.quantityOrdered ?? item.quantity) || 0;
       const price = Number(item.unitCost ?? item.unitPrice) || 0;
+      totalRequestedOrderAmount += requested * price;
       let received: number;
       if (inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED') {
         received = requested;
       } else if (inspectorStatus === 'PARTIALLY_RECEIVED') {
         received = item.id ? (receivedQuantities[item.id] ?? 0) : 0;
-      } else if (inspectorStatus === 'DRAFT' || inspectorStatus === 'SENT' || inspectorStatus === 'PENDING' || inspectorStatus === 'CANCELLED') {
+      } else if (inspectorStatus === 'CANCELLED') {
+        received = Number(item.receivedQuantity) || 0;
+      } else if (inspectorStatus === 'DRAFT' || inspectorStatus === 'SENT' || inspectorStatus === 'PENDING') {
         received = 0;
       } else {
         received = Number(item.receivedQuantity) || 0;
       }
       const diff = requested - received;
-      if (diff > 0) {
+      if (diff > 0 && inspectorStatus !== 'CANCELLED') {
         totalPendingItemsCount += diff;
       }
       totalReceivedAmount += received * price;
     });
   }
 
-  // Filtrado de listado
-  const filteredOrders = purchaseOrders.filter(po => {
-    const supplierName = po.supplier?.name || '';
-    const formattedId = `PO-#${String(po.id).padStart(4, '0')}`;
-    const matchesSearch =
-      supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      formattedId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(po.id).includes(searchQuery);
+  // Filtrado y ordenamiento de listado (de más nuevo a más viejo por actualización de estado/fecha)
+  const filteredOrders = purchaseOrders
+    .filter(po => {
+      const supplierName = po.supplier?.name || '';
+      const formattedId = `PO-#${String(po.id).padStart(4, '0')}`;
+      const matchesSearch =
+        supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        formattedId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(po.id).includes(searchQuery);
 
-    const matchesStatus =
-      statusFilter === 'All' ||
-      po.status.toUpperCase() === statusFilter.toUpperCase();
+      const matchesStatus =
+        statusFilter === 'All' ||
+        po.status.toUpperCase() === statusFilter.toUpperCase();
 
-    const matchesSupplier =
-      supplierFilter === 'All' ||
-      (po.supplier && String(po.supplier.id) === supplierFilter);
+      const matchesSupplier =
+        supplierFilter === 'All' ||
+        (po.supplier && String(po.supplier.id) === supplierFilter);
 
-    return matchesSearch && matchesStatus && matchesSupplier;
-  });
+      return matchesSearch && matchesStatus && matchesSupplier;
+    })
+    .sort((a, b) => {
+      const timeA = a.orderDate ? new Date(a.orderDate).getTime() : 0;
+      const timeB = b.orderDate ? new Date(b.orderDate).getTime() : 0;
+      if (timeB !== timeA) return timeB - timeA;
+      return b.id - a.id;
+    });
 
   // Inspection drawer portal
   const drawerPortal = (isDetailDrawerOpen && selectedOrderForInspect)
@@ -769,13 +781,15 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                     </span>
                   </div>
                   <div className="bg-[#f5efe6] p-2.5 border border-[#e8e2d8]">
-                    <span className="block text-[8px] font-bold uppercase tracking-wider text-[#5f5e5e] mb-1">Total (Req)</span>
+                    <span className="block text-[8px] font-bold uppercase tracking-wider text-[#5f5e5e] mb-1">
+                      Total (Req)
+                    </span>
                     <span className="text-[11px] font-bold text-[#ae001a] font-mono">
-                      ${Number(selectedOrderForInspect.totalAmount).toFixed(2)}
+                      ${totalRequestedOrderAmount.toFixed(2)}
                     </span>
                   </div>
                   <div className={`p-2.5 border ${
-                    Math.abs(totalReceivedAmount - Number(selectedOrderForInspect.totalAmount)) < 0.01
+                    Math.abs(totalReceivedAmount - totalRequestedOrderAmount) < 0.01 && totalRequestedOrderAmount > 0
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                       : totalReceivedAmount > 0
                         ? 'bg-amber-50 border-amber-200 text-amber-800'
@@ -858,9 +872,14 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                             ) : (
                               <span className="block text-[10px] text-emerald-700 font-bold mt-1 flex items-center gap-1.5">
                                 <span>Received: {(inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED') ? Number(item.quantityOrdered ?? item.quantity).toFixed(2) : Number(item.receivedQuantity || 0).toFixed(2)} / {Number(item.quantityOrdered ?? item.quantity).toFixed(2)}</span>
-                                {inspectorStatus !== 'COMPLETED' && inspectorStatus !== 'RECEIVED' && Number(item.quantityOrdered ?? item.quantity) - (item.receivedQuantity || 0) > 0 && (
+                                {inspectorStatus !== 'COMPLETED' && inspectorStatus !== 'RECEIVED' && inspectorStatus !== 'CANCELLED' && Number(item.quantityOrdered ?? item.quantity) - (item.receivedQuantity || 0) > 0 && (
                                   <span className="text-[9px] px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 font-bold rounded">
                                     {(Number(item.quantityOrdered ?? item.quantity) - (item.receivedQuantity || 0)).toFixed(2)} pending
+                                  </span>
+                                )}
+                                {inspectorStatus === 'CANCELLED' && Number(item.quantityOrdered ?? item.quantity) - (item.receivedQuantity || 0) > 0 && (
+                                  <span className="text-[9px] px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 text-neutral-500 font-semibold rounded">
+                                    {(Number(item.quantityOrdered ?? item.quantity) - (item.receivedQuantity || 0)).toFixed(2)} cancelled
                                   </span>
                                 )}
                               </span>
@@ -868,32 +887,35 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                           </div>
                         </div>
                         <div className="text-right flex flex-col justify-center items-end">
-                          <span className="text-xs font-bold font-mono text-[#1c1b16]">
-                            ${Number(item.totalPrice).toFixed(2)}
-                          </span>
                           {(() => {
-                            const req = Number(item.quantity) || 0;
-                            const rec = inspectorStatus === 'COMPLETED'
-                              ? req
+                            const reqQty = Number(item.quantityOrdered ?? item.quantity) || 0;
+                            const itemPrice = Number(item.unitCost ?? item.unitPrice) || 0;
+                            const lineTotalRequested = reqQty * itemPrice;
+                            const recQty = (inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED')
+                              ? reqQty
                               : (inspectorStatus === 'PARTIALLY_RECEIVED'
                                   ? (item.id ? (receivedQuantities[item.id] ?? 0) : 0)
-                                  : (item.receivedQuantity || 0));
-                            const itemPrice = Number(item.unitPrice) || 0;
-                            if (rec > 0 && rec < req) {
-                              return (
-                                <span className="text-[9px] text-amber-600 font-bold font-mono mt-0.5 whitespace-nowrap">
-                                  Rec: ${(rec * itemPrice).toFixed(2)}
+                                  : (Number(item.receivedQuantity) || 0));
+                            const lineReceivedAmount = recQty * itemPrice;
+
+                            return (
+                              <>
+                                <span className="text-xs font-bold font-mono text-[#1c1b16]">
+                                  ${lineTotalRequested.toFixed(2)}
                                 </span>
-                              );
-                            }
-                            if (rec === req) {
-                              return (
-                                <span className="text-[9px] text-emerald-600 font-bold font-mono mt-0.5 whitespace-nowrap">
-                                  Rec: ${(req * itemPrice).toFixed(2)}
-                                </span>
-                              );
-                            }
-                            return null;
+                                {(recQty > 0 || inspectorStatus === 'CANCELLED' || inspectorStatus === 'PARTIALLY_RECEIVED') && (
+                                  <span className={`text-[9px] font-bold font-mono mt-0.5 whitespace-nowrap ${
+                                    recQty >= reqQty && reqQty > 0
+                                      ? 'text-emerald-600'
+                                      : recQty > 0
+                                        ? 'text-amber-600'
+                                        : 'text-neutral-400'
+                                  }`}>
+                                    Rec: ${lineReceivedAmount.toFixed(2)}
+                                  </span>
+                                )}
+                              </>
+                            );
                           })()}
                         </div>
                       </div>
@@ -1106,42 +1128,42 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                   />
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left">
+                <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <table className="w-full table-fixed border-collapse text-left">
                     <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                       <tr>
                         {visibleColumns.orderCode && (
-                          <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                          <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-auto min-w-[180px]`}>
                             Order Reference Code
                           </th>
                         )}
                         {visibleColumns.supplier && (
-                          <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                          <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-48 min-w-[140px]`}>
                             Supplier Entity
                           </th>
                         )}
                         {visibleColumns.orderDate && (
-                          <th className={`${densityPadding} text-label-caps font-bold text-[#5f5e5e]`}>
+                          <th className={`${densityPadding} text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[110px]`}>
                             Creation Date
                           </th>
                         )}
                         {visibleColumns.totalAmount && (
-                          <th className={`${densityPadding} text-right text-label-caps font-bold text-[#5f5e5e] w-32`}>
+                          <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-32 min-w-[100px]`}>
                             Total Gross Amount
                           </th>
                         )}
                         {visibleColumns.progress && (
-                          <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] w-40`}>
+                          <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[110px]`}>
                             Fulfillment Progress
                           </th>
                         )}
                         {visibleColumns.status && (
-                          <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] w-36`}>
+                          <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-32 min-w-[100px]`}>
                             Fulfillment Status
                           </th>
                         )}
                         {visibleColumns.actions && (
-                          <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] w-24`}>
+                          <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                             Actions
                           </th>
                         )}
@@ -1193,10 +1215,6 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                           const formattedDate = (dateObj && !isNaN(dateObj.getTime()))
                             ? dateObj.toISOString().split('T')[0]
                             : 'N/A';
-                          const formattedAmount = new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD'
-                          }).format(po.totalAmount);
 
                           // Map styles per specification
                           const uStatus = po.status.toUpperCase();
@@ -1215,19 +1233,30 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                             badgeStyle = 'bg-indigo-100 text-indigo-800 border border-indigo-200';
                           }
 
-                          // Calculate receiving progress
+                          // Calculate receiving progress and monetary totals
                           let fulfillmentText = '0%';
                           let totalQtyRequested = 0;
                           let totalQtyReceived = 0;
+                          let totalOrderedAmount = 0;
+                          let totalReceivedAmount = 0;
+
                           if (po.purchaseOrderItems && po.purchaseOrderItems.length > 0) {
                             po.purchaseOrderItems.forEach(item => {
-                              totalQtyRequested += Number(item.quantityOrdered ?? item.quantity) || 0;
-                              totalQtyReceived += Number(item.receivedQuantity) || 0;
+                              const requested = Number(item.quantityOrdered ?? item.quantity) || 0;
+                              const received = Number(item.receivedQuantity) || 0;
+                              const price = Number(item.unitCost ?? item.unitPrice) || 0;
+                              totalQtyRequested += requested;
+                              totalQtyReceived += received;
+                              totalOrderedAmount += requested * price;
+                              totalReceivedAmount += received * price;
                             });
+                          } else {
+                            totalOrderedAmount = Number(po.totalAmount) || 0;
                           }
 
                           if (po.status === 'RECEIVED' || po.status === 'COMPLETED') {
                             fulfillmentText = '100% (Completed)';
+                            totalReceivedAmount = totalOrderedAmount;
                           } else if (po.status === 'DRAFT') {
                             fulfillmentText = 'Draft';
                           } else if (po.status === 'SENT') {
@@ -1235,7 +1264,9 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                           } else if (po.status === 'PENDING') {
                             fulfillmentText = '0% (Awaiting)';
                           } else if (po.status === 'CANCELLED') {
-                            fulfillmentText = 'Cancelled';
+                            fulfillmentText = totalQtyReceived > 0
+                              ? `Cancelled (${totalQtyReceived.toFixed(2)} rec.)`
+                              : 'Cancelled';
                           } else if (totalQtyRequested > 0) {
                             const pct = Math.round((totalQtyReceived / totalQtyRequested) * 100);
                             const pending = (totalQtyRequested - totalQtyReceived).toFixed(2);
@@ -1249,41 +1280,56 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                               className="category-row group transition-colors hover:bg-[#f8f3eb] cursor-pointer"
                             >
                               {visibleColumns.orderCode && (
-                                <td className={densityPadding}>
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-1 h-8 bg-[#ae001a] rounded-full"></div>
-                                    <div>
-                                      <p className="font-bold text-[#1d1c17] font-mono">
-                                        {formattedId}
-                                      </p>
-                                    </div>
+                                <td className={`${densityPadding} truncate`}>
+                                  <div className="min-w-0 flex flex-col justify-center">
+                                    <span className="font-bold text-[#1d1c17] font-mono text-sm truncate">
+                                      {formattedId}
+                                    </span>
+                                    <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
+                                      ID: #{po.id}
+                                    </span>
                                   </div>
                                 </td>
                               )}
                               {visibleColumns.supplier && (
-                                <td className={`${densityPadding} text-[#1d1c17] font-semibold`}>
+                                <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] font-sans truncate`}>
                                   {po.supplier?.name || 'Unassigned Supplier'}
                                 </td>
                               )}
                               {visibleColumns.orderDate && (
-                                <td className={`${densityPadding} font-sans text-secondary text-sm`}>
+                                <td className={`${densityPadding} font-sans text-[#5f5e5e] text-xs font-normal truncate`}>
                                   {formattedDate}
                                 </td>
                               )}
                               {visibleColumns.totalAmount && (
-                                <td className={`${densityPadding} text-right font-mono font-bold text-[#ae001a]`}>
-                                  {formattedAmount}
+                                <td className={`${densityPadding} text-right whitespace-nowrap`}>
+                                  <div className="flex flex-col items-end">
+                                    <span className="font-mono font-normal text-xs text-[#ae001a]">
+                                      ${totalOrderedAmount.toFixed(2)}
+                                    </span>
+                                    {(totalReceivedAmount > 0 || po.status === 'CANCELLED' || po.status === 'PARTIALLY_RECEIVED') && (
+                                      <span className={`text-[10px] font-mono font-normal mt-0.5 whitespace-nowrap ${
+                                        totalReceivedAmount >= totalOrderedAmount && totalOrderedAmount > 0
+                                          ? 'text-emerald-600'
+                                          : totalReceivedAmount > 0
+                                            ? 'text-amber-600'
+                                            : 'text-secondary'
+                                      }`}>
+                                        Rec: ${totalReceivedAmount.toFixed(2)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                               )}
                               {visibleColumns.progress && (
-                                <td className={`${densityPadding} text-center font-sans text-xs font-bold text-secondary`}>
+                                <td className={`${densityPadding} text-center font-sans text-xs font-normal text-[#5f5e5e] whitespace-nowrap`}>
                                   {fulfillmentText}
                                 </td>
                               )}
                               {visibleColumns.status && (
-                                <td className={`${densityPadding} text-center`}>
+                                <td className={`${densityPadding} text-center whitespace-nowrap`}>
                                   <span
-                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase tracking-wider ${badgeStyle}`}
+                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase whitespace-nowrap tracking-wider ${badgeStyle}`}
                                   >
                                     {po.status}
                                   </span>
@@ -1642,6 +1688,55 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
       {/* Persistent Quick Links Hub */}
       <StockQuickLinks current="purchase-orders" onNavigate={onNavigate} />
+
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
+        activeModuleId="purchase-orders"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'RM CATEGORIES',
+            icon: 'category',
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            active: true,
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'STOCK LEVELS',
+            icon: 'table_rows',
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate?.('movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            onClick: () => onNavigate?.('locations'),
+          },
+        ]}
+      />
 
       {/* Portal: Detail Drawer (Order inspection) */}
       {drawerPortal}

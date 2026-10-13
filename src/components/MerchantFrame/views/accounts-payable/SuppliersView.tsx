@@ -116,7 +116,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onNavigate, compan
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -701,24 +701,35 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onNavigate, compan
                       {visibleColumns.actions && (
                         <td className={`${densityPadding} text-center`}>
                           <div className="flex justify-center gap-3">
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenEdit(supplier, e)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title="Edit supplier"
-                            >
-                              <span className="material-symbols-outlined text-[20px]">edit</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => void handleToggleActive(supplier, e)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title={supplier.isActive !== false ? "Deactivate supplier" : "Activate supplier"}
-                            >
-                              <span className="material-symbols-outlined text-[20px]">
-                                {supplier.isActive !== false ? 'block' : 'check_circle_outline'}
-                              </span>
-                            </button>
+                            {supplier.isActive !== false ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleOpenEdit(supplier, e)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Edit supplier"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => void handleToggleActive(supplier, e)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Deactivate supplier"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">block</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => void handleToggleActive(supplier, e)}
+                                className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                title="Activate supplier"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}

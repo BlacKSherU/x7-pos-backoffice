@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
+import { NavHubBar } from '../../../../shared/NavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -148,7 +149,7 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
       const materialsRes = await fetch(`${API_BASE}/v1/inventory/raw-materials?limit=100&status=all`, { headers });
       if (materialsRes.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -598,7 +599,7 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
               { key: 'conversion', label: 'Unit Conversion Matrix' },
               { key: 'costing', label: 'Costing Metrics' },
               { key: 'minStock', label: 'Min Stock Threshold' },
-              { key: 'status', label: 'Status Badge' },
+              { key: 'status', label: 'Status' },
               { key: 'actions', label: 'Actions' },
             ]}
             visibleColumns={visibleColumns}
@@ -621,21 +622,21 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <table className="w-full table-fixed border-collapse">
             <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
               <tr>
-                {visibleColumns.name && <th className={`${densityPadding} text-left text-label-caps font-bold text-[#5f5e5e]`}>Raw Material & SKU</th>}
-                {visibleColumns.category && <th className={`${densityPadding} text-left text-label-caps font-bold text-[#5f5e5e]`}>Category Tag</th>}
-                {visibleColumns.conversion && <th className={`${densityPadding} text-left text-label-caps font-bold text-[#5f5e5e]`}>Unit Conversion Matrix</th>}
-                {visibleColumns.costing && <th className={`${densityPadding} text-right text-label-caps font-bold text-[#5f5e5e]`}>Costing Metrics</th>}
-                {visibleColumns.minStock && <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e]`}>Min Stock Threshold</th>}
-                {visibleColumns.status && <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e]`}>Status Badge</th>}
-                {visibleColumns.actions && <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e]`}>Actions</th>}
+                {visibleColumns.name && <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-auto min-w-[200px]`}>Raw Material & SKU</th>}
+                {visibleColumns.category && <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-40 min-w-[120px]`}>Category Tag</th>}
+                {visibleColumns.conversion && <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-44 min-w-[130px]`}>Unit Conversion Matrix</th>}
+                {visibleColumns.costing && <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-32 min-w-[110px]`}>Costing Metrics</th>}
+                {visibleColumns.minStock && <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[120px]`}>Min Stock Threshold</th>}
+                {visibleColumns.status && <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>Status</th>}
+                {visibleColumns.actions && <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>Actions</th>}
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-[#e8e2d8]">
+            <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
               {activeColSpan === 0 ? (
                 <NoColumnsEmptyState colSpan={7} />
               ) : isLoading ? (
@@ -680,20 +681,24 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
                       }`}
                     >
                       {visibleColumns.name && (
-                        <td className={densityPadding}>
-                          <div className={`font-sans font-bold text-gray-900 text-sm ${isInactive ? 'line-through' : ''}`}>{m.name}</div>
-                          {m.sku && (
-                            <span className="inline-block bg-[#f0ebd9] text-[#222222] text-[10px] font-black uppercase px-2 py-0.5 mt-1 rounded tracking-wider">
-                              {m.sku}
+                        <td className={`${densityPadding} truncate`}>
+                          <div className="min-w-0 flex flex-col justify-center">
+                            <span className={`font-sans font-bold text-[#1d1c17] text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`} title={m.name}>
+                              {m.name}
                             </span>
-                          )}
+                            {m.sku && (
+                              <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
+                                SKU: {m.sku}
+                              </span>
+                            )}
+                          </div>
                         </td>
                       )}
 
                       {visibleColumns.category && (
-                        <td className={densityPadding}>
+                        <td className={`${densityPadding} truncate`}>
                           {m.category ? (
-                            <span className="inline-block bg-[#f0ebd9] text-[#222222] text-xs font-bold px-3 py-1 rounded-full">
+                            <span className="inline-block bg-[#f0ebd9] text-[#222222] text-xs font-normal px-2.5 py-0.5 rounded-full truncate max-w-full" title={m.category.name}>
                               {m.category.name}
                             </span>
                           ) : (
@@ -703,9 +708,9 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
                       )}
 
                       {visibleColumns.conversion && (
-                        <td className={`${densityPadding} text-sm text-[#222222] font-semibold`}>
+                        <td className={`${densityPadding} text-xs text-[#333333] font-normal truncate`}>
                           {m.purchase_unit && m.consumption_unit ? (
-                            <span>
+                            <span title={`1 ${m.purchase_unit} = ${m.conversion_factor} ${m.consumption_unit}`}>
                               1 {m.purchase_unit} = {m.conversion_factor} {m.consumption_unit}
                             </span>
                           ) : (
@@ -715,24 +720,26 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
                       )}
 
                       {visibleColumns.costing && (
-                        <td className={`${densityPadding} text-right space-y-1`}>
-                          <div className="text-sm font-black text-[#222222]">
-                            LPC: {m.cost_per_unit != null ? `$${m.cost_per_unit.toFixed(2)}` : 'N/A'}
+                        <td className={`${densityPadding} text-right whitespace-nowrap`}>
+                          <div className="text-xs font-mono font-normal text-[#1d1c17]">
+                            <span className="text-[#5f5e5e] font-sans text-[11px] mr-1">LPC:</span>
+                            {m.cost_per_unit != null ? `$${m.cost_per_unit.toFixed(2)}` : 'N/A'}
                           </div>
-                          <div className="text-xs text-gray-500 font-bold">
-                            WACC: {m.weightedAverageUnitCost != null ? `$${Number(m.weightedAverageUnitCost).toFixed(2)}` : 'N/A'}
+                          <div className="text-[11px] font-mono font-normal text-[#5f5e5e] mt-0.5">
+                            <span className="font-sans text-[10px] mr-1">WACC:</span>
+                            {m.weightedAverageUnitCost != null ? `$${Number(m.weightedAverageUnitCost).toFixed(2)}` : 'N/A'}
                           </div>
                         </td>
                       )}
 
                       {visibleColumns.minStock && (
-                        <td className={`${densityPadding} text-center`}>
-                          <div className="inline-flex items-center gap-1.5 justify-center">
-                            <span className="text-sm font-bold text-[#222222]">
+                        <td className={`${densityPadding} text-center whitespace-nowrap`}>
+                          <div className="inline-flex items-center gap-1.5 justify-center whitespace-nowrap">
+                            <span className="text-xs font-mono font-normal text-[#1d1c17]">
                               Qty: {m.currentQty || 0} / Min: {m.minimumQty ?? '-'}
                             </span>
                             {isLowStock && (
-                              <span className="material-symbols-outlined text-red-600 text-lg animate-pulse" title="Stock alert: Under minimum threshold!">
+                              <span className="material-symbols-outlined text-red-600 text-base animate-pulse" title="Stock alert: Under minimum threshold!">
                                 warning
                               </span>
                             )}
@@ -741,9 +748,9 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
                       )}
 
                       {visibleColumns.status && (
-                        <td className={`${densityPadding} text-center`}>
+                        <td className={`${densityPadding} text-center whitespace-nowrap`}>
                           <span
-                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase whitespace-nowrap ${
                               m.isActive
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-zinc-100 text-zinc-600'
@@ -755,24 +762,34 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
                       )}
 
                       {visibleColumns.actions && (
-                        <td className={`${densityPadding} text-center`} onClick={(e) => e.stopPropagation()}>
+                        <td className={`${densityPadding} text-center whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-center gap-2.5">
-                            <button
-                              onClick={() => handleOpenEdit(m)}
-                              className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
-                              title="Edit raw material"
-                            >
-                              <span className="material-symbols-outlined text-lg">edit</span>
-                            </button>
-                            <button
-                              onClick={(e) => handleOpenToggleActive(e, m)}
-                              className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
-                              title={m.isActive ? 'Deactivate raw material' : 'Activate raw material'}
-                            >
-                              <span className="material-symbols-outlined text-lg">
-                                {m.isActive ? 'block' : 'check_circle'}
-                              </span>
-                            </button>
+                            {m.isActive ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEdit(m)}
+                                  className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
+                                  title="Edit raw material"
+                                >
+                                  <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button
+                                  onClick={(e) => handleOpenToggleActive(e, m)}
+                                  className="p-1 text-gray-500 hover:text-[#ae001a] transition-all cursor-pointer"
+                                  title="Deactivate raw material"
+                                >
+                                  <span className="material-symbols-outlined text-lg">block</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={(e) => handleOpenToggleActive(e, m)}
+                                className="p-1 text-gray-500 hover:text-emerald-600 transition-all cursor-pointer"
+                                title="Activate raw material"
+                              >
+                                <span className="material-symbols-outlined text-lg">check_circle</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -1144,6 +1161,55 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
           </div>
         </div>
       )}
+
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
+        activeModuleId="raw-materials"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'RM CATEGORIES',
+            icon: 'category',
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            active: true,
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'STOCK LEVELS',
+            icon: 'table_rows',
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate?.('movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            onClick: () => onNavigate?.('locations'),
+          },
+        ]}
+      />
 
       {/* Support Modal */}
       {isSupportOpen && (

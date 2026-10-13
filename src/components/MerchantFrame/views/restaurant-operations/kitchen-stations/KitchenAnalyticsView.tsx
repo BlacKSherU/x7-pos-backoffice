@@ -47,6 +47,9 @@ export interface StationEfficiencyItem {
   stationId: number;
   stationName: string;
   stationType: string;
+  stationNumber?: number;
+  station_number?: number;
+  display_order?: number;
   totalItemsPrepared: number;
   avgPrepTimeSeconds: number;
   avgPrepTimeFormatted: string;
@@ -94,6 +97,9 @@ interface StationOption {
   id: number;
   name: string;
   code?: string;
+  stationNumber?: number;
+  station_number?: number;
+  display_order?: number;
   stationType?: string;
 }
 
@@ -122,6 +128,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
 
   // Mode View Switcher: Efficiency Matrix vs Bottlenecks vs SOS Heatmap
   const [analyticsViewTab, setAnalyticsViewTab] = useState<'efficiency' | 'bottlenecks' | 'sos-heatmap'>('efficiency');
@@ -130,9 +137,9 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
   const [selectedPreset, setSelectedPreset] = useState<'today' | 'last24h' | 'last7d' | 'last30d' | 'all' | 'custom'>('today');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [selectedStationId, setSelectedStationId] = useState<number | 'ALL'>('ALL');
+  const [selectedStationId] = useState<number | 'ALL'>('ALL');
 
-  // SLA Thresholds & Configuration Drawer State (Historia X7P-4206)
+  // SLA Thresholds & Configuration Drawer State (Story X7P-4206)
   const DEFAULT_STATION_SLA: Record<string, number> = {
     HOT: 12,
     COLD: 6,
@@ -213,12 +220,35 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
         const json = await res.json();
         const list = json.data || json || [];
         setStations(
-          list.map((st: { id: number; name: string; code?: string; stationType?: string; station_type?: string }) => ({
-            id: st.id,
-            name: st.name,
-            code: st.code,
-            stationType: st.stationType || st.station_type || 'PREP',
-          }))
+          list.map(
+            (st: {
+              id: number;
+              name: string;
+              code?: string;
+              stationType?: string;
+              station_type?: string;
+              stationNumber?: number;
+              station_number?: number;
+              display_order?: number;
+              displayOrder?: number;
+            }) => {
+              const sNum =
+                st.stationNumber ??
+                st.station_number ??
+                st.displayOrder ??
+                st.display_order ??
+                st.id;
+              return {
+                id: st.id,
+                name: st.name,
+                code: st.code || `#KST-${sNum}`,
+                stationNumber: sNum,
+                station_number: sNum,
+                display_order: st.display_order ?? st.displayOrder,
+                stationType: st.stationType || st.station_type || 'PREP',
+              };
+            }
+          )
         );
       } catch (e) {
         console.error('Failed to load stations', e);
@@ -408,7 +438,16 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
     });
   }, [fetchAnalytics]);
 
-  // Station Efficiency comparison list with Live SLA Threshold Reactivity (Historia X7P-4206)
+  // Periodic telemetry auto-refresh timer (Matching Kitchen Event Log)
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const timer = setInterval(() => {
+      fetchAnalytics(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(timer);
+  }, [autoRefreshInterval, fetchAnalytics]);
+
+  // Station Efficiency comparison list with Live SLA Threshold Reactivity (Story X7P-4206)
   const efficiencyList = useMemo(() => {
     const base = data?.stationEfficiencyMatrix || [];
     return base.map((st) => {
@@ -449,7 +488,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
 
   const activeColSpan = Object.values(visibleColumns).filter(Boolean).length;
 
-  // Save SLA Configuration (Historia X7P-4206)
+  // Save SLA Configuration (Story X7P-4206)
   const handleSaveSlaSettings = (e: React.FormEvent) => {
     e.preventDefault();
     setTargetSlaMinutes(formTargetSla);
@@ -464,7 +503,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
     showToast('SLA threshold targets updated and applied across dashboards.', 'success');
   };
 
-  // Reset SLA Defaults (Historia X7P-4206)
+  // Reset SLA Defaults (Story X7P-4206)
   const handleResetSlaDefaults = () => {
     setFormTargetSla(10);
     setFormCriticalSla(15);
@@ -477,7 +516,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
       type: 'station',
       id: st.stationId,
       title: st.stationName,
-      subtitle: `Station Identifier: #KST-${st.stationId}`,
+      subtitle: `Station Identifier: #KST-${st.stationNumber ?? st.station_number ?? st.display_order ?? st.stationId}`,
       roleTag: st.stationType,
       rating: st.efficiencyRating,
       metrics: [
@@ -515,7 +554,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
     });
   };
 
-  // Executive Report Export Engine: CSV Dataset (Historia X7P-4206)
+  // Executive Report Export Engine: CSV Dataset (Story X7P-4206)
   const exportToCSV = () => {
     if (!data) return;
 
@@ -600,7 +639,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
     showToast('Executive CSV dataset downloaded successfully.', 'success');
   };
 
-  // Executive Report Export Engine: PDF Generation (Historia X7P-4206)
+  // Executive Report Export Engine: PDF Generation (Story X7P-4206)
   const exportToPDF = () => {
     if (!data) return;
 
@@ -710,7 +749,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
               const badgeClass = st.efficiencyRating === 'optimal' ? 'badge-opt' : st.efficiencyRating === 'warning' ? 'badge-warn' : 'badge-crit';
               return `
                 <tr>
-                  <td>#KST-${st.stationId}</td>
+                  <td>#KST-${st.stationNumber ?? st.station_number ?? st.display_order ?? st.stationId}</td>
                   <td><strong>${st.stationName}</strong></td>
                   <td>${st.stationType}</td>
                   <td>${target} mins</td>
@@ -844,20 +883,82 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
         </div>
       )}
 
-      {/* 1. Header Workspace Card (Canonical x7POS Standard) */}
+      {/* 1. Header Workspace Card (Canonical x7POS Standard - Clean without top buttons) */}
       <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
-              STATION EFFICIENCY &amp; ITEM BOTTLENECK ANALYZER
-            </h2>
-            <p className="text-[#5f5e5e] text-body-sm font-sans mt-1 max-w-4xl">
-              Granular station throughput breakdown, item-level prep duration variances, queue saturation matrix, and staff speed analytics across kitchen preparation lines.
-            </p>
+        <div className="flex items-center gap-2.5">
+          <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+            bar_chart
+          </span>
+          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+            STATION EFFICIENCY &amp; ITEM BOTTLENECK ANALYZER
+          </h2>
+        </div>
+        <p className="text-[#5f5e5e] text-body-sm font-sans mt-1 max-w-4xl">
+          Granular station throughput breakdown, item-level prep duration variances, queue saturation matrix, and staff speed analytics across kitchen preparation lines.
+        </p>
+      </div>
+
+      {/* 2. Unified Multi-Dimensional Filter Bar Controls (Kitchen Event Log Pattern) */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* ROW 1: View Switcher (Left) + Executive Actions & Auto-refresh (Right) */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* View Switcher Toggle Segmented Control (Canonical x7POS Pattern) */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Views:
+            </span>
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
+              <button
+                type="button"
+                onClick={() => setAnalyticsViewTab('efficiency')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  analyticsViewTab === 'efficiency'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="View Station Performance Comparison Matrix"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${analyticsViewTab === 'efficiency' ? 'text-[#ae001a]' : ''}`}>
+                  view_column
+                </span>
+                <span>Station Matrix</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalyticsViewTab('bottlenecks')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  analyticsViewTab === 'bottlenecks'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="View Prep Bottlenecks & Recipe Variance Delays"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${analyticsViewTab === 'bottlenecks' ? 'text-[#ae001a]' : ''}`}>
+                  priority_high
+                </span>
+                <span>Prep Bottlenecks (Top 5)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalyticsViewTab('sos-heatmap')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  analyticsViewTab === 'sos-heatmap'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="View Hourly Speed of Service (SOS) Distribution Heatmap"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${analyticsViewTab === 'sos-heatmap' ? 'text-[#ae001a]' : ''}`}>
+                  heat_pump
+                </span>
+                <span>SOS Heatmap</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* 1. SLA Configuration Drawer Trigger (Story X7P-4206) */}
+          {/* Right Toolbar: Executive Action Buttons & Auto-Refresh */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* SLA Settings */}
             <button
               type="button"
               onClick={() => {
@@ -866,77 +967,83 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                 setFormStationSla(stationSlaTargets);
                 setIsSlaDrawerOpen(true);
               }}
-              className="bg-white border border-[#e8e2d8] text-[#1d1c17] hover:border-[#ae001a] hover:text-[#ae001a] font-bold text-xs px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer uppercase"
+              className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-white text-[#1d1c17] hover:border-[#ae001a] hover:text-[#ae001a] font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               title="Configure Target SLA Windows & Alert Thresholds"
             >
-              <span className="material-symbols-outlined text-base text-amber-700">tune</span>
+              <span className="material-symbols-outlined text-[16px] text-amber-700">tune</span>
               <span>SLA Settings</span>
             </button>
 
-            {/* 2. Executive Report Export Engine: PDF (Story X7P-4206) */}
+            {/* Export PDF */}
             <button
               type="button"
               onClick={exportToPDF}
-              className="bg-white border border-[#e8e2d8] text-[#1d1c17] hover:border-[#ae001a] hover:text-[#ae001a] font-bold text-xs px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer uppercase"
+              className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-white text-[#1d1c17] hover:border-[#ae001a] hover:text-[#ae001a] font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               title="Export Executive PDF Kitchen Report"
             >
-              <span className="material-symbols-outlined text-base text-[#ae001a]">picture_as_pdf</span>
+              <span className="material-symbols-outlined text-[16px] text-[#ae001a]">picture_as_pdf</span>
               <span>Export PDF</span>
             </button>
 
-            {/* 3. Executive Report Export Engine: CSV (Story X7P-4206) */}
-            <button
-              type="button"
-              onClick={exportToCSV}
-              className="bg-white border border-[#e8e2d8] text-[#1d1c17] hover:border-[#ae001a] hover:text-[#ae001a] font-bold text-xs px-3.5 py-2 rounded transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer uppercase"
-              title="Export Comprehensive CSV Dataset"
-            >
-              <span className="material-symbols-outlined text-base text-emerald-700">download</span>
-              <span>Export CSV</span>
-            </button>
+            {/* Auto-refresh & Telemetry Updated Timestamp */}
+            <div className="flex items-center gap-2 pl-2 border-l border-[#f0ede6]">
+              <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e]">
+                <button
+                  type="button"
+                  onClick={() => fetchAnalytics(false)}
+                  disabled={refreshing}
+                  className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                  title="Sync telemetry now"
+                >
+                  <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                    sync
+                  </span>
+                </button>
+                <select
+                  value={autoRefreshInterval}
+                  onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                  className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+                >
+                  <option value={0}>Auto: Off</option>
+                  <option value={10}>Auto: 10s</option>
+                  <option value={30}>Auto: 30s</option>
+                  <option value={60}>Auto: 60s</option>
+                </select>
+              </div>
 
-            {/* 4. Refresh / Sync Telemetry */}
-            <button
-              type="button"
-              onClick={() => fetchAnalytics(false)}
-              disabled={refreshing}
-              className="bg-[#222222] text-white font-bold text-label-caps px-4 py-2 rounded hover:bg-[#333333] transition-colors flex items-center gap-2 font-sans cursor-pointer disabled:opacity-50 text-xs uppercase"
-              title="Refresh telemetry"
-            >
-              <span className={`material-symbols-outlined text-base ${refreshing ? 'animate-spin' : ''}`}>
-                sync
-              </span>
-              <span>{refreshing ? 'Syncing...' : 'Sync Telemetry'}</span>
-            </button>
+              <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1">
+                <span className="material-symbols-outlined text-sm">schedule</span>
+                <span>Updated:</span>
+                <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 2. Toolbar Multicriterio a 2 Filas: Presets de Fecha + View Switcher + Station Filter */}
-      <div className="bg-white border border-[#e8e2d8] p-5 rounded shadow-sm flex flex-col gap-4">
-        {/* Fila 1: Date Range Presets a la izquierda, View Switcher a la derecha */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 w-full">
-          {/* Preset Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5 bg-[#f5f2eb] p-1 rounded-lg border border-[#e8e2d8]">
-            {(
-              [
-                { id: 'today', label: 'Today (Live)' },
-                { id: 'last24h', label: 'Past 24 Hours' },
-                { id: 'last7d', label: '7 Days' },
-                { id: 'last30d', label: '30 Days' },
-                { id: 'all', label: 'All Time' },
-                { id: 'custom', label: 'Custom' },
-              ] as const
-            ).map((p) => {
+        {/* ROW 2: Date & Time Range Controls + Presets (Event Log Pattern) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6]">
+          {/* Left: Date Presets */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-1">
+              Date Range:
+            </span>
+            {([
+              { id: 'today', label: 'Today (Live)' },
+              { id: 'last24h', label: 'Past 24 Hours' },
+              { id: 'last7d', label: '7 Days' },
+              { id: 'last30d', label: '30 Days' },
+              { id: 'all', label: 'All Time' },
+              { id: 'custom', label: 'Custom' },
+            ] as const).map((p) => {
               const active = selectedPreset === p.id;
               return (
                 <button
                   key={p.id}
                   onClick={() => handlePresetChange(p.id)}
-                  className={`px-3 py-1 text-xs font-bold rounded transition-all cursor-pointer ${
+                  className={`h-[34px] px-3 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border flex items-center justify-center ${
                     active
-                      ? 'bg-[#1d1c17] text-white shadow-xs'
-                      : 'text-[#5f5e5e] hover:text-[#ae001a] hover:bg-white/60'
+                      ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                      : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
                   }`}
                 >
                   {p.label}
@@ -945,121 +1052,39 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
             })}
           </div>
 
-          {/* View Switcher Segmented Control: Efficiency Matrix vs Bottlenecks vs Heatmap */}
-          <div className="flex items-center bg-[#f2ede5] p-1 rounded border border-[#e8e2d8] shrink-0">
-            <button
-              type="button"
-              onClick={() => setAnalyticsViewTab('efficiency')}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                analyticsViewTab === 'efficiency'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">view_column</span>
-              Station Matrix
-            </button>
-            <button
-              type="button"
-              onClick={() => setAnalyticsViewTab('bottlenecks')}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                analyticsViewTab === 'bottlenecks'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">priority_high</span>
-              Prep Bottlenecks (Top 5)
-            </button>
-            <button
-              type="button"
-              onClick={() => setAnalyticsViewTab('sos-heatmap')}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                analyticsViewTab === 'sos-heatmap'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">heat_pump</span>
-              SOS Heatmap
-            </button>
-          </div>
-        </div>
-
-        {/* Fila 2: Station Dropdown + Target SLA Window */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#f0ede6]">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Station Dropdown */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
-              <span className="material-symbols-outlined text-base">soup_kitchen</span>
-              <select
-                value={selectedStationId}
-                onChange={(e) => setSelectedStationId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                className="px-3 py-1.5 rounded bg-[#fef9f1] border border-[#e8e2d8] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
+          {/* Right: Custom Date & Time Inputs */}
+          {selectedPreset === 'custom' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+                <span className="text-[11px] font-medium">From:</span>
+                <input
+                  type="datetime-local"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+                <span className="text-[11px] font-medium">To:</span>
+                <input
+                  type="datetime-local"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
+                />
+              </div>
+              <button
+                onClick={() => handlePresetChange('today')}
+                className="text-[11px] text-[#ae001a] hover:underline font-semibold cursor-pointer ml-1"
               >
-                <option value="ALL">All Stations ({stations.length})</option>
-                {stations.map((st) => (
-                  <option key={st.id} value={st.id}>
-                    {st.name} (#{st.stationType || 'PREP'})
-                  </option>
-                ))}
-              </select>
+                Reset to Today
+              </button>
             </div>
-
-            {/* Target SLA */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
-              <span className="material-symbols-outlined text-base">timer</span>
-              <span className="text-[11px] font-bold uppercase">Recipe Target:</span>
-              <select
-                value={targetSlaMinutes}
-                onChange={(e) => setTargetSlaMinutes(Number(e.target.value))}
-                className="px-2.5 py-1.5 rounded bg-[#fef9f1] border border-[#e8e2d8] text-[#1d1c17] text-xs font-bold focus:outline-none focus:border-[#ae001a] cursor-pointer"
-              >
-                <option value={8}>8 Mins Target</option>
-                <option value={10}>10 Mins (Standard)</option>
-                <option value={12}>12 Mins Standard</option>
-                <option value={15}>15 Mins Threshold</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="text-[11px] text-[#5f5e5e]">
-            Last updated: <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
-          </div>
+          )}
         </div>
-
-        {/* Custom Range Inputs */}
-        {selectedPreset === 'custom' && (
-          <div className="flex items-center gap-3 pt-3 border-t border-[#f0ede6] text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-[#5f5e5e]">From:</span>
-              <input
-                type="datetime-local"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-2 py-1 rounded border border-[#d5cfc4] bg-[#fef9f1] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-[#5f5e5e]">To:</span>
-              <input
-                type="datetime-local"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-2 py-1 rounded border border-[#d5cfc4] bg-[#fef9f1] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer"
-              />
-            </div>
-            <button
-              onClick={() => handlePresetChange('today')}
-              className="text-[11px] text-[#ae001a] hover:underline font-semibold cursor-pointer ml-2"
-            >
-              Reset to Today
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* 3. Tira de 4 KPIs de Estado Operativo (Canonical Strip Horizontal en 1 Sola Fila) */}
+      {/* 3. Operational Status 4-KPI Strip (Canonical Single-Row Horizontal Strip) */}
       <div className="grid grid-cols-4 gap-3 md:gap-4 w-full font-sans">
         {/* KPI 1: Total Items Prepared */}
         <div className="bg-white border border-[#e8e2d8] p-3.5 xl:p-4 rounded-xl shadow-xs flex items-center justify-between min-w-0">
@@ -1143,7 +1168,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
       </div>
 
       {/* ========================================================================= */}
-      {/* VISTA 1: STATION EFFICIENCY COMPARISON MATRIX (Regla 1 de Historia 4205)   */}
+      {/* VIEW 1: STATION EFFICIENCY COMPARISON MATRIX (Rule 1 of Story 4205)   */}
       {/* ========================================================================= */}
       {analyticsViewTab === 'efficiency' && (
         <div className="bg-white border border-[#e8e2d8] rounded shadow-sm relative overflow-hidden font-sans">
@@ -1195,34 +1220,34 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs font-sans">
+              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
                   <thead>
-                    <tr className="bg-[#ece8e0] text-[#5f5e5e] uppercase text-[11px] tracking-wider font-bold border-b border-[#e8e2d8]">
+                    <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
                       {visibleColumns.station && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Station Name &amp; ID</th>
+                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-auto min-w-[180px]`}>Station Name &amp; ID</th>
                       )}
                       {visibleColumns.type && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Discipline Role</th>
+                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Discipline Role</th>
                       )}
                       {visibleColumns.totalItems && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Items Prepared</th>
+                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-32 min-w-[100px]`}>Items Prepared</th>
                       )}
                       {visibleColumns.avgPrep && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Avg Prep Time</th>
+                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Avg Prep Time</th>
                       )}
                       {visibleColumns.peakQueue && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Peak Queue Capacity</th>
+                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Peak Queue Capacity</th>
                       )}
                       {visibleColumns.efficiencyRating && (
-                        <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e]`}>Efficiency Rating</th>
+                        <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-32 min-w-[100px]`}>Efficiency Rating</th>
                       )}
                       {visibleColumns.actions && (
-                        <th className={`${getDensityPadding(rowDensity)} text-right text-[#5f5e5e]`}>Action</th>
+                        <th className={`${getDensityPadding(rowDensity)} text-right text-[#5f5e5e] w-24 min-w-[70px]`}>Action</th>
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e8e2d8]">
+                  <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                     {loading ? (
                       <tr>
                         <td colSpan={activeColSpan} className="text-center py-12 text-[#5f5e5e]">
@@ -1260,11 +1285,11 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                                     <span className="material-symbols-outlined text-base">soup_kitchen</span>
                                   </div>
                                   <div className="min-w-0">
-                                    <span className="font-bold text-[#1d1c17] text-xs block group-hover:text-[#ae001a] transition-colors duration-200">
+                                    <span className="font-bold text-[#1d1c17] font-sans text-sm block group-hover:text-[#ae001a] transition-colors duration-200 truncate">
                                       {station.stationName}
                                     </span>
-                                    <span className="text-[10px] font-mono text-[#5f5e5e]">
-                                      #KST-{station.stationId}
+                                    <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5 block">
+                                      #KST-{station.stationNumber ?? station.station_number ?? station.display_order ?? station.stationId}
                                     </span>
                                   </div>
                                 </div>
@@ -1275,7 +1300,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                             {visibleColumns.type && (
                               <td className={densityPadding}>
                                 <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getRoleBadgeStyle(
+                                  className={`px-2 py-0.5 rounded text-[10px] font-normal uppercase tracking-wider border ${getRoleBadgeStyle(
                                     station.stationType
                                   )}`}
                                 >
@@ -1286,7 +1311,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
 
                             {/* Total Items Prepared */}
                             {visibleColumns.totalItems && (
-                              <td className={`${densityPadding} font-mono font-bold text-xs text-[#1d1c17]`}>
+                              <td className={`${densityPadding} font-mono font-normal text-xs text-[#1d1c17]`}>
                                 {station.totalItemsPrepared} items
                               </td>
                             )}
@@ -1294,7 +1319,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                             {/* Avg Prep Time */}
                             {visibleColumns.avgPrep && (
                               <td className={`${densityPadding} whitespace-nowrap`}>
-                                <div className="font-mono font-bold text-xs text-[#1d1c17]">
+                                <div className="font-mono font-normal text-xs text-[#1d1c17]">
                                   {station.avgPrepTimeFormatted}
                                 </div>
                                 <span className="text-[10px] text-[#5f5e5e] font-mono">
@@ -1309,7 +1334,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                                 <div className="flex items-center gap-2">
                                   <span className="material-symbols-outlined text-sm text-zinc-400">stacked_bar_chart</span>
                                   <span
-                                    className={`font-mono font-bold text-xs ${
+                                    className={`font-mono font-normal text-xs ${
                                       station.peakQueueCapacity > 10 ? 'text-[#ae001a]' : 'text-[#1d1c17]'
                                     }`}
                                   >
@@ -1333,7 +1358,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                                     HIGH QUEUE (10-15m)
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-50 text-[#ae001a] border border-red-300 font-extrabold animate-pulse">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-50 text-[#ae001a] border border-red-300 animate-pulse">
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#ae001a]" />
                                     CRITICAL DELAY (&gt;15m)
                                   </span>
@@ -1343,18 +1368,16 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
 
                             {/* Action Drill-Down */}
                             {visibleColumns.actions && (
-                              <td className={`${densityPadding} text-right whitespace-nowrap`}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStationDrillDown(station);
-                                  }}
-                                  className="px-3 py-1 bg-white hover:bg-[#ae001a] hover:text-white text-[#5f5e5e] border border-[#e8e2d8] rounded text-xs font-bold transition-all flex items-center gap-1 ml-auto cursor-pointer"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">analytics</span>
-                                  <span>Drill-Down</span>
-                                </button>
+                              <td className={`text-center whitespace-nowrap ${densityPadding}`}>
+                                <div className="flex justify-center gap-3">
+                                  <button
+                                    onClick={() => handleStationDrillDown(station)}
+                                    className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                    title="Drill Down"
+                                  >
+                                    <span className="material-symbols-outlined text-[20px]">analytics</span>
+                                  </button>
+                                </div>
                               </td>
                             )}
                           </tr>
@@ -1377,7 +1400,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
       )}
 
       {/* ========================================================================= */}
-      {/* VISTA 2: SLOWEST PREP ITEMS & BOTTLENECK RANKING (Regla 2 de Historia 4205) */}
+      {/* VIEW 2: SLOWEST PREP ITEMS & BOTTLENECK RANKING (Rule 2 of Story 4205) */}
       {/* ========================================================================= */}
       {analyticsViewTab === 'bottlenecks' && (
         <div className="flex flex-col gap-6 font-sans">
@@ -1530,7 +1553,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
       )}
 
       {/* ========================================================================= */}
-      {/* VISTA 3: SOS HOURLY HEATMAP & DISTRIBUTION                                */}
+      {/* VIEW 3: SOS HOURLY HEATMAP & DISTRIBUTION                                */}
       {/* ========================================================================= */}
       {analyticsViewTab === 'sos-heatmap' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
@@ -1593,7 +1616,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
       )}
 
       {/* ========================================================================= */}
-      {/* 4. INTERACTIVE DRILL-DOWN MODAL / DRAWER (Criterio 3 de Historia 4205)      */}
+      {/* 4. INTERACTIVE DRILL-DOWN MODAL / DRAWER (Criterion 3 of Story 4205)      */}
       {/* ========================================================================= */}
       {drillDownTarget &&
         createPortal(
@@ -1607,7 +1630,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                       {drillDownTarget.type === 'station' ? 'soup_kitchen' : 'restaurant'}
                     </span>
                     <div>
-                      <h3 className="font-bold text-sm tracking-wider uppercase">
+                      <h3 className="font-bold text-sm tracking-wider uppercase text-white !text-white" style={{ color: '#ffffff' }}>
                         {drillDownTarget.type === 'station' ? 'Station Throughput Drill-Down' : 'Item Bottleneck Deep-Dive'}
                       </h3>
                       <span className="text-[10px] text-zinc-400 font-mono">
@@ -1788,7 +1811,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                       tune
                     </span>
                     <div>
-                      <h3 className="font-bold text-sm tracking-wider uppercase">
+                      <h3 className="font-bold text-sm tracking-wider uppercase text-white !text-white" style={{ color: '#ffffff' }}>
                         KITCHEN SLA THRESHOLDS CONFIGURATION
                       </h3>
                       <span className="text-[10px] text-zinc-400 font-mono">

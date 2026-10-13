@@ -185,7 +185,7 @@ export const EmergencySupportModal: React.FC<ModalProps> = ({ isOpen, onClose })
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="flex-1 bg-zinc-800 border border-zinc-700 rounded p-2 text-white text-xs focus:ring-0 focus:border-red-500"
-            placeholder="Escriba su mensaje..."
+            placeholder="Type your message..."
           />
           <button type="submit" className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase">
             Send

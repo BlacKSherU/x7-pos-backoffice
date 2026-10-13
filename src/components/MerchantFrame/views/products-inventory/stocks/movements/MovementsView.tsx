@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StockQuickLinks } from '../StockQuickLinks';
+import { NavHubBar } from '../../../../../shared/NavHubBar';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../../lib/auth-storage';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../../shared/TableOptionsMenu';
@@ -63,7 +64,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
     operator: true,
   });
   const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(5);
   const [totalItems, setTotalItems] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [itemNameFilter, setItemNameFilter] = useState<string>('');
@@ -170,7 +171,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -404,11 +405,12 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
               className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer font-bold"
             >
               <option value="ALL">All Movement Types</option>
-              <option value="PURCHASE_RECEIPT">PURCHASE_RECEIPT</option>
-              <option value="POS_DEPLETION">POS_DEPLETION</option>
-              <option value="ADJUSTMENT">ADJUSTMENT</option>
-              <option value="WASTE">WASTE</option>
-              <option value="TRANSFER">TRANSFER</option>
+              <option value="PURCHASE_RECEIPT">Purchase Receipt</option>
+              <option value="PURCHASE_RECEIPT_CORRECTION">Purchase Correction</option>
+              <option value="POS_DEPLETION">POS Depletion</option>
+              <option value="ADJUSTMENT">Adjustment</option>
+              <option value="WASTE">Waste</option>
+              <option value="TRANSFER">Transfer</option>
             </select>
 
             {itemIdFilter && (
@@ -436,17 +438,6 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
             >
               <span className="material-symbols-outlined text-sm">add</span>
               <span>NEW MOVEMENT / ADJUSTMENT</span>
-            </button>
-
-
-            <button
-              onClick={() => {
-                window.history.pushState({}, '', '/inventory/stocks');
-                if (onNavigate) onNavigate('stock-movements');
-              }}
-              className="px-4 py-2.5 bg-[#ece8e0] text-[#1c1b16] font-bold text-label-caps hover:bg-[#dcd7cd] transition-all duration-200 cursor-pointer text-xs rounded border border-[#e8e2d8]"
-            >
-              Back to Stock Ledger
             </button>
           </div>
         </div>
@@ -546,38 +537,38 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
               <NoColumnsEmptyState />
             ) : (
               <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <table className="w-full border-collapse text-left text-xs font-sans">
+                <table className="w-full min-w-[1050px] table-fixed border-collapse text-left text-xs font-sans">
                   <thead className="bg-[#ece8e0] border-b border-[#e8e2d8] text-[#5f5e5e]">
                     <tr>
                       {visibleColumns.id && (
-                        <th className={`text-label-caps font-bold ${densityPadding}`}>Movement ID</th>
+                        <th className={`text-label-caps font-bold ${densityPadding} w-24 min-w-[75px]`}>Movement ID</th>
                       )}
                       {visibleColumns.dateTime && (
-                        <th className={`text-label-caps font-bold ${densityPadding}`}>Date & Time</th>
+                        <th className={`text-label-caps font-bold ${densityPadding} w-32 min-w-[110px]`}>Date & Time</th>
                       )}
                       {visibleColumns.type && (
-                        <th className={`text-label-caps font-bold text-center ${densityPadding}`}>Movement Type</th>
+                        <th className={`text-label-caps font-bold text-center ${densityPadding} w-48 min-w-[160px]`}>Movement Type</th>
                       )}
                       {visibleColumns.material && (
-                        <th className={`text-label-caps font-bold ${densityPadding}`}>Raw Material</th>
+                        <th className={`text-label-caps font-bold ${densityPadding} w-44 min-w-[140px]`}>Raw Material</th>
                       )}
                       {visibleColumns.sourceLoc && (
-                        <th className={`text-label-caps font-bold ${densityPadding}`}>Source Loc</th>
+                        <th className={`text-label-caps font-bold ${densityPadding} w-32 min-w-[100px]`}>Source Loc</th>
                       )}
                       {visibleColumns.destLoc && (
-                        <th className={`text-label-caps font-bold ${densityPadding}`}>Dest Loc</th>
+                        <th className={`text-label-caps font-bold ${densityPadding} w-32 min-w-[100px]`}>Dest Loc</th>
                       )}
                       {visibleColumns.quantity && (
-                        <th className={`text-label-caps font-bold text-right ${densityPadding}`}>Qty</th>
+                        <th className={`text-label-caps font-bold text-right ${densityPadding} w-20 min-w-[70px]`}>Qty</th>
                       )}
                       {visibleColumns.unitCost && (
-                        <th className={`text-label-caps font-bold text-right ${densityPadding}`}>Unit Cost</th>
+                        <th className={`text-label-caps font-bold text-right ${densityPadding} w-20 min-w-[75px]`}>Unit Cost</th>
                       )}
                       {visibleColumns.totalValue && (
-                        <th className={`text-label-caps font-bold text-right ${densityPadding}`}>Total Value</th>
+                        <th className={`text-label-caps font-bold text-right ${densityPadding} w-24 min-w-[80px]`}>Total Value</th>
                       )}
                       {visibleColumns.operator && (
-                        <th className={`text-label-caps font-bold ${densityPadding}`}>Operator</th>
+                        <th className={`text-label-caps font-bold ${densityPadding} w-24 min-w-[80px]`}>Operator</th>
                       )}
                     </tr>
                   </thead>
@@ -627,70 +618,82 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
                         const destLocName = mv.destinationLocationName || '—';
                         const costVal = Number(mv.unitCost || 0);
                         const totalVal = costVal * Number(mv.quantity || 0);
+                        const displayType =
+                          typeCode === 'PURCHASE_RECEIPT_CORRECTION'
+                            ? 'PURCHASE CORRECTION'
+                            : typeCode === 'PURCHASE_RECEIPT'
+                            ? 'PURCHASE RECEIPT'
+                            : typeCode === 'POS_DEPLETION'
+                            ? 'POS DEPLETION'
+                            : (typeCode || '').replace(/_/g, ' ');
 
                         return (
                           <tr key={mv.id} className="hover:bg-[#f8f3eb] transition-colors">
                             {visibleColumns.id && (
-                              <td className={`${densityPadding} font-mono font-bold text-zinc-900`}>
+                              <td className={`${densityPadding} font-mono text-xs font-normal text-[#5f5e5e]`}>
                                 MV-#{mv.id}
                               </td>
                             )}
                             {visibleColumns.dateTime && (
-                              <td className={`${densityPadding} text-zinc-700 whitespace-nowrap`}>
+                              <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] whitespace-nowrap`}>
                                 <div className="flex flex-col leading-tight">
-                                  <span className="font-bold text-zinc-900">{new Date(mv.createdAt).toLocaleDateString()}</span>
-                                  <span className="text-[10px] text-zinc-500 font-medium">{new Date(mv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span className="text-[#5f5e5e]">{new Date(mv.createdAt).toLocaleDateString()}</span>
+                                  <span className="text-[10px] text-[#5f5e5e] font-normal">{new Date(mv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
                               </td>
                             )}
                             {visibleColumns.type && (
-                              <td className={`${densityPadding} text-center whitespace-nowrap`}>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                                  typeCode === 'ADJUSTMENT' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
-                                  typeCode === 'TRANSFER' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
-                                  typeCode === 'WASTE' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                                  typeCode === 'POS_DEPLETION' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                                  isEntry ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 
-                                  'bg-red-100 text-red-800 border border-red-300'
-                                }`}>
-                                  {typeCode}
+                              <td className={`${densityPadding} text-center`}>
+                                <span
+                                  title={typeCode}
+                                  className={`inline-block text-[10px] font-bold px-2.5 py-0.5 rounded uppercase tracking-wider ${
+                                    typeCode === 'ADJUSTMENT' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                                    typeCode === 'TRANSFER' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                                    typeCode === 'WASTE' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                                    typeCode === 'POS_DEPLETION' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                                    typeCode === 'PURCHASE_RECEIPT_CORRECTION' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                                    isEntry ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 
+                                    'bg-red-100 text-red-800 border border-red-300'
+                                  }`}
+                                >
+                                  {displayType}
                                 </span>
                               </td>
                             )}
                             {visibleColumns.material && (
-                              <td className={`${densityPadding} font-semibold text-zinc-900`}>
+                              <td className={`${densityPadding} font-bold text-[#1d1c17] text-sm font-sans truncate`} title={materialName}>
                                 {materialName}
                               </td>
                             )}
                             {visibleColumns.sourceLoc && (
-                              <td className={`${densityPadding} text-zinc-700`}>
+                              <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] font-sans truncate`} title={srcLocName}>
                                 {srcLocName}
                               </td>
                             )}
                             {visibleColumns.destLoc && (
-                              <td className={`${densityPadding} text-zinc-700`}>
+                              <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] font-sans truncate`} title={destLocName}>
                                 {destLocName}
                               </td>
                             )}
                             {visibleColumns.quantity && (
-                              <td className={`${densityPadding} font-mono font-bold text-right ${
+                              <td className={`${densityPadding} font-mono text-xs font-normal text-right ${
                                 isEntry ? 'text-emerald-700' : 'text-red-700'
                               }`}>
                                 {isEntry ? '+' : '-'}{mv.quantity}
                               </td>
                             )}
                             {visibleColumns.unitCost && (
-                              <td className={`${densityPadding} font-mono text-right text-zinc-700`}>
+                              <td className={`${densityPadding} font-mono text-xs font-normal text-right text-[#5f5e5e]`}>
                                 {costVal > 0 ? `$${costVal.toFixed(2)}` : '—'}
                               </td>
                             )}
                             {visibleColumns.totalValue && (
-                              <td className={`${densityPadding} font-mono font-bold text-right text-zinc-900`}>
+                              <td className={`${densityPadding} font-mono text-xs font-normal text-right text-[#1d1c17]`}>
                                 {totalVal > 0 ? `$${totalVal.toFixed(2)}` : '—'}
                               </td>
                             )}
                             {visibleColumns.operator && (
-                              <td className={`${densityPadding} text-zinc-600 font-medium`}>
+                              <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] font-sans truncate`} title={mv.createdBy || 'System'}>
                                 {mv.createdBy || 'System'}
                               </td>
                             )}
@@ -936,6 +939,55 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
 
       {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
       <StockQuickLinks current="movements" onNavigate={onNavigate} />
+
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
+        activeModuleId="movements"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'RM CATEGORIES',
+            icon: 'category',
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'STOCK LEVELS',
+            icon: 'table_rows',
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            active: true,
+            onClick: () => onNavigate?.('movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            onClick: () => onNavigate?.('locations'),
+          },
+        ]}
+      />
     </div>
   );
 };

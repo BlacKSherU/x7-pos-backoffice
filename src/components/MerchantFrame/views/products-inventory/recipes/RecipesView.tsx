@@ -99,8 +99,10 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const handleExportCSV = () => {
     if (filteredRecipes.length === 0) return;
     const headers = ['ID', 'Recipe Name', 'Product SKU', 'Batch Yield', 'Ingredients Count', 'Theoretical Cost', 'Status'];
-    const rows = filteredRecipes.map(r => {
+    const rows = filteredRecipes.map((r) => {
       const prod = r.finishedProduct || products.find((p) => p.id === r.finishedProductId);
+      const isProdActive = prod ? prod.isActive !== false : true;
+      const rIsActive = r.isActive !== false && isProdActive;
       return [
         r.id,
         `"${(r.name || prod?.name || `Recipe #${r.id}`).replace(/"/g, '""')}"`,
@@ -108,7 +110,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
         r.yieldQuantity ?? 1,
         (r.lines || []).length,
         r.theoreticalCostCached || 0,
-        r.isActive !== false ? 'Active' : 'Inactive'
+        rIsActive ? 'Active' : !isProdActive ? 'Product Inactive' : 'Inactive',
       ];
     });
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -124,7 +126,11 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const handlePrintTable = () => { window.print(); };
 
   const handleCopySummary = () => {
-    const active = filteredRecipes.filter(r => r.isActive !== false).length;
+    const active = filteredRecipes.filter((r) => {
+      const prod = r.finishedProduct || products.find((p) => p.id === r.finishedProductId);
+      const isProdActive = prod ? prod.isActive !== false : true;
+      return r.isActive !== false && isProdActive;
+    }).length;
     navigator.clipboard.writeText(`Recipes & BOM: ${filteredRecipes.length} total, ${active} active, ${filteredRecipes.length - active} inactive.`);
   };
 
@@ -174,7 +180,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
       if (recipesRes.status === 401 || productsRes.status === 401 || suppliesRes.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -186,7 +192,24 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       const suppliesList = suppliesJson.items || suppliesJson.data || suppliesJson || [];
       const recipesList = Array.isArray(recipesJson) ? recipesJson : (recipesJson.items || []);
 
-      setProducts(Array.isArray(productsList) ? productsList : []);
+      const rawProducts: Record<string, unknown>[] = Array.isArray(productsList) ? productsList : [];
+      const normalizedProducts: Product[] = rawProducts.map((p) => ({
+        id: Number(p.id),
+        name: String(p.name || ''),
+        sku: String(p.sku || ''),
+        basePrice: Number(p.basePrice ?? p.price ?? 0),
+        isActive:
+          p.isActive !== undefined
+            ? Boolean(p.isActive)
+            : p.is_active !== undefined
+            ? Boolean(p.is_active)
+            : p.status !== undefined
+            ? p.status === 'active'
+            : true,
+        variants: Array.isArray(p.variants) ? (p.variants as Variant[]) : [],
+      }));
+
+      setProducts(normalizedProducts);
       setSupplies(Array.isArray(suppliesList) ? suppliesList : []);
       setRecipes(Array.isArray(recipesList) ? recipesList : []);
 
@@ -471,8 +494,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
     const matchesProduct =
       productFilter === 'ALL' || String(rec.finishedProductId) === productFilter;
 
-    // Filtro por Estado (Activo / Inactivo)
-    const recIsActive = rec.isActive !== false;
+    // Filtro por Estado (Activo / Inactivo en cascada con el Producto terminado)
+    const isProdActive = prod ? prod.isActive !== false : true;
+    const recIsActive = rec.isActive !== false && isProdActive;
     const matchesStatus =
       statusFilter === 'ALL' ||
       (statusFilter === 'ACTIVE' && recIsActive) ||
@@ -548,7 +572,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
               <option value="ALL">All Products</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.sku})
+                  {p.name} ({p.sku}){!p.isActive ? ' (Inactive)' : ''}
                 </option>
               ))}
             </select>
@@ -642,49 +666,49 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
               {activeColSpan === 0 ? (
                 <NoColumnsEmptyState />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <table className="w-full table-fixed text-left border-collapse">
                     <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                       <tr>
                         {visibleColumns.name && (
-                          <th className={`text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-auto min-w-[180px]`}>
                             Recipe Name & ID
                           </th>
                         )}
                         {visibleColumns.product && (
-                          <th className={`text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-44 min-w-[130px]`}>
                             Linked Product / Variant
                           </th>
                         )}
                         {visibleColumns.yield && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-32 min-w-[100px]`}>
                             Batch Yield
                           </th>
                         )}
                         {visibleColumns.ingredients && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-32 min-w-[100px]`}>
                             Ingredients
                           </th>
                         )}
                         {visibleColumns.cost && (
-                          <th className={`text-right text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-36 min-w-[110px]`}>
                             Theoretical Cost / Portion
                           </th>
                         )}
                         {visibleColumns.status && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                             Status
                           </th>
                         )}
                         {visibleColumns.actions && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
                             Actions
                           </th>
                         )}
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y divide-[#e8e2d8] text-sm font-sans">
+                    <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                       {isLoading ? (
                         <tr>
                           <td colSpan={activeColSpan} className="py-12 px-6 text-center text-secondary font-sans bg-white">
@@ -732,17 +756,22 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                             : calculatedLinesCost;
                           const portionCost = yieldQty > 0 ? totalCost / yieldQty : totalCost;
                           const ingredientCount = (rec.lines || []).length;
-                          const recIsActive = rec.isActive !== false;
+                          const isProdActive = prod ? prod.isActive !== false : true;
+                          const recIsActive = rec.isActive !== false && isProdActive;
 
                           return (
                             <tr key={rec.id} className="hover:bg-[#f8f3eb] transition-colors">
                               {/* Recipe Name & ID */}
                               {visibleColumns.name && (
-                                <td className={densityPadding}>
-                                  <p className="font-bold text-[#1d1c17]">{recipeName}</p>
-                                  <span className="font-mono text-[11px] text-[#5f5e5e] bg-[#f2ede5] px-1.5 py-0.5 rounded">
-                                    RCP-#{rec.id}
-                                  </span>
+                                <td className={`${densityPadding} truncate`}>
+                                  <div className="min-w-0 flex flex-col justify-center">
+                                    <span className="font-bold text-[#1d1c17] font-sans text-sm truncate" title={recipeName}>
+                                      {recipeName}
+                                    </span>
+                                    <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
+                                      RCP-#{rec.id}
+                                    </span>
+                                  </div>
                                 </td>
                               )}
 
@@ -751,20 +780,20 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                                 <td className={densityPadding}>
                                   {prod ? (
                                     <div className="flex flex-col gap-1 items-start">
-                                      <span className="px-2.5 py-1 rounded-full bg-[#f2ede5] text-[#1d1c17] font-semibold text-xs border border-[#e8e2d8] inline-flex items-center gap-1.5">
+                                      <span className="px-2.5 py-0.5 rounded-full bg-[#f2ede5] text-[#1d1c17] font-normal text-xs border border-[#e8e2d8] inline-flex items-center gap-1.5">
                                         <span className="material-symbols-outlined text-[14px] text-[#ae001a]">
                                           restaurant
                                         </span>
                                         {prod.name}
                                       </span>
                                       {variant && (
-                                        <span className="text-[11px] text-[#5f5e5e] italic font-mono pl-1">
+                                        <span className="text-[11px] text-[#5f5e5e] font-normal font-mono pl-1">
                                           Variant: {variant.name}
                                         </span>
                                       )}
                                     </div>
                                   ) : (
-                                    <span className="px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-500 font-semibold text-xs italic">
+                                    <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500 font-normal text-xs italic">
                                       General Formula
                                     </span>
                                   )}
@@ -774,7 +803,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                               {/* Batch Yield */}
                               {visibleColumns.yield && (
                                 <td className={`text-center ${densityPadding}`}>
-                                  <span className="font-bold text-[#1d1c17] font-mono">
+                                  <span className="font-normal text-[#1d1c17] font-mono text-xs">
                                     {yieldQty} {yieldQty === 1 ? 'Portion' : 'Portions'}
                                   </span>
                                 </td>
@@ -783,7 +812,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                               {/* Ingredient Count */}
                               {visibleColumns.ingredients && (
                                 <td className={`text-center ${densityPadding}`}>
-                                  <span className="px-2 py-0.5 rounded-full bg-[#ece8e0] text-[#5f5e5e] font-semibold text-xs">
+                                  <span className="px-2 py-0.5 rounded-full bg-[#ece8e0] text-[#5f5e5e] font-normal text-xs">
                                     {ingredientCount} {ingredientCount === 1 ? 'Ingredient' : 'Ingredients'}
                                   </span>
                                 </td>
@@ -792,10 +821,10 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                               {/* Theoretical Cost & Portion Cost */}
                               {visibleColumns.cost && (
                                 <td className={`text-right ${densityPadding}`}>
-                                  <p className="font-bold font-mono text-[#ae001a] text-sm">
+                                  <p className="font-normal font-mono text-[#ae001a] text-xs">
                                     ${portionCost.toFixed(4)} <span className="text-[10px] font-normal text-secondary">/ portion</span>
                                   </p>
-                                  <span className="text-[10px] font-mono text-secondary">
+                                  <span className="text-[10px] font-mono font-normal text-secondary">
                                     Total: ${totalCost.toFixed(4)}
                                   </span>
                                 </td>
@@ -803,15 +832,22 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
                               {/* Status Badge */}
                               {visibleColumns.status && (
-                                <td className={`text-center ${densityPadding}`}>
+                                <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                                   <span
-                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
                                       recIsActive
                                         ? 'bg-emerald-100 text-emerald-700'
-                                        : 'bg-zinc-100 text-zinc-600'
+                                        : !isProdActive
+                                        ? 'bg-red-50 text-red-700 border border-red-200'
+                                        : 'bg-zinc-200 text-[#5f5e5e]'
                                     }`}
+                                    title={!isProdActive ? 'Finished menu product is disabled in catalog' : undefined}
                                   >
-                                    {recIsActive ? 'Active' : 'Inactive'}
+                                    {recIsActive
+                                      ? 'Active'
+                                      : !isProdActive
+                                      ? 'Product Inactive'
+                                      : 'Inactive'}
                                   </span>
                                 </td>
                               )}
@@ -893,12 +929,18 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
             <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col border-l border-[#e8e2d8] animate-slide-in font-sans z-[100000]">
 
               {/* Header Drawer */}
-              <div className="bg-[#222222] p-6 text-white flex justify-between items-center shrink-0">
+              <div className="bg-[#222222] p-6 text-white flex justify-between items-center shrink-0 border-b border-[#333333]">
                 <div>
-                  <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest block mb-0.5">
+                  <span
+                    style={{ color: '#a1a1aa' }}
+                    className="text-[10px] !text-zinc-400 font-bold uppercase tracking-widest block mb-1"
+                  >
                     Recipe & BOM Formula Specification
                   </span>
-                  <h3 className="font-black text-lg uppercase tracking-tight">
+                  <h3
+                    style={{ color: '#ffffff' }}
+                    className="font-black text-xl uppercase tracking-tight text-white !text-white leading-none"
+                  >
                     {drawerMode === 'add'
                       ? 'Add Recipe Formula'
                       : drawerMode === 'edit'
@@ -909,9 +951,10 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                 <button
                   type="button"
                   onClick={() => setIsDrawerOpen(false)}
-                  className="text-white/70 hover:text-white p-1 rounded cursor-pointer"
+                  className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Close drawer"
                 >
-                  <span className="material-symbols-outlined text-xl">close</span>
+                  <span className="material-symbols-outlined text-xl select-none" style={{ color: '#ffffff' }}>close</span>
                 </button>
               </div>
 
@@ -919,6 +962,20 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
               <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
                 {drawerMode === 'view' && selectedRecipe ? (
                   <div className="flex flex-col gap-5 text-left">
+                    {/* Inactive Product Warning in View Mode */}
+                    {(() => {
+                      const linkedProd = selectedRecipe.finishedProduct || products.find((p) => p.id === selectedRecipe.finishedProductId);
+                      if (linkedProd && linkedProd.isActive === false) {
+                        return (
+                          <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg flex items-center gap-2 font-semibold">
+                            <span className="material-symbols-outlined text-red-600 text-base">cancel</span>
+                            <span>This finished product is currently inactive/disabled in the catalog.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     <div className="bg-[#fcfbf9] border border-[#e8e2d8] p-4 rounded-lg flex flex-col gap-2">
                       <span className="text-xs font-bold text-gray-500 uppercase">
                         Finished Menu Item
@@ -1001,6 +1058,20 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                       </div>
                     )}
 
+                    {/* Inactive Product Warning in Edit Mode */}
+                    {drawerMode === 'edit' && (() => {
+                      const linkedProd = selectedRecipe?.finishedProduct || products.find((p) => p.id === selectedRecipe?.finishedProductId);
+                      if (linkedProd && linkedProd.isActive === false) {
+                        return (
+                          <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg flex items-center gap-2 font-semibold">
+                            <span className="material-symbols-outlined text-red-600 text-base">cancel</span>
+                            <span>This finished product is currently inactive/disabled in the catalog. Reactivate the product in Products Workspace to resume POS sales.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {/* Header Fields: Name (required, max 150 chars) */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-bold text-[#1d1c17] uppercase">
@@ -1041,11 +1112,17 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                           className="bg-[#fcfbf9] text-xs font-semibold px-3 py-2.5 border border-[#e8e2d8] rounded-lg outline-none focus:border-[#ae001a]"
                         >
                           <option value="">(Select Finished Menu Item / Product *)</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.sku}) - Price: ${Number(p.basePrice).toFixed(2)}
-                            </option>
-                          ))}
+                          {products
+                            .filter((p) =>
+                              p.isActive !== false ||
+                              (drawerMode === 'edit' && String(selectedRecipe?.finishedProductId) === String(p.id))
+                            )
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.sku}) - Price: ${Number(p.basePrice).toFixed(2)}
+                                {!p.isActive ? ' (Inactive)' : ''}
+                              </option>
+                            ))}
                         </select>
                       </div>
 

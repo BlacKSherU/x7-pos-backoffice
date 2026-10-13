@@ -124,7 +124,7 @@ export const navigationService = {
         })
         .filter((app): app is NavApplication => app !== null);
 
-      // Asignar características a sus aplicaciones (Kitchen Display System abre el hub kds-dashboard)
+      // Asignar características a sus aplicaciones (KDS y Products/Inventory abren sus hubs operacionales)
       applications.forEach(app => {
         if (app.id === 'kitchen-display-system') {
           app.features = [
@@ -132,6 +132,56 @@ export const navigationService = {
               id: 'kds-dashboard',
               name: 'KDS Operational Command Hub',
               applicationId: 'kitchen-display-system',
+              planId: 1,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'shifts') {
+          app.features = [
+            {
+              id: 'shifts-hub',
+              name: 'Shifts Command Hub',
+              applicationId: 'shifts',
+              planId: 2,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'tips') {
+          app.features = [
+            {
+              id: 'tips-hub',
+              name: 'Tips Command Hub',
+              applicationId: 'tips',
+              planId: 2,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'configuration') {
+          app.features = [
+            {
+              id: 'configuration-hub',
+              name: 'Configuration Command Hub',
+              applicationId: 'configuration',
+              planId: 2,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'products-inventory') {
+          app.features = [
+            {
+              id: 'inventory-dashboard',
+              name: 'Products Operational Command Hub',
+              applicationId: 'products-inventory',
+              planId: 1,
+              isSaaS: false,
+            }
+          ];
+        } else if (app.id === 'raw-materials') {
+          app.features = [
+            {
+              id: 'raw-materials-dashboard',
+              name: 'Raw Materials Operational Command Hub',
+              applicationId: 'raw-materials',
               planId: 1,
               isSaaS: false,
             }

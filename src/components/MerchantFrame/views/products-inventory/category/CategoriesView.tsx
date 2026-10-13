@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
+import { InventoryNavHubBar } from '../InventoryNavHubBar';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
@@ -85,7 +86,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
 
       if (categoriesRes.status === 401 || productsRes.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -411,38 +412,38 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
               {activeColSpan === 0 ? (
                 <NoColumnsEmptyState />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <table className="w-full table-fixed border-collapse font-sans text-xs">
                     <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                       <tr>
                         {visibleColumns.name && (
-                          <th className={`text-left text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-auto min-w-[200px]`}>
                             Category Name
                           </th>
                         )}
                         {visibleColumns.parent && (
-                          <th className={`text-left text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-36 min-w-[110px]`}>
                             Parent ID
                           </th>
                         )}
                         {visibleColumns.products && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-32 min-w-[100px]`}>
                             Linked Products
                           </th>
                         )}
                         {visibleColumns.status && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-28 min-w-[90px]`}>
                             Status
                           </th>
                         )}
                         {visibleColumns.actions && (
-                          <th className={`text-center text-label-caps font-bold text-[#5f5e5e] ${densityPadding}`}>
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-28 min-w-[90px]`}>
                             Actions
                           </th>
                         )}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#e8e2d8]">
+                    <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                       {isLoading ? (
                         <tr>
                           <td colSpan={activeColSpan} className={`text-center text-secondary font-sans bg-white py-12 px-6`}>
@@ -493,38 +494,38 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
                               }`}
                             >
                               {visibleColumns.name && (
-                                <td className={`flex items-center gap-3 ${densityPadding} ${isSub ? 'pl-12' : ''}`}>
-                                  {!isSub ? (
-                                    <div className={`w-1 h-8 rounded-full ${isInactive ? 'bg-zinc-400' : 'bg-[#ae001a]'}`}></div>
-                                  ) : (
-                                    <span className="material-symbols-outlined text-[#5f5e5e]/40">
-                                      subdirectory_arrow_right
-                                    </span>
-                                  )}
-                                  <div>
-                                    <p className={`font-bold text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>{cat.name}</p>
-                                    <p className={`text-[11px] text-secondary uppercase tracking-wider ${isInactive ? 'line-through' : ''}`}>
-                                      {cat.type}
-                                    </p>
+                                <td className={`truncate ${densityPadding} ${isSub ? 'pl-12' : ''}`}>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {isSub && (
+                                      <span className="material-symbols-outlined text-[#5f5e5e]/40 shrink-0">
+                                        subdirectory_arrow_right
+                                      </span>
+                                    )}
+                                    <div className="min-w-0 flex flex-col justify-center">
+                                      <p className={`font-bold text-[#1d1c17] font-sans text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`}>{cat.name}</p>
+                                      <p className={`text-[11px] font-mono font-normal text-[#5f5e5e] truncate mt-0.5 ${isInactive ? 'line-through' : ''}`}>
+                                        {cat.type}
+                                      </p>
+                                    </div>
                                   </div>
                                 </td>
                               )}
                               {visibleColumns.parent && (
-                                <td className={`font-mono text-[13px] text-secondary ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
+                                <td className={`font-mono font-normal text-xs text-[#5f5e5e] truncate ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
                                   {cat.parentId}
                                 </td>
                               )}
                               {visibleColumns.products && (
                                 <td className={`text-center ${densityPadding}`}>
-                                  <span className={`bg-[#ece8e0] px-3 py-1 rounded text-body-sm font-bold text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>
+                                  <span className={`bg-[#ece8e0] px-2.5 py-0.5 rounded text-xs font-mono font-normal text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>
                                     {cat.linkedProducts}
                                   </span>
                                 </td>
                               )}
                               {visibleColumns.status && (
-                                <td className={`text-center ${densityPadding}`}>
+                                <td className={`text-center whitespace-nowrap ${densityPadding}`}>
                                   <span
-                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
                                       cat.status === 'Active'
                                         ? 'bg-emerald-100 text-emerald-700'
                                         : 'bg-zinc-200 text-[#5f5e5e]'
@@ -537,22 +538,32 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
                               {visibleColumns.actions && (
                                 <td className={`text-center ${densityPadding}`}>
                                   <div className="flex justify-center gap-3">
-                                    <button
-                                      onClick={() => handleOpenEditModal(cat)}
-                                      className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                      title="Edit category"
-                                    >
-                                      <span className="material-symbols-outlined text-[20px]">edit</span>
-                                    </button>
-                                    <button
-                                      onClick={() => void handleToggleActive(cat)}
-                                      className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                      title={cat.status === 'Active' ? "Deactivate category" : "Activate category"}
-                                    >
-                                      <span className="material-symbols-outlined text-[20px]">
-                                        {cat.status === 'Active' ? 'block' : 'check_circle_outline'}
-                                      </span>
-                                    </button>
+                                    {cat.status === 'Active' ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleOpenEditModal(cat)}
+                                          className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                          title="Edit category"
+                                        >
+                                          <span className="material-symbols-outlined text-[20px]">edit</span>
+                                        </button>
+                                        <button
+                                          onClick={() => void handleToggleActive(cat)}
+                                          className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                          title="Deactivate category"
+                                        >
+                                          <span className="material-symbols-outlined text-[20px]">block</span>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button
+                                        onClick={() => void handleToggleActive(cat)}
+                                        className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                        title="Activate category"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               )}
@@ -750,6 +761,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
 
       {/* Persistent Quick Links Hub */}
       <CatalogQuickLinks current="categories" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="categories" onNavigate={onNavigate} />
     </div>
   );
 };

@@ -9,7 +9,7 @@ import {
   createTipPoolMember,
   updateTipPoolMember,
   fetchTipPoolMembers,
-  MOCK_COLLABORATOR_OPTIONS,
+  fetchCollaboratorOptions,
 } from '../../../../api/tip-pool-members';
 import { fetchTipPools } from '../../../../api/tip-pools';
 import type { TipPool } from '../../../../types/tip-pools';
@@ -63,35 +63,37 @@ export const TipPoolMemberFormDrawer: React.FC<TipPoolMemberFormDrawerProps> = (
 
   // Data Select Options
   const [pools, setPools] = useState<TipPool[]>([]);
-  const [collaborators] = useState<CollaboratorOption[]>(MOCK_COLLABORATOR_OPTIONS);
+  const [collaborators, setCollaborators] = useState<CollaboratorOption[]>([]);
   const [allActiveMembers, setAllActiveMembers] = useState<TipPoolMember[]>(existingMembers);
   const [loadingPools, setLoadingPools] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Adjust state during render when props change
+  // Adjust state during render when props change (prevents react-hooks/set-state-in-effect cascading renders)
   const [prevMember, setPrevMember] = useState(member);
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
   if (member !== prevMember || isOpen !== prevIsOpen) {
     setPrevMember(member);
     setPrevIsOpen(isOpen);
-    if (member) {
-      setTipPoolId(String(member.tip_pool_id));
-      setCollaboratorId(String(member.collaborator_id));
-      setRole(member.role);
-      setWeight(String(member.weight));
-      setRecordStatus(member.record_status);
-    } else {
-      setTipPoolId(defaultTipPoolId ? String(defaultTipPoolId) : pools[0] ? String(pools[0].id) : '');
-      setCollaboratorId(collaborators[0] ? String(collaborators[0].id) : '');
-      setRole('WAITER');
-      setWeight('1.00');
-      setRecordStatus('ACTIVE');
+    if (isOpen) {
+      if (member) {
+        setTipPoolId(String(member.tip_pool_id));
+        setCollaboratorId(String(member.collaborator_id));
+        setRole(member.role);
+        setWeight(String(member.weight));
+        setRecordStatus(member.record_status);
+      } else {
+        setTipPoolId(defaultTipPoolId ? String(defaultTipPoolId) : pools[0] ? String(pools[0].id) : '');
+        setCollaboratorId(collaborators[0] ? String(collaborators[0].id) : '');
+        setRole('WAITER');
+        setWeight('1.00');
+        setRecordStatus('ACTIVE');
+      }
+      setErrorMessage(null);
+      setSuccessMessage(null);
     }
-    setErrorMessage(null);
-    setSuccessMessage(null);
   }
 
   useEffect(() => {
@@ -115,6 +117,14 @@ export const TipPoolMemberFormDrawer: React.FC<TipPoolMemberFormDrawerProps> = (
         if (!ignore) setAllActiveMembers(existingMembers);
       });
 
+    fetchCollaboratorOptions()
+      .then((opts) => {
+        if (!ignore) setCollaborators(opts);
+      })
+      .catch(() => {
+        if (!ignore) setCollaborators([]);
+      });
+
     return () => {
       ignore = true;
     };
@@ -125,8 +135,9 @@ export const TipPoolMemberFormDrawer: React.FC<TipPoolMemberFormDrawerProps> = (
     const term = collaboratorSearchTerm.trim().toLowerCase();
     return collaborators.filter(
       (c) =>
-        `${c.first_name} ${c.last_name}`.toLowerCase().includes(term) ||
-        c.role.toLowerCase().includes(term) ||
+        `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase().includes(term) ||
+        (c.name || '').toLowerCase().includes(term) ||
+        (c.role || '').toLowerCase().includes(term) ||
         `#clb-${c.id}`.toLowerCase().includes(term) ||
         String(c.id).includes(term)
     );

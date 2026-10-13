@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { KitchenQuickLinks } from './KitchenQuickLinks';
@@ -15,17 +15,40 @@ export type KitchenStationStatus = 'active' | 'deleted';
 export interface KitchenStation {
   id: number;
   merchant_id: number;
+  merchantId?: number;
   name: string;
   station_type: KitchenStationType;
+  stationType?: KitchenStationType;
   display_mode: KitchenDisplayMode;
+  displayMode?: KitchenDisplayMode;
   display_order: number;
+  displayOrder?: number;
+  station_number?: number;
+  stationNumber?: number;
   printer_name: string | null;
+  printerName?: string | null;
   is_active: boolean;
   isActive?: boolean;
   status: KitchenStationStatus;
   created_at: string;
+  createdAt?: string;
   updated_at: string;
+  updatedAt?: string;
 }
+
+const getStationCode = (station: {
+  id: number;
+  station_number?: number;
+  stationNumber?: number;
+  display_order?: number;
+}): string => {
+  const num =
+    station.stationNumber ??
+    station.station_number ??
+    station.display_order ??
+    station.id;
+  return `#KST-${num}`;
+};
 
 interface KitchenStationsViewProps {
   onNavigate?: (view: string) => void;
@@ -38,12 +61,15 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtros y vista
+  // Filters and view
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [stationTypeFilter, setStationTypeFilter] = useState<string>('All');
   const [displayModeFilter, setDisplayModeFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   // States for Customizing Columns, Density, and Pagination in Table
   const [visibleColumns, setVisibleColumns] = useState<{
@@ -99,7 +125,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
   const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add');
   const [editingStation, setEditingStation] = useState<KitchenStation | null>(null);
 
-  // Formulario
+  // Form fields
   const [formName, setFormName] = useState<string>('');
   const [formStationType, setFormStationType] = useState<KitchenStationType>('HOT');
   const [formDisplayMode, setFormDisplayMode] = useState<KitchenDisplayMode>('AUTO');
@@ -126,6 +152,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
 
   const fetchStations = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    setIsRefreshing(true);
     setError(null);
     try {
       const token = getAccessToken();
@@ -137,7 +164,6 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       const statusQuery = statusFilter === 'Deleted' ? 'deleted' : statusFilter === 'Active' ? 'active' : '';
       const params = new URLSearchParams();
       if (statusQuery) params.append('status', statusQuery);
-      if (stationTypeFilter !== 'All') params.append('stationType', stationTypeFilter);
       if (displayModeFilter !== 'All') params.append('displayMode', displayModeFilter);
       params.append('sortBy', 'displayOrder');
       params.append('sortOrder', 'ASC');
@@ -146,33 +172,36 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
       if (res.ok) {
         const json = await res.json();
         const rawList: Record<string, unknown>[] = Array.isArray(json) ? json : json.data || [];
-        const dataList = rawList.map((st) => ({
-          ...st,
-          is_active: st.isActive ?? st.is_active ?? true,
-          isActive: st.isActive ?? st.is_active ?? true,
-          station_type: st.stationType ?? st.station_type ?? 'PREP',
-          stationType: st.stationType ?? st.station_type ?? 'PREP',
-          display_mode: st.displayMode ?? st.display_mode ?? 'AUTO',
-          displayMode: st.displayMode ?? st.display_mode ?? 'AUTO',
-          display_order: st.displayOrder ?? st.display_order ?? 1,
-          displayOrder: st.displayOrder ?? st.display_order ?? 1,
-          printer_name: st.printerName ?? st.printer_name ?? null,
-          printerName: st.printerName ?? st.printer_name ?? null,
-          created_at: st.createdAt ?? st.created_at ?? new Date().toISOString(),
-          createdAt: st.createdAt ?? st.created_at ?? new Date().toISOString(),
-          active_routing: st.activeRouting ?? st.active_routing ?? true,
-          activeRouting: st.activeRouting ?? st.active_routing ?? true,
-          status: st.status ?? 'active',
-          name: st.name ?? '',
+        const dataList: KitchenStation[] = rawList.map((st) => ({
+          id: Number(st.id ?? 0),
+          merchant_id: Number(st.merchant_id ?? st.merchantId ?? 0),
+          merchantId: Number(st.merchant_id ?? st.merchantId ?? 0),
+          name: String(st.name ?? ''),
+          is_active: Boolean(st.isActive ?? st.is_active ?? true),
+          isActive: Boolean(st.isActive ?? st.is_active ?? true),
+          station_type: (st.stationType ?? st.station_type ?? 'PREP') as KitchenStationType,
+          stationType: (st.stationType ?? st.station_type ?? 'PREP') as KitchenStationType,
+          display_mode: (st.displayMode ?? st.display_mode ?? 'AUTO') as KitchenDisplayMode,
+          displayMode: (st.displayMode ?? st.display_mode ?? 'AUTO') as KitchenDisplayMode,
+          display_order: Number(st.displayOrder ?? st.display_order ?? 1),
+          displayOrder: Number(st.displayOrder ?? st.display_order ?? 1),
+          printer_name: (st.printerName ?? st.printer_name ?? null) as string | null,
+          printerName: (st.printerName ?? st.printer_name ?? null) as string | null,
+          created_at: String(st.createdAt ?? st.created_at ?? new Date().toISOString()),
+          createdAt: String(st.createdAt ?? st.created_at ?? new Date().toISOString()),
+          updated_at: String(st.updatedAt ?? st.updated_at ?? new Date().toISOString()),
+          updatedAt: String(st.updatedAt ?? st.updated_at ?? new Date().toISOString()),
+          status: (st.status ?? 'active') as KitchenStationStatus,
         }));
         setStations(dataList);
+        setLastUpdated(new Date());
       } else {
         setStations([]);
       }
@@ -182,8 +211,9 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       setStations([]);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }, [statusFilter, stationTypeFilter, displayModeFilter, API_BASE]);
+  }, [statusFilter, displayModeFilter, API_BASE]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -191,15 +221,40 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
     });
   }, [fetchStations]);
 
+  // Auto-refresh timer
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      fetchStations(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchStations]);
+
+  // Real-time counts across current loaded dataset for filter pills
+  const stationTypeCounts = useMemo(() => {
+    return {
+      all: stations.length,
+      hot: stations.filter((s) => (s.station_type || s.stationType)?.toUpperCase() === 'HOT').length,
+      cold: stations.filter((s) => (s.station_type || s.stationType)?.toUpperCase() === 'COLD').length,
+      expo: stations.filter((s) => (s.station_type || s.stationType)?.toUpperCase() === 'EXPO').length,
+      bar: stations.filter((s) => (s.station_type || s.stationType)?.toUpperCase() === 'BAR').length,
+      dessert: stations.filter((s) => (s.station_type || s.stationType)?.toUpperCase() === 'DESSERT').length,
+      prep: stations.filter((s) => (s.station_type || s.stationType)?.toUpperCase() === 'PREP').length,
+    };
+  }, [stations]);
+
   // Client-side alphanumeric filtering for ultra-fast response
   const filteredStations = stations.filter((station) => {
     const matchesSearch =
       searchQuery.trim() === '' ||
       station.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      getStationCode(station).toLowerCase().includes(searchQuery.toLowerCase()) ||
       `#kst-${station.id}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (station.printer_name && station.printer_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesType = stationTypeFilter === 'All' || station.station_type === stationTypeFilter;
+    const matchesType =
+      stationTypeFilter === 'All' ||
+      (station.station_type || station.stationType)?.toUpperCase() === stationTypeFilter.toUpperCase();
     const matchesMode = displayModeFilter === 'All' || station.display_mode === displayModeFilter;
     const matchesStatus =
       statusFilter === 'Deleted'
@@ -235,7 +290,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       });
 
       if (!res.ok) {
-        // Revertir si falla la API
+        // Rollback if API fails
         fetchStations(true);
       }
     } catch (err) {
@@ -400,7 +455,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       case 'DESSERT':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold bg-pink-100 text-pink-800 border border-pink-200">
-            <span className="material-symbols-outlined text-[14px]">icecream</span>
+            <span className="material-symbols-outlined text-[14px]">cake</span>
             DESSERTS
           </span>
         );
@@ -423,7 +478,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
     }
   };
 
-  // Helper para modo KDS
+  // Helper for KDS mode
   const getDisplayModePill = (mode: KitchenDisplayMode) => {
     switch (mode) {
       case 'AUTO':
@@ -475,11 +530,16 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       <div ref={topRef} />
 
       {/* 1. Header Card Workspace */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
         <div>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
-            KITCHEN STATIONS & PREP ROUTING WORKSPACE
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              soup_kitchen
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              KITCHEN STATIONS & PREP ROUTING WORKSPACE
+            </h2>
+          </div>
           <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
             Configure physical prep stations, assign backup hardware printers, customize KDS screen display modes, and optimize high-speed ticket dispatch across prep lines.
           </p>
@@ -549,110 +609,277 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
         </div>
       </div>
 
-      {/* 2. Toolbar Multicriterio a 2 Filas */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
-        {/* Row 1: Search on left and View Switcher on right in SAME horizontal line */}
-        <div className="flex flex-row items-center justify-between gap-3 w-full">
-          <div className="relative flex-1 min-w-0">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#5f5e5e] font-sans">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Search stations by name, ID (#KST-101), or hardware printer name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md transition-all font-sans"
-              aria-label="Search kitchen stations"
-            />
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Display Mode selector, View Switcher + Reload on right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[220px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search stations by name, ID (#KST-101), printer..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search kitchen stations"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Display Mode Dropdown Selector */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="material-symbols-outlined text-base">desktop_windows</span>
+              <select
+                value={displayModeFilter}
+                onChange={(e) => setDisplayModeFilter(e.target.value)}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[180px] transition-colors duration-200"
+                aria-label="Filter by display mode"
+              >
+                <option value="All">All Display Modes</option>
+                <option value="AUTO">AUTO DISPATCH</option>
+                <option value="MANUAL">MANUAL QUEUE</option>
+                <option value="SUMMARY">SUMMARY VIEW</option>
+                <option value="GRID">GRID MATRIX</option>
+              </select>
+            </div>
           </div>
 
-          {/* View Switcher Toggle (Table View vs Quick-Launch Cards) aligned right on same line */}
-          <div className="flex items-center bg-[#f2ede5] p-1 rounded border border-[#e8e2d8] shrink-0">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-              title="Switch to Table View"
-            >
-              <span className="material-symbols-outlined text-[16px]">table_rows</span>
-              Table View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                viewMode === 'cards'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-              title="Switch to Quick-Launch Cards Grid View"
-            >
-              <span className="material-symbols-outlined text-[16px]">grid_view</span>
-              Quick-Launch Cards
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* View Switcher Toggle (Table View vs Quick-Launch Cards) */}
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Switch to Table View"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'table' ? 'text-[#ae001a]' : ''}`}>table_rows</span>
+                Table View
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Switch to Quick-Launch Cards Grid View"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'cards' ? 'text-[#ae001a]' : ''}`}>grid_view</span>
+                Quick-Launch Cards
+              </button>
+            </div>
+
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => fetchStations(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh stations now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+
+            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
+              <span className="material-symbols-outlined text-sm">schedule</span>
+              <span>Updated:</span>
+              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
+            </div>
           </div>
         </div>
 
-        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Station Type Selector */}
-            <select
-              value={stationTypeFilter}
-              onChange={(e) => setStationTypeFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by station type"
-            >
-              <option value="All">All Station Types</option>
-              <option value="HOT">HOT LINE</option>
-              <option value="COLD">COLD PREP</option>
-              <option value="EXPO">EXPO / PASS</option>
-              <option value="BAR">BAR & DRINKS</option>
-              <option value="DESSERT">DESSERTS</option>
-              <option value="PREP">PREP KITCHEN</option>
-            </select>
+        {/* Row 2: TYPES Pills Strip on left, Status & Primary Add Button on right */}
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: TYPES Pills Strip */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Types:
+            </span>
 
-            {/* Display Mode Selector */}
-            <select
-              value={displayModeFilter}
-              onChange={(e) => setDisplayModeFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by display mode"
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => setStationTypeFilter('All')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                stationTypeFilter === 'All'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
             >
-              <option value="All">All Display Modes</option>
-              <option value="AUTO">AUTO DISPATCH</option>
-              <option value="MANUAL">MANUAL QUEUE</option>
-              <option value="SUMMARY">SUMMARY VIEW</option>
-              <option value="GRID">GRID MATRIX</option>
-            </select>
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  stationTypeFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {stationTypeCounts.all}
+              </span>
+            </button>
 
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
-              aria-label="Filter by status"
+            {/* HOT LINE Pill (Icon: local_fire_department) */}
+            <button
+              type="button"
+              onClick={() => setStationTypeFilter('HOT')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                stationTypeFilter === 'HOT'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-amber-50/50 text-amber-800 border-amber-200 hover:bg-amber-100/50 hover:text-amber-900'
+              }`}
             >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Deleted">Deleted</option>
-            </select>
+              <span className="material-symbols-outlined text-[12px]">local_fire_department</span>
+              <span>HOT LINE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  stationTypeFilter === 'HOT' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {stationTypeCounts.hot}
+              </span>
+            </button>
+
+            {/* COLD PREP Pill (Icon: ac_unit) */}
+            <button
+              type="button"
+              onClick={() => setStationTypeFilter('COLD')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                stationTypeFilter === 'COLD'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-blue-50/50 text-blue-800 border-blue-200 hover:bg-blue-100/50 hover:text-blue-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">ac_unit</span>
+              <span>COLD PREP</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  stationTypeFilter === 'COLD' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                }`}
+              >
+                {stationTypeCounts.cold}
+              </span>
+            </button>
+
+            {/* EXPO / PASS Pill (Icon: check_circle) */}
+            <button
+              type="button"
+              onClick={() => setStationTypeFilter('EXPO')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                stationTypeFilter === 'EXPO'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-emerald-50/50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 hover:text-emerald-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>EXPO / PASS</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  stationTypeFilter === 'EXPO' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {stationTypeCounts.expo}
+              </span>
+            </button>
+
+            {/* BAR & DRINKS Pill (Icon: local_bar) */}
+            <button
+              type="button"
+              onClick={() => setStationTypeFilter('BAR')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                stationTypeFilter === 'BAR'
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                  : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100/60 hover:text-purple-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">local_bar</span>
+              <span>BAR & DRINKS</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  stationTypeFilter === 'BAR' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'
+                }`}
+              >
+                {stationTypeCounts.bar}
+              </span>
+            </button>
+
+            {/* DESSERTS Pill (Icon: cake) */}
+            <button
+              type="button"
+              onClick={() => setStationTypeFilter('DESSERT')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                stationTypeFilter === 'DESSERT'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                  : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100/60 hover:text-rose-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">cake</span>
+              <span>DESSERTS</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  stationTypeFilter === 'DESSERT' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                {stationTypeCounts.dessert}
+              </span>
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Right: Status Filter & Primary Add Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Status Filter Dropdown */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">tune</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs font-semibold focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer"
+                aria-label="Filter by status"
+              >
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Deleted">Deleted</option>
+              </select>
+            </div>
+
             {/* Primary Add Button */}
             <button
               type="button"
               onClick={handleOpenAddDrawer}
-              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+              className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
             >
               <span className="material-symbols-outlined text-[18px]">add</span>
-              ADD KITCHEN STATION
+              ADD STATION
             </button>
           </div>
         </div>
@@ -661,7 +888,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       {/* 3. Core Workspace Grid (Table View vs Quick-Launch Cards Grid View) */}
       {viewMode === 'cards' ? (
         isLoading ? (
-          <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm">
+          <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded-xl shadow-sm">
             <span className="material-symbols-outlined text-[#ae001a] animate-spin text-4xl mb-2">
               sync
             </span>
@@ -670,13 +897,13 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
             </p>
           </div>
         ) : error ? (
-          <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm space-y-3">
+          <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded-xl shadow-sm space-y-3">
             <span className="material-symbols-outlined text-4xl text-[#ba1a1a]">error</span>
             <p className="font-bold text-[#ba1a1a]">{error}</p>
             <button
               type="button"
               onClick={() => fetchStations()}
-              className="px-4 py-2 bg-[#222222] text-white font-bold text-xs uppercase hover:bg-[#ae001a] transition-all cursor-pointer"
+              className="px-4 py-2 bg-[#222222] text-white font-bold text-xs uppercase hover:bg-[#ae001a] transition-all cursor-pointer rounded-lg"
             >
               Retry Connection
             </button>
@@ -704,7 +931,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                   <div className="flex items-start justify-between gap-2 border-b border-[#e8e2d8] pb-2.5">
                     <div>
                       <div className="text-[10px] font-bold text-[#5f5e5e] uppercase tracking-wider font-sans">
-                        #KST-{station.id}
+                        {getStationCode(station)}
                       </div>
                       <h3
                         className={`text-sm font-bold text-[#1d1c17] font-sans ${
@@ -776,7 +1003,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
         </div>
         )
       ) : (
-        <div className="bg-white border border-[#e8e2d8] rounded shadow-sm relative">
+        <div className="bg-white border border-[#e8e2d8] rounded-xl shadow-sm relative overflow-hidden">
           <HeaderQuickTabs
             title="KITCHEN STATIONS & PREP ROUTING DIRECTORY"
             badgeCount={filteredStations.length <= pageSize ? `${filteredStations.length} station${filteredStations.length === 1 ? '' : 's'}` : `${Math.min(filteredStations.length, pageSize)} / ${filteredStations.length} stations`}
@@ -836,21 +1063,21 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs font-sans">
+              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
                   <thead>
-                    <tr className="bg-[#ece8e0] text-[#5f5e5e] uppercase text-[11px] tracking-wider font-bold border-b border-[#e8e2d8]">
-                      {visibleColumns.refDate && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Station Ref & Date</th>}
-                      {visibleColumns.nameSequence && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Station Name & Sequence</th>}
-                      {visibleColumns.stationType && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Station Type Role</th>}
-                      {visibleColumns.displayMode && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>KDS Display Mode</th>}
-                      {visibleColumns.printer && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e]`}>Hardware Printer Binding</th>}
-                      {visibleColumns.activeRouting && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e]`}>Active Routing</th>}
-                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e]`}>Lifecycle Status</th>}
-                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} text-right text-[#5f5e5e]`}>Actions</th>}
+                    <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
+                      {visibleColumns.refDate && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-32 min-w-[110px]`}>Station Ref & Date</th>}
+                      {visibleColumns.nameSequence && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-auto min-w-[180px]`}>Station Name & Sequence</th>}
+                      {visibleColumns.stationType && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Station Type Role</th>}
+                      {visibleColumns.displayMode && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-32 min-w-[100px]`}>KDS Display Mode</th>}
+                      {visibleColumns.printer && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-40 min-w-[120px]`}>Hardware Printer Binding</th>}
+                      {visibleColumns.activeRouting && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Active Routing</th>}
+                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Lifecycle Status</th>}
+                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} text-right text-[#5f5e5e] w-28 min-w-[90px]`}>Actions</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e8e2d8]">
+                  <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
                     {isLoading ? (
                       <tr>
                         <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -908,8 +1135,8 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                           {/* Reference ID & Date */}
                           {visibleColumns.refDate && (
                             <td className={`${densityPadding} whitespace-nowrap`}>
-                              <div className="font-bold text-[#1d1c17]">#KST-{station.id}</div>
-                              <div className="text-[10px] text-[#5f5e5e]">
+                              <div className="font-mono font-normal text-xs text-[#1d1c17]">{getStationCode(station)}</div>
+                              <div className="text-[11px] font-normal text-[#5f5e5e] mt-0.5">
                                 {new Date(station.created_at).toLocaleDateString('en-US', {
                                   year: 'numeric',
                                   month: 'short',
@@ -922,15 +1149,15 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                           {/* Station Name & Order Badge */}
                           {visibleColumns.nameSequence && (
                             <td className={densityPadding}>
-                              <div className="flex items-center gap-2">
+                              <div className="min-w-0 flex flex-col justify-center">
                                 <span
-                                  className={`font-bold text-sm text-[#1d1c17] ${
-                                    isInactive ? 'line-through' : ''
+                                  className={`font-bold text-sm text-[#1d1c17] truncate ${
+                                    isInactive ? 'line-through opacity-75' : ''
                                   }`}
                                 >
                                   {station.name}
                                 </span>
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] border border-[#e8e2d8]">
+                                <span className="font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5">
                                   Order #{station.display_order}
                                 </span>
                               </div>
@@ -955,7 +1182,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                           {visibleColumns.printer && (
                             <td className={`${densityPadding} whitespace-nowrap`}>
                               {station.printer_name ? (
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700">
+                                <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-700">
                                   <span className="material-symbols-outlined text-[16px] text-zinc-500">
                                     print
                                   </span>
@@ -1109,7 +1336,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                   <span className="material-symbols-outlined text-[#ae001a] text-xl">
                     soup_kitchen
                   </span>
-                  <h3 className="font-bold text-sm tracking-wider uppercase">
+                  <h3 className="font-bold text-sm tracking-wider uppercase !text-white text-white">
                     {drawerMode === 'add' ? 'Configure New Kitchen Station' : 'Edit Kitchen Station'}
                   </h3>
                 </div>

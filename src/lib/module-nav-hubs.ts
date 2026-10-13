@@ -1,37 +1,33 @@
-// Barras de navegación persistentes (NavHubBar) de los módulos del backoffice.
+// Persistent navigation hub bars (NavHubBar) for backoffice modules.
 //
-// Cash Drawers (X7P-4264) usa etiquetas deducidas del patrón de las demás historias: la suya
-// no se ha recibido todavía. Si trae otras, se cambian aquí y en module-nav-hubs.test.ts.
+// Single map per module: return button to its Command Hub and direct links to
+// ALL its 3rd level options (features from Features.txt), with exact story labels.
+// MerchantFrame references this with active featureId and mounts the bar once
+// for the active view, its error states, and "In Development" stubs.
 //
-// Un único mapa por módulo: el botón de regreso a su Command Hub y los accesos directos a
-// TODAS sus opciones de 3er nivel (las features de Features.txt), con las etiquetas exactas
-// de las historias. MerchantFrame lo consulta con el featureId activo y monta la barra una
-// sola vez para la vista, sus estados de error y los stubs "In Development" — así una opción
-// que aún no tiene vista sigue siendo navegable hacia sus hermanas.
+// Subscription System: the story spells "SUBCRIPTION PLANS"; the correct spelling
+// (SUBSCRIPTION PLANS) is used, like the rest of its labels.
 //
-// Subscription System: la historia escribe "SUBCRIPTION PLANS"; se usa la ortografía
-// correcta (SUBSCRIPTION PLANS), igual que el resto de sus etiquetas.
-//
-// Kitchen Display System NO está aquí: sus vistas montan su propia NavHubBar desde antes.
+// Kitchen Display System and Products / Inventory System mount their own operational Hub and NavHubBar.
 
 export interface ModuleNavItem {
-  /** featureId real de Features.txt, que es lo que MerchantFrame resuelve. */
+  /** Real featureId from Features.txt resolved by MerchantFrame. */
   featureId: string;
   label: string;
-  /** Símbolo de Material Symbols Outlined. */
+  /** Material Symbols Outlined glyph name. */
   icon: string;
-  /** Descripción para la tarjeta del Command Hub. */
+  /** Description for Command Hub card. */
   description: string;
-  /** Tiene vista propia; false = cae en el stub "In Development". */
+  /** Has its own view; false falls into "In Development" stub. */
   live: boolean;
 }
 
 export interface ModuleNavHub {
-  /** Application_Id de Applications.txt. */
+  /** Application_Id from Applications.txt. */
   appId: string;
-  /** featureId sintético de la página Command Hub del módulo. */
+  /** Synthetic featureId for module Command Hub page. */
   hubId: string;
-  /** Etiqueta del botón de regreso (y título del hub). */
+  /** Back button label (and hub title). */
   hubLabel: string;
   title: string;
   category: string;
@@ -187,6 +183,51 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     ],
   },
   {
+    appId: 'shifts',
+    hubId: 'shifts-hub',
+    hubLabel: 'SHIFTS COMMAND HUB',
+    title: 'Shifts Command Hub',
+    category: 'Restaurant Operations',
+    icon: 'schedule',
+    description: 'Shift scheduling, shift assignments, roster planning and clock-in management.',
+    items: [
+      { featureId: 'shift-assignment', label: 'SHIFT ASSIGNMENT', icon: 'assignment', live: true, description: 'Interactive weekly schedule matrix, floor coverage planning and publication control.' },
+      { featureId: 'shifts', label: 'SHIFTS', icon: 'schedule', live: true, description: 'Daily Gantt timeline view of staff coverage, hours and active shifts.' },
+    ],
+  },
+  {
+    appId: 'tips',
+    hubId: 'tips-hub',
+    hubLabel: 'TIPS COMMAND HUB',
+    title: 'Tips Command Hub',
+    category: 'Restaurant Operations',
+    icon: 'payments',
+    description: 'Tip pools, allocations formulas, settlement processing and cash tip movements.',
+    items: [
+      { featureId: 'tip-movements', label: 'TIP MOVEMENTS', icon: 'swap_vert', live: true, description: 'Cash tip movements, in-and-out history and shift logs.' },
+      { featureId: 'tip-pool-members', label: 'TIP POOL MEMBERS', icon: 'group', live: true, description: 'Staff members roster assigned to active tip pools.' },
+      { featureId: 'tip-settlements', label: 'TIP SETTLEMENTS', icon: 'receipt_long', live: true, description: 'Tip distribution runs, execution and payout history.' },
+      { featureId: 'tips', label: 'TIPS', icon: 'payments', live: true, description: 'Main tips ledger, collection summary and daily breakdown.' },
+      { featureId: 'tips-allocations', label: 'TIPS ALLOCATIONS', icon: 'calculate', live: true, description: 'Tip distribution formulas, points matrix and allocation rules.' },
+      { featureId: 'tips-pools', label: 'TIPS POOLS', icon: 'pool', live: true, description: 'Tip pool configuration, contribution rules and member groups.' },
+    ],
+  },
+  {
+    appId: 'configuration',
+    hubId: 'configuration-hub',
+    hubLabel: 'CONFIGURATION COMMAND HUB',
+    title: 'Configuration Command Hub',
+    category: 'CORE',
+    icon: 'settings_applications',
+    description: 'Merchant overtime rules, payroll rules, tax rules and tip distribution rules.',
+    items: [
+      { featureId: 'merchant-overtime-rules', label: 'MERCHANT OVERTIME RULES', icon: 'more_time', live: true, description: 'Overtime thresholds, multiplier rates and daily caps.' },
+      { featureId: 'merchant-payroll-rules', label: 'MERCHANT PAYROLL RULES', icon: 'payments', live: true, description: 'Pay periods, salary calculation and withholding rules.' },
+      { featureId: 'merchant-tax-rules', label: 'MERCHANT TAX RULES', icon: 'percent', live: true, description: 'Sales tax, VAT rates, tax brackets and exemptions.' },
+      { featureId: 'merchant-tips-rules', label: 'MERCHANT TIPS RULES', icon: 'request_quote', live: true, description: 'Tip distribution percentages, pool rules and collection parameters.' },
+    ],
+  },
+  {
     appId: 'billing-transactions',
     hubId: 'billing-transactions-hub',
     hubLabel: 'BILLING & TRANSACTIONS COMMAND HUB',
@@ -226,6 +267,42 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     items: [
       { featureId: 'customers', label: 'CUSTOMERS', icon: 'person', live: false, description: 'Customer profiles and billing identity.' },
       { featureId: 'suppliers', label: 'SUPPLIERS', icon: 'local_shipping', live: true, description: 'Supplier directory and terms.' },
+    ],
+  },
+  {
+    appId: 'qr-code',
+    hubId: 'qr-code-hub',
+    hubLabel: 'QR CODE SYSTEM COMMAND HUB',
+    title: 'QR Code System Command Hub',
+    category: 'Commerce',
+    icon: 'qr_code_2',
+    description: 'Physical & virtual QR access points, active QR menus, and dynamic QR code generation.',
+    items: [
+      { featureId: 'qr-code-locations', label: 'QR CODE LOCATIONS', icon: 'qr_code_2', live: true, description: 'Manage physical and virtual QR access points, assigned menus, tables and dynamic QR assets.' },
+      { featureId: 'qr-code-menus', label: 'QR CODE MENUS', icon: 'restaurant_menu', live: false, description: 'Deploy and configure digital QR menus.' },
+      { featureId: 'qr-code-menu-sections', label: 'QR MENU SECTIONS', icon: 'view_headline', live: false, description: 'Organize menu sections for QR ordering.' },
+      { featureId: 'qr-code-menu-items', label: 'QR MENU ITEMS', icon: 'fastfood', live: false, description: 'Configure items and modifiers for QR access.' },
+      { featureId: 'qr-code-orders', label: 'QR CODE ORDERS', icon: 'shopping_bag', live: false, description: 'Track live orders originated from QR scans.' },
+      { featureId: 'qr-order-items', label: 'QR ORDER ITEMS', icon: 'receipt', live: false, description: 'Detailed line items from QR customer orders.' },
+    ],
+  },
+  {
+    appId: 'online-ordering',
+    hubId: 'online-ordering-hub',
+    hubLabel: 'ONLINE ORDERING COMMAND HUB',
+    title: 'Online Ordering Command Hub',
+    category: 'Commerce',
+    icon: 'storefront',
+    description: 'Centralized operational hub for digital storefronts, multi-tenant web portals, menu catalogs, digital payments, live dispatch orders, and delivery logistics.',
+    items: [
+      { featureId: 'online-stores', label: 'STORES', icon: 'storefront', live: true, description: 'Manage digital storefronts, subdomains, themes, currency and operational status.' },
+      { featureId: 'online-payments', label: 'PAYMENTS', icon: 'payments', live: false, description: 'Payment gateways, Stripe/PayPal accounts and digital checkout configurations.' },
+      { featureId: 'online-menus', label: 'MENUS', icon: 'restaurant_menu', live: true, description: 'Curated digital menus, seasonal offerings and time-based availability.' },
+      { featureId: 'online-menu-categories', label: 'CATEGORIES', icon: 'category', live: false, description: 'Menu taxonomy, sections, families and dish categorization.' },
+      { featureId: 'online-menu-items', label: 'ITEMS', icon: 'lunch_dining', live: false, description: 'Online dish catalog, pricing, modifier linkages and stock availability.' },
+      { featureId: 'online-orders', label: 'ORDERS', icon: 'shopping_bag', live: false, description: 'Live incoming web orders, customer tracking and dispatch statuses.' },
+      { featureId: 'online-order-items', label: 'ORDER ITEMS', icon: 'receipt_long', live: false, description: 'Detailed cart item breakdown, custom modifiers and customer instructions.' },
+      { featureId: 'online-delivery-info', label: 'DELIVERY', icon: 'local_shipping', live: false, description: 'Delivery coverage zones, courier fees, minimum order amounts and dispatch timing.' },
     ],
   },
 ];

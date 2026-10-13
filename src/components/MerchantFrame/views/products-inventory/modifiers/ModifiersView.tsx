@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
+import { InventoryNavHubBar } from '../InventoryNavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -93,7 +94,7 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
 
       if (modifiersRes.status === 401 || productsRes.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -455,38 +456,38 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
             onPageChange={setCurrentPage}
           />
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <table className="w-full table-fixed border-collapse">
             <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
               <tr>
                 {visibleColumns.name && (
-                  <th className={`${densityPadding} text-left text-label-caps font-bold text-text-muted font-sans`}>
+                  <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-auto min-w-[180px]`}>
                     Modifier Name
                   </th>
                 )}
                 {visibleColumns.product && (
-                  <th className={`${densityPadding} text-left text-label-caps font-bold text-text-muted font-sans`}>
+                  <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-44 min-w-[130px]`}>
                     Associated Product
                   </th>
                 )}
                 {visibleColumns.priceDelta && (
-                  <th className={`${densityPadding} text-right text-label-caps font-bold text-text-muted font-sans`}>
+                  <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[110px]`}>
                     Delta Price
                   </th>
                 )}
                 {visibleColumns.status && (
-                  <th className={`${densityPadding} text-center text-label-caps font-bold text-text-muted font-sans`}>
+                  <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                     Status
                   </th>
                 )}
                 {visibleColumns.actions && (
-                  <th className={`${densityPadding} text-center text-label-caps font-bold text-text-muted font-sans`}>
+                  <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                     Actions
                   </th>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#e8e2d8]">
+            <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
               {visibleColumnsCount === 0 ? (
                 <NoColumnsEmptyState colSpan={5} />
               ) : isLoading ? (
@@ -538,27 +539,26 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
                       }`}
                     >
                       {visibleColumns.name && (
-                        <td className={densityPadding}>
-                          <div className="flex items-center gap-3">
-                            <div className={`w-1 h-8 rounded-full ${isInactive ? 'bg-zinc-400' : 'bg-[#ae001a]'}`}></div>
-                            <p className={`font-bold text-[#1d1c17] font-sans ${isInactive ? 'line-through' : ''}`}>{modifier.name}</p>
-                          </div>
+                        <td className={`${densityPadding} truncate`}>
+                          <p className={`font-bold text-[#1d1c17] font-sans text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`} title={modifier.name}>{modifier.name}</p>
                         </td>
                       )}
                       {visibleColumns.product && (
-                        <td className={`${densityPadding} text-body-md text-[#1d1c17] font-sans`}>
-                          {modifier.product ? modifier.product.name : 'No Product'}
+                        <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] font-sans truncate`}>
+                          <span title={modifier.product ? modifier.product.name : 'No Product'}>
+                            {modifier.product ? modifier.product.name : 'No Product'}
+                          </span>
                         </td>
                       )}
                       {visibleColumns.priceDelta && (
-                        <td className={`${densityPadding} text-right font-mono font-bold text-emerald-700`}>
+                        <td className={`${densityPadding} text-right font-mono font-normal text-xs text-emerald-700 whitespace-nowrap`}>
                           +{formatPrice(modifier.priceDelta)}
                         </td>
                       )}
                       {visibleColumns.status && (
-                        <td className={`${densityPadding} text-center`}>
+                        <td className={`${densityPadding} text-center whitespace-nowrap`}>
                           <span
-                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans ${
+                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
                               modifier.isActive
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-zinc-200 text-[#5f5e5e]'
@@ -569,24 +569,34 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
                         </td>
                       )}
                       {visibleColumns.actions && (
-                        <td className={`${densityPadding} text-center`}>
+                        <td className={`${densityPadding} text-center whitespace-nowrap`}>
                           <div className="flex justify-center gap-3">
-                            <button
-                              onClick={() => handleOpenEditModal(modifier)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title="Edit modifier"
-                            >
-                              <span className="material-symbols-outlined text-[20px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => void handleToggleActive(modifier)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title={modifier.isActive ? "Deactivate modifier" : "Activate modifier"}
-                            >
-                              <span className="material-symbols-outlined text-[20px]">
-                                {modifier.isActive ? 'block' : 'check_circle_outline'}
-                              </span>
-                            </button>
+                            {modifier.isActive ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEditModal(modifier)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Edit modifier"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <button
+                                  onClick={() => void handleToggleActive(modifier)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Deactivate modifier"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">block</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => void handleToggleActive(modifier)}
+                                className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                title="Activate modifier"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -777,6 +787,9 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
 
       {/* Persistent Quick Links Hub */}
       <CatalogQuickLinks current="modifiers" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="modifiers" onNavigate={onNavigate} />
     </div>
   );
 };

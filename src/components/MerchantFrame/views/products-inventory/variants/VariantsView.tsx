@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
+import { InventoryNavHubBar } from '../InventoryNavHubBar';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
@@ -95,7 +96,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
 
       if (variantsRes.status === 401 || productsRes.status === 401) {
         clearAuthSession();
-        window.location.assign('/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -452,43 +453,43 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
         {colSpan === 0 ? (
           <NoColumnsEmptyState />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <table className="w-full table-fixed border-collapse">
               <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                 <tr>
                   {visibleColumns.name && (
-                    <th className={`${densityPadding} text-left text-label-caps font-bold text-[#5f5e5e] font-sans`}>
+                    <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-auto min-w-[180px]`}>
                       Variant Name
                     </th>
                   )}
                   {visibleColumns.product && (
-                    <th className={`${densityPadding} text-left text-label-caps font-bold text-[#5f5e5e] font-sans`}>
+                    <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-44 min-w-[130px]`}>
                       Associated Product
                     </th>
                   )}
                   {visibleColumns.sku && (
-                    <th className={`${densityPadding} text-left text-label-caps font-bold text-[#5f5e5e] font-sans`}>
+                    <th className={`${densityPadding} text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-36 min-w-[110px]`}>
                       SKU
                     </th>
                   )}
                   {visibleColumns.price && (
-                    <th className={`${densityPadding} text-right text-label-caps font-bold text-[#5f5e5e] font-sans`}>
+                    <th className={`${densityPadding} text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-32 min-w-[100px]`}>
                       Price
                     </th>
                   )}
                   {visibleColumns.status && (
-                    <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] font-sans`}>
+                    <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                       Status
                     </th>
                   )}
                   {visibleColumns.actions && (
-                    <th className={`${densityPadding} text-center text-label-caps font-bold text-[#5f5e5e] font-sans`}>
+                    <th className={`${densityPadding} text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs w-28 min-w-[90px]`}>
                       Actions
                     </th>
                   )}
                 </tr>
               </thead>
-            <tbody className="divide-y divide-[#e8e2d8]">
+            <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
               {isLoading ? (
                 <tr>
                   <td colSpan={colSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -538,30 +539,40 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
                       }`}
                     >
                       {visibleColumns.name && (
-                        <td className={`${densityPadding} flex items-center gap-3`}>
-                          <div className={`w-1 h-8 rounded-full ${isInactive ? 'bg-zinc-400' : 'bg-[#ae001a]'}`}></div>
-                          <p className={`font-bold text-[#1d1c17] font-sans ${isInactive ? 'line-through' : ''}`}>{variant.name}</p>
+                        <td className={`${densityPadding} truncate`}>
+                          <div className="min-w-0 flex flex-col justify-center">
+                            <p className={`font-bold text-[#1d1c17] font-sans text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`} title={variant.name}>
+                              {variant.name}
+                            </p>
+                            {variant.sku && (
+                              <span className={`font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5 ${isInactive ? 'line-through' : ''}`}>
+                                SKU: {variant.sku}
+                              </span>
+                            )}
+                          </div>
                         </td>
                       )}
                       {visibleColumns.product && (
-                        <td className={`${densityPadding} text-body-md text-[#1d1c17] font-sans`}>
-                          {variant.product ? variant.product.name : 'No Product'}
+                        <td className={`${densityPadding} text-xs font-normal text-[#5f5e5e] font-sans truncate`}>
+                          <span title={variant.product ? variant.product.name : 'No Product'}>
+                            {variant.product ? variant.product.name : 'No Product'}
+                          </span>
                         </td>
                       )}
                       {visibleColumns.sku && (
-                        <td className={`${densityPadding} font-mono text-[13px] text-secondary ${isInactive ? 'line-through' : ''}`}>
+                        <td className={`${densityPadding} font-mono text-xs font-normal text-[#5f5e5e] whitespace-nowrap ${isInactive ? 'line-through' : ''}`}>
                           {variant.sku}
                         </td>
                       )}
                       {visibleColumns.price && (
-                        <td className={`${densityPadding} text-right font-mono font-bold text-[#1d1c17]`}>
+                        <td className={`${densityPadding} text-right font-mono font-normal text-xs text-[#1d1c17] whitespace-nowrap`}>
                           {formatPrice(variant.price)}
                         </td>
                       )}
                       {visibleColumns.status && (
-                        <td className={`${densityPadding} text-center`}>
+                        <td className={`${densityPadding} text-center whitespace-nowrap`}>
                           <span
-                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans ${
+                            className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
                               variant.isActive
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-zinc-200 text-[#5f5e5e]'
@@ -572,24 +583,34 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
                         </td>
                       )}
                       {visibleColumns.actions && (
-                        <td className={`${densityPadding} text-center`}>
+                        <td className={`${densityPadding} text-center whitespace-nowrap`}>
                           <div className="flex justify-center gap-3">
-                            <button
-                              onClick={() => handleOpenEditModal(variant)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title="Edit variant"
-                            >
-                              <span className="material-symbols-outlined text-[20px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => void handleToggleActive(variant)}
-                              className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                              title={variant.isActive ? "Deactivate variant" : "Activate variant"}
-                            >
-                              <span className="material-symbols-outlined text-[20px]">
-                                {variant.isActive ? 'block' : 'check_circle_outline'}
-                              </span>
-                            </button>
+                            {variant.isActive ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEditModal(variant)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Edit variant"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <button
+                                  onClick={() => void handleToggleActive(variant)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Deactivate variant"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">block</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => void handleToggleActive(variant)}
+                                className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                title="Activate variant"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -795,6 +816,9 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
 
       {/* Persistent Quick Links Hub */}
       <CatalogQuickLinks current="variants" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="variants" onNavigate={onNavigate} />
     </div>
   );
 };

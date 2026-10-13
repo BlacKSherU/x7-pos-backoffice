@@ -26,6 +26,7 @@ import { KitchenPerformanceCard } from './dashboard/KitchenPerformanceCard';
 import { TopSellingItems } from './dashboard/TopSellingItems';
 import { CurrentShifts } from './dashboard/CurrentShifts';
 import { KitchenMonitorView } from './views/restaurant-operations/kitchen-stations/KitchenMonitorView';
+import { sendStationKeepaliveHeartbeat } from '../../lib/kds-keepalive';
 import {
   NewReservationModal,
   VoidTransactionModal,
@@ -64,6 +65,8 @@ import { TipsLedgerView } from './views/restaurant-operations/TipsLedgerView';
 import { TipPoolsView } from './views/restaurant-operations/TipPoolsView';
 import { TipPoolMembersView } from './views/restaurant-operations/TipPoolMembersView';
 import { TipAllocationsView } from './views/restaurant-operations/TipAllocationsView';
+import { TipSettlementsView } from './views/restaurant-operations/TipSettlementsView';
+import { CashTipMovementsView } from './views/restaurant-operations/CashTipMovementsView';
 import { OpenShiftsMarketplaceView } from './views/restaurant-operations/OpenShiftsMarketplaceView';
 import { LaborCostForecastingView } from './views/restaurant-operations/LaborCostForecastingView';
 import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
@@ -113,11 +116,17 @@ import { RawMaterialCategoriesView } from './views/products-inventory/category/R
 import { RecipesView } from './views/products-inventory/recipes/RecipesView';
 import { KitchenStationsView } from './views/restaurant-operations/kitchen-stations/KitchenStationsView';
 import { KitchenKDSHubView } from './views/restaurant-operations/kitchen-stations/KitchenKDSHubView';
+import { ProductsInventoryHubView } from './views/products-inventory/ProductsInventoryHubView';
+import { RawMaterialsHubView } from './views/products-inventory/RawMaterialsHubView';
+import { OnlineOrderingHubView } from './views/commerce/OnlineOrderingHubView';
+import { OnlineStoresView } from './views/commerce/online-stores/OnlineStoresView';
+import { OnlineMenusView } from './views/commerce/online-menus/OnlineMenusView';
 import { KitchenDisplayDevicesView } from './views/restaurant-operations/kitchen-stations/KitchenDisplayDevicesView';
 import { KitchenOrdersView } from './views/restaurant-operations/kitchen-stations/KitchenOrdersView';
 import { KitchenOrderItemsView } from './views/restaurant-operations/kitchen-stations/KitchenOrderItemsView';
 import { KitchenEventLogView } from './views/restaurant-operations/kitchen-stations/KitchenEventLogView';
 import { KitchenAnalyticsView } from './views/restaurant-operations/kitchen-stations/KitchenAnalyticsView';
+import { QRLocationsView } from './views/qr-code/QRLocationsView';
 import { clearAuthSession } from '../../lib/auth-storage';
 import { getCurrentMerchantId } from '../../api/users';
 
@@ -219,6 +228,30 @@ const getNavFromPath = (
     return { category: 'inventory', tab: 'stock-movements' };
   } else if (path === '/inventory/movements') {
     return { category: 'inventory', tab: 'movements' };
+  } else if (path === '/qr-code/locations' || path === '/dashboard/qr-locations' || path === '/qr-code-locations') {
+    return { category: 'commerce', tab: 'qr-code-locations' };
+  } else if (path === '/inventory/dashboard' || path === '/inventory/hub' || path === '/dashboard/inventory') {
+    return { category: 'inventory', tab: 'inventory-dashboard' };
+  } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
+    return { category: 'inventory', tab: 'raw-materials-dashboard' };
+  } else if (path === '/online-ordering' || path === '/online-ordering/hub' || path === '/online-ordering/dashboard' || path === '/dashboard/online-ordering') {
+    return { category: 'commerce', tab: 'online-ordering-hub' };
+  } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores' || path === '/online-ordering/stores') {
+    return { category: 'commerce', tab: 'online-stores' };
+  } else if (path === '/online-ordering/payments') {
+    return { category: 'commerce', tab: 'online-payments' };
+  } else if (path === '/commerce/online-menus' || path === '/dashboard/online-menus' || path === '/online-menus' || path === '/online-ordering/menus') {
+    return { category: 'commerce', tab: 'online-menus' };
+  } else if (path === '/online-ordering/categories') {
+    return { category: 'commerce', tab: 'online-menu-categories' };
+  } else if (path === '/online-ordering/items') {
+    return { category: 'commerce', tab: 'online-menu-items' };
+  } else if (path === '/online-ordering/orders') {
+    return { category: 'commerce', tab: 'online-orders' };
+  } else if (path === '/online-ordering/order-items') {
+    return { category: 'commerce', tab: 'online-order-items' };
+  } else if (path === '/online-ordering/delivery' || path === '/online-ordering/delivery-info') {
+    return { category: 'commerce', tab: 'online-delivery-info' };
   } else if (path === '/dashboard') {
     const stateTab = locationState?.activeTab;
     const stateCategory = locationState?.activeCategory;
@@ -276,7 +309,32 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter(null);
     setAllocationsContext(null);
     setActiveTab(featureId);
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
   };
+
+  // Scroll main container to top whenever activeTab changes
+  useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+      try {
+        mainEl.scrollTo({ top: 0, behavior: 'instant' });
+      } catch {
+        // fallback
+      }
+    }
+    window.scrollTo(0, 0);
+    const timer = setTimeout(() => {
+      const el = document.querySelector('main');
+      if (el) el.scrollTop = 0;
+      window.scrollTo(0, 0);
+    }, 30);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   const handleNavigateView = (view: string, plan?: SubscriptionPlan) => {
     if (plan) setSelectedPlan(plan);
@@ -297,14 +355,144 @@ export const MerchantFrame: React.FC = () => {
   }
 
   // Handle external side effects (sessionStorage) on route change
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (location.pathname === '/dashboard') {
+    const path = location.pathname;
+    if (path === '/legal/privacy-policy') {
+      setActiveCategory('legal');
+      setActiveTab('privacy-policy');
+    } else if (path === '/legal/terms-of-service') {
+      setActiveCategory('legal');
+      setActiveTab('terms-of-service');
+    } else if (path === '/support/help-center') {
+      setActiveCategory('support');
+      setActiveTab('help-center');
+    } else if (path === '/dashboard/products') {
+      setActiveCategory('inventory');
+      setActiveTab('products');
+    } else if (path === '/dashboard/categories') {
+      setActiveCategory('inventory');
+      setActiveTab('categories');
+    } else if (path === '/dashboard/merchants') {
+      setActiveCategory('platformsaas');
+      setActiveTab('merchant-directory');
+    } else if (path === '/dashboard/users') {
+      setActiveCategory('platformsaas');
+      setActiveTab('user-management');
+    } else if (path === '/dashboard/company-profile') {
+      setActiveCategory('platformsaas');
+      setActiveTab('company-profile');
+    } else if (path === '/dashboard/company-configurations') {
+      setActiveCategory('platformsaas');
+      setActiveTab('company-configurations');
+    } else if (path === '/staff-management/schedule/roster') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('staff-roster');
+    } else if (path === '/staff-management/schedule/assignments') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('shift-assignment');
+    } else if (path === '/staff-management/schedule/daily' || path === '/staff-management/schedule/timeline') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('daily-timeline');
+    } else if (path === '/staff-management/schedule/shifts' || path === '/staff-management/schedule/scheduler') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('shifts');
+    } else if (path === '/staff-management/schedule/swaps') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('staff-swaps');
+    } else if (path === '/staff-management/schedule/marketplace' || path === '/staff-management/schedule/open-shifts') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('open-shifts');
+    } else if (path === '/staff-management/schedule/labor-forecasting' || path === '/staff-management/schedule/forecasting') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('labor-forecasting');
+    } else if (path === '/staff-management/attendance/ledger') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('collaborators-time-entries');
+    } else if (path === '/staff-management/schedule/me') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('my-schedule');
+    } else if (path === '/staff-management/attendance/kiosk') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('time-clock-kiosk');
+    } else if (path === '/store-operations/tips-ledger' || path === '/tips/ledger') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('tips-ledger');
+    } else if (path === '/store-operations/tips-allocations' || path === '/tips/allocations') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('tips-allocations');
+    } else if (path === '/store-operations/tips-pools' || path === '/store-operations/tip-pools' || path === '/tips/pools') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('tips-pools');
+    } else if (path === '/store-operations/tips-pool-members' || path === '/store-operations/tip-pool-members' || path === '/tips/pool-members') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('tips-pool-members');
+    } else if (path === '/store-operations/tips-settlements' || path === '/store-operations/tip-settlements' || path === '/tips/settlements') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('tips-settlements');
+    } else if (path === '/tips/cash-movements' || path === '/store-operations/tips-cash-movements' || path === '/store-operations/cash-tip-movements') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('tips-cash-movements');
+    } else if (path === '/store-operations/cash-movements') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('cash-movements');
+    } else if (path === '/dashboard/raw-materials' || path === '/inventory/raw-materials') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-materials');
+    } else if (path === '/dashboard/raw-material-categories') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-material-categories');
+    } else if (path === '/dashboard/recipes' || path === '/inventory/recipes') {
+      setActiveCategory('inventory');
+      setActiveTab('recipes');
+    } else if (path === '/inventory/stocks') {
+      setActiveCategory('inventory');
+      setActiveTab('stock-movements');
+    } else if (path === '/inventory/dashboard' || path === '/inventory/hub' || path === '/dashboard/inventory') {
+      setActiveCategory('inventory');
+      setActiveTab('inventory-dashboard');
+    } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-materials-dashboard');
+    } else if (path === '/online-ordering' || path === '/online-ordering/hub' || path === '/online-ordering/dashboard' || path === '/dashboard/online-ordering') {
+      setActiveCategory('commerce');
+      setActiveTab('online-ordering-hub');
+    } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores' || path === '/online-ordering/stores') {
+      setActiveCategory('commerce');
+      setActiveTab('online-stores');
+    } else if (path === '/online-ordering/payments') {
+      setActiveCategory('commerce');
+      setActiveTab('online-payments');
+    } else if (path === '/online-ordering/menus') {
+      setActiveCategory('commerce');
+      setActiveTab('online-menus');
+    } else if (path === '/online-ordering/categories') {
+      setActiveCategory('commerce');
+      setActiveTab('online-menu-categories');
+    } else if (path === '/online-ordering/items') {
+      setActiveCategory('commerce');
+      setActiveTab('online-menu-items');
+    } else if (path === '/online-ordering/orders') {
+      setActiveCategory('commerce');
+      setActiveTab('online-orders');
+    } else if (path === '/online-ordering/order-items') {
+      setActiveCategory('commerce');
+      setActiveTab('online-order-items');
+    } else if (path === '/online-ordering/delivery' || path === '/online-ordering/delivery-info') {
+      setActiveCategory('commerce');
+      setActiveTab('online-delivery-info');
+    } else if (path === '/dashboard') {
+      const stateTab = location.state?.activeTab;
+      const stateCategory = location.state?.activeCategory;
+      if (stateTab) setActiveTab(stateTab);
+      if (stateCategory) setActiveCategory(stateCategory);
       const stateMerchantId = location.state?.merchantId;
       if (stateMerchantId != null) {
         sessionStorage.setItem('x7:branch-context', String(stateMerchantId));
       }
     }
   }, [location.pathname, location.state]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
 
   // Dynamic Navigation by Plan and Permissions
@@ -479,6 +667,32 @@ export const MerchantFrame: React.FC = () => {
       bodyEl?.classList.remove('restaurant-active', 'saas-active');
     };
   }, [activeTab, activeCategory, profile?.role]);
+
+  // Latido keepalive automático de estaciones de cocina en Backoffice (inmediato al abrir y cada 15s)
+  useEffect(() => {
+    const isKitchenArea =
+      activeCategory === 'kitchen' ||
+      [
+        'kds-dashboard',
+        'kitchen-kds-hub',
+        'kitchen-stations',
+        'kitchen-display-devices',
+        'kitchen-orders',
+        'kitchen-order-items',
+        'kitchen-event-log',
+        'kitchen-analytics',
+      ].includes(activeTab);
+
+    if (!isKitchenArea) return;
+
+    void sendStationKeepaliveHeartbeat('ALL');
+
+    const keepaliveTimer = setInterval(() => {
+      void sendStationKeepaliveHeartbeat('ALL');
+    }, 15000);
+
+    return () => clearInterval(keepaliveTimer);
+  }, [activeTab, activeCategory]);
 
   const handleToggleApiFailure = () => {
     const newState = !apiFailedToggle;
@@ -735,11 +949,21 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-pool-members');
-        safeNavigate('/tips/pool-members');
-      } else if (target === '/tips/cash-movements' || target === 'tips-cash-movements' || target === 'cash-movements') {
+        try { navigate('/tips/pool-members'); } catch { /* ignore */ }
+      } else if (
+        target === '/store-operations/tips-settlements' ||
+        target === '/store-operations/tip-settlements' ||
+        target === '/tips/settlements' ||
+        target === 'tips-settlements' ||
+        target === 'tip-settlements'
+      ) {
         setActiveCategory('restaurant-operations');
-        setActiveTab('cash-movements');
-        safeNavigate('/tips/cash-movements');
+        setActiveTab('tips-settlements');
+        try { navigate('/tips/settlements'); } catch { /* ignore */ }
+      } else if (target === '/tips/cash-movements' || target === 'tips-cash-movements' || target === 'cash-tip-movements') {
+        setActiveCategory('restaurant-operations');
+        setActiveTab('tips-cash-movements');
+        try { navigate('/tips/cash-movements'); } catch { /* ignore */ }
       } else {
         setActiveTab(target);
       }
@@ -749,11 +973,11 @@ export const MerchantFrame: React.FC = () => {
       return <CollaboratorPersonalScheduleView onNavigate={handleStaffNavigate} />;
     }
 
-    if (activeTab === 'daily-timeline' || activeTab === 'daily' || activeTab === '/staff-management/schedule/daily') {
+    if (activeTab === 'shifts' || activeTab === 'daily-timeline' || activeTab === 'daily' || activeTab === '/staff-management/schedule/daily') {
       return <ShiftAssignmentView initialViewMode="daily" onNavigate={handleStaffNavigate} />;
     }
 
-    if (activeTab === 'shifts' || activeTab === 'shift-assignment' || activeTab === 'assignments' || activeTab === 'scheduler') {
+    if (activeTab === 'shift-assignment' || activeTab === 'assignments' || activeTab === 'scheduler') {
       return <ShiftAssignmentView initialViewMode="weekly" onNavigate={handleStaffNavigate} />;
     }
 
@@ -795,6 +1019,14 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'tips-allocations' || activeTab === 'tip-allocations' || activeTab === '/tips/allocations' || activeTab === '/store-operations/tips-allocations') {
       return <TipAllocationsView onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'tips-settlements' || activeTab === 'tip-settlements' || activeTab === '/tips/settlements' || activeTab === '/store-operations/tips-settlements') {
+      return <TipSettlementsView onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'tips-cash-movements' || activeTab === 'cash-tip-movements' || activeTab === 'tip-movements' || activeTab === '/tips/cash-movements') {
+      return <CashTipMovementsView onNavigate={handleStaffNavigate} />;
     }
 
     if (activeTab === 'time-clock' || activeTab === 'time-clock-kiosk' || activeTab === 'kiosk') {
@@ -1117,6 +1349,15 @@ export const MerchantFrame: React.FC = () => {
       );
     }
 
+    if (activeTab === 'qr-code-locations') {
+      return (
+        <QRLocationsView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
     if (activeTab === 'locations') {
       return <LocationsView onNavigate={(view) => setActiveTab(view)} />;
     }
@@ -1152,6 +1393,38 @@ export const MerchantFrame: React.FC = () => {
           onOpenLiveMonitor={() => setShowKitchenKDS(true)}
         />
       );
+    }
+
+    if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') {
+      return (
+        <ProductsInventoryHubView
+          onNavigate={(view) => setActiveTab(view)}
+        />
+      );
+    }
+
+    if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') {
+      return (
+        <RawMaterialsHubView
+          onNavigate={(view) => setActiveTab(view)}
+        />
+      );
+    }
+
+    if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') {
+      return (
+        <OnlineOrderingHubView
+          onNavigate={(view) => setActiveTab(view)}
+        />
+      );
+    }
+
+    if (activeTab === 'online-stores') {
+      return <OnlineStoresView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'online-menus') {
+      return <OnlineMenusView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'kitchen-stations') {
@@ -1234,6 +1507,17 @@ export const MerchantFrame: React.FC = () => {
             </p>
 
             <div className="flex justify-center gap-3 mt-8">
+              {moduleNavHub && (
+                <button
+                  onClick={() => {
+                    navigateToFeature(moduleNavHub.hubId);
+                  }}
+                  className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#930015] transition-all rounded shadow-sm flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">arrow_back</span>
+                  <span>Back to {moduleNavHub.title}</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (profile?.role === 'SaaS Owner') {
@@ -1243,7 +1527,7 @@ export const MerchantFrame: React.FC = () => {
                     setActiveTab('dashboard');
                   }
                 }}
-                className="px-5 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#d51f2c] transition-all rounded shadow-sm"
+                className="px-5 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#d51f2c] transition-all rounded shadow-sm cursor-pointer"
               >
                 Back to Dashboard
               </button>
@@ -1408,10 +1692,29 @@ export const MerchantFrame: React.FC = () => {
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isAppExpanded = !isKDSApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isShiftsApp = app.id === 'shifts' || app.name === 'Shifts';
+                        const isTipsApp = app.id === 'tips' || app.name === 'Tips';
+                        const isConfigApp = app.id === 'configuration' || app.name === 'Configuration';
+                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
+                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
+                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
+                        const isDirectHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
+                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab);
+                          : isShiftsApp
+                          ? ['shifts-hub', 'shift-assignment', 'shifts', 'daily-timeline', 'staff-roster', 'staff-swaps', 'open-shifts', 'labor-forecasting'].includes(activeTab)
+                          : isTipsApp
+                          ? ['tips-hub', 'tips', 'tips-ledger', 'tips-pools', 'tip-pools', 'tip-pool-members', 'tips-pool-members', 'tips-allocations', 'tip-allocations', 'tip-settlements', 'tips-settlements', 'tip-movements', 'tips-cash-movements'].includes(activeTab)
+                          : isConfigApp
+                          ? ['configuration-hub', 'merchant-overtime-rules', 'merchant-payroll-rules', 'merchant-tax-rules', 'merchant-tips-rules'].includes(activeTab)
+                          : isProductsApp
+                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
+                          : isRawMaterialsApp
+                          ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
+                          : isOnlineOrderingApp
+                          ? ['online-ordering-hub', 'online-ordering-dashboard', 'online-stores', 'online-payments', 'online-menus', 'online-menu-categories', 'online-menu-items', 'online-orders', 'online-order-items', 'online-delivery-info'].includes(activeTab)
+                          : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
                           <div key={app.id} className="w-full text-left">
@@ -1421,6 +1724,30 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('kds-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
+                                } else if (isShiftsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('shifts-hub');
+                                  navigate('/dashboard', { state: { activeTab: 'shifts-hub', activeCategory: cat.id } });
+                                } else if (isTipsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('tips-hub');
+                                  navigate('/dashboard', { state: { activeTab: 'tips-hub', activeCategory: cat.id } });
+                                } else if (isConfigApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('configuration-hub');
+                                  navigate('/dashboard', { state: { activeTab: 'configuration-hub', activeCategory: cat.id } });
+                                } else if (isProductsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('inventory-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
+                                } else if (isRawMaterialsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('raw-materials-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
+                                } else if (isOnlineOrderingApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('online-ordering-hub');
+                                  navigate('/online-ordering', { state: { activeTab: 'online-ordering-hub', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,
@@ -1440,8 +1767,8 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* L3: Features (Omitted for Kitchen Display System) */}
-                            {isAppExpanded && !isKDSApp && (
+                            {/* L3: Features (Omitted for direct hub apps since they navigate internally from their hub) */}
+                            {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;
@@ -1525,10 +1852,29 @@ export const MerchantFrame: React.FC = () => {
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
                         const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isAppExpanded = !isKDSApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isShiftsApp = app.id === 'shifts' || app.name === 'Shifts';
+                        const isTipsApp = app.id === 'tips' || app.name === 'Tips';
+                        const isConfigApp = app.id === 'configuration' || app.name === 'Configuration';
+                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
+                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
+                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
+                        const isDirectHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp;
+                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
                         const isAppSelected = isKDSApp
                           ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab);
+                          : isShiftsApp
+                          ? ['shifts-hub', 'shift-assignment', 'shifts', 'daily-timeline', 'staff-roster', 'staff-swaps', 'open-shifts', 'labor-forecasting'].includes(activeTab)
+                          : isTipsApp
+                          ? ['tips-hub', 'tips', 'tips-ledger', 'tips-pools', 'tip-pools', 'tip-pool-members', 'tips-pool-members', 'tips-allocations', 'tip-allocations', 'tip-settlements', 'tips-settlements', 'tip-movements', 'tips-cash-movements'].includes(activeTab)
+                          : isConfigApp
+                          ? ['configuration-hub', 'merchant-overtime-rules', 'merchant-payroll-rules', 'merchant-tax-rules', 'merchant-tips-rules'].includes(activeTab)
+                          : isProductsApp
+                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
+                          : isRawMaterialsApp
+                          ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
+                          : isOnlineOrderingApp
+                          ? ['online-ordering-hub', 'online-ordering-dashboard', 'online-stores', 'online-payments', 'online-menus', 'online-menu-categories', 'online-menu-items', 'online-orders', 'online-order-items', 'online-delivery-info'].includes(activeTab)
+                          : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
 
                         return (
                           <div key={app.id} className="w-full text-left">
@@ -1538,6 +1884,30 @@ export const MerchantFrame: React.FC = () => {
                                   setActiveCategory(cat.id);
                                   setActiveTab('kds-dashboard');
                                   navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
+                                } else if (isShiftsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('shifts-hub');
+                                  navigate('/dashboard', { state: { activeTab: 'shifts-hub', activeCategory: cat.id } });
+                                } else if (isTipsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('tips-hub');
+                                  navigate('/dashboard', { state: { activeTab: 'tips-hub', activeCategory: cat.id } });
+                                } else if (isConfigApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('configuration-hub');
+                                  navigate('/dashboard', { state: { activeTab: 'configuration-hub', activeCategory: cat.id } });
+                                } else if (isProductsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('inventory-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
+                                } else if (isRawMaterialsApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('raw-materials-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
+                                } else if (isOnlineOrderingApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('online-ordering-hub');
+                                  navigate('/online-ordering', { state: { activeTab: 'online-ordering-hub', activeCategory: cat.id } });
                                 } else {
                                   setExpandedApps(prev => ({
                                     ...prev,
@@ -1557,8 +1927,8 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* Level 3: Features (Omitted for Kitchen Display System since it navigates internally from the hub) */}
-                            {isAppExpanded && !isKDSApp && (
+                            {/* Level 3: Features (Omitted for direct hub apps since they navigate internally from their hub) */}
+                            {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;
@@ -1580,6 +1950,8 @@ export const MerchantFrame: React.FC = () => {
                                           navigate('/dashboard/company-profile');
                                         } else if (feat.id === 'company-configurations') {
                                           navigate('/dashboard/company-configurations');
+                                        } else if (feat.id === 'online-stores') {
+                                          navigate('/dashboard/online-stores');
                                         } else {
                                           navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
                                         }

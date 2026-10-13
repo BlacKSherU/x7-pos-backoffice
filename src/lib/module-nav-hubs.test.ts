@@ -83,6 +83,30 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
       'DELIVERY ZONES',
     ],
   },
+  shifts: {
+    back: 'SHIFTS COMMAND HUB',
+    items: ['SHIFT ASSIGNMENT', 'SHIFTS'],
+  },
+  tips: {
+    back: 'TIPS COMMAND HUB',
+    items: [
+      'TIP MOVEMENTS',
+      'TIP POOL MEMBERS',
+      'TIP SETTLEMENTS',
+      'TIPS',
+      'TIPS ALLOCATIONS',
+      'TIPS POOLS',
+    ],
+  },
+  configuration: {
+    back: 'CONFIGURATION COMMAND HUB',
+    items: [
+      'MERCHANT OVERTIME RULES',
+      'MERCHANT PAYROLL RULES',
+      'MERCHANT TAX RULES',
+      'MERCHANT TIPS RULES',
+    ],
+  },
   'billing-transactions': {
     back: 'BILLING & TRANSACTIONS COMMAND HUB',
     items: ['RECEIPT ITEMS', 'RECEIPTS', 'RECEIPTS TAXES'],
@@ -94,6 +118,30 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
   'business-partners': {
     back: 'BUSINESS PARTNERS COMMAND HUB',
     items: ['CUSTOMERS', 'SUPPLIERS'],
+  },
+  'qr-code': {
+    back: 'QR CODE SYSTEM COMMAND HUB',
+    items: [
+      'QR CODE LOCATIONS',
+      'QR CODE MENUS',
+      'QR MENU SECTIONS',
+      'QR MENU ITEMS',
+      'QR CODE ORDERS',
+      'QR ORDER ITEMS',
+    ],
+  },
+  'online-ordering': {
+    back: 'ONLINE ORDERING COMMAND HUB',
+    items: [
+      'STORES',
+      'PAYMENTS',
+      'MENUS',
+      'CATEGORIES',
+      'ITEMS',
+      'ORDERS',
+      'ORDER ITEMS',
+      'DELIVERY',
+    ],
   },
 };
 
@@ -142,6 +190,7 @@ describe('module NavHubBars', () => {
     expect(navHubForFeature('collaborators-contracts')?.appId).toBe('hr');
     expect(navHubForFeature('receipt-orders')?.hubLabel).toBe('BILLING & TRANSACTIONS COMMAND HUB');
     expect(navHubForFeature('kitchen-stations')).toBeNull(); // el KDS monta su propia barra
+    expect(navHubForFeature('products')).toBeNull(); // Products / Inventory System monta su propia barra igual que el KDS
     expect(navHubById('pos-hub')?.appId).toBe('pos');
     expect(navHubById('collaborators')).toBeNull();
   });
