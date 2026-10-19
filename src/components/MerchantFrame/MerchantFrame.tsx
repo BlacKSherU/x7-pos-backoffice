@@ -1,4 +1,3 @@
-//
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -270,29 +269,22 @@ export const MerchantFrame: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-
-
   // Session loading and initialization state
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAuthLocked, setIsAuthLocked] = useState<boolean>(false);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   // SPA navigation states
-  const [activeCategory, setActiveCategory] = useState<string>('core'); // Active category
-  const [activeTab, setActiveTab] = useState<string>('dashboard'); // Active sub-item or view
+  const [activeCategory, setActiveCategory] = useState<string>('core');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [linesEntryFilter, setLinesEntryFilter] = useState<JournalEntry | null>(null);
-  // Parent context when jumping from a payment voucher to its line item breakdown.
   const [itemsPaymentFilter, setItemsPaymentFilter] = useState<SupplierPayment | null>(null);
-  // Origin context when jumping to allocations matrix (payment or credit note).
   const [allocationsContext, setAllocationsContext] = useState<{
     payment?: SupplierPayment | null;
     creditNote?: SupplierCreditNote | null;
   } | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
 
-  // Translates internal tab names from shared SaaS views (SaaSFrame)
-  // to the real tab ids of MerchantFrame (defined in Features.txt), since both
-  // shells reuse the same view components with different navigation vocabularies.
   const SAAS_VIEW_TAB_MAP: Record<string, string> = {
     'subscription': 'sub-plans-core',
     'subscription-applications': 'apps-config',
@@ -301,9 +293,10 @@ export const MerchantFrame: React.FC = () => {
     'subscription-plan-features': 'plan-features-mapping',
   };
 
-  // Navegación desde la NavHubBar de un módulo o su Command Hub. Suelta el contexto de las
-  // vistas de detalle (asiento, voucher, nota de crédito) igual que hacen sus propios
-  // onNavigate: si no, volver a ellas por la barra las abriría filtradas por el origen viejo.
+  const handleViewChange = (view: string) => {
+    setActiveTab(view);
+  };
+
   const navigateToFeature = (featureId: string) => {
     setLinesEntryFilter(null);
     setItemsPaymentFilter(null);
@@ -316,7 +309,6 @@ export const MerchantFrame: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  // Scroll main container to top whenever activeTab changes
   useEffect(() => {
     const mainEl = document.querySelector('main');
     if (mainEl) {
@@ -341,7 +333,6 @@ export const MerchantFrame: React.FC = () => {
     setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
   };
 
-  // Synchronize physical browser URL path with SPA internal navigation state during render phase
   const [prevRouteKey, setPrevRouteKey] = useState<string>('');
   const currentRouteKey = `${location.pathname}:${location.search}:${profile?.role ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
 
@@ -354,7 +345,6 @@ export const MerchantFrame: React.FC = () => {
     }
   }
 
-  // Handle external side effects (sessionStorage) on route change
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const path = location.pathname;
@@ -493,15 +483,13 @@ export const MerchantFrame: React.FC = () => {
     }
   }, [location.pathname, location.state]);
   /* eslint-enable react-hooks/set-state-in-effect */
-  const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
 
-  // Dynamic Navigation by Plan and Permissions
+  const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
 
-  // Real-time reactive filtering of sidebar menu (strict at element/feature level)
   const filteredNavCategories = useMemo(() => {
     const query = sidebarSearchQuery.trim().toLowerCase();
     if (!query) return navCategories;
@@ -541,7 +529,7 @@ export const MerchantFrame: React.FC = () => {
             setNavCategories(menu);
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.error('Error loading dynamic menu', err);
         });
     }
@@ -550,26 +538,19 @@ export const MerchantFrame: React.FC = () => {
     };
   }, [profile, refreshTrigger]);
 
-  // Sidebar categories and applications remain closed/collapsed by default on login
-
-
-  // UI States
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
   const [demo401Toggle, setDemo401Toggle] = useState<boolean>(getSimulate401());
   const [showDemoPanel, setShowDemoPanel] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-
   const [apiFailedToggle, setApiFailedToggle] = useState<boolean>(getSimulateApiFailure());
 
-  // Modal States
   const [isReservationOpen, setIsReservationOpen] = useState<boolean>(false);
   const [isVoidOpen, setIsVoidOpen] = useState<boolean>(false);
   const [isEODOpen, setIsEODOpen] = useState<boolean>(false);
   const [isSupportOpen, setIsSupportOpen] = useState<boolean>(false);
   const [isQuickOrderOpen, setIsQuickOrderOpen] = useState<boolean>(false);
 
-  // 1. Session initialization and check (AC 1.1 and 1.2)
   useEffect(() => {
     let ignore = false;
 
@@ -584,7 +565,7 @@ export const MerchantFrame: React.FC = () => {
       } catch (err: unknown) {
         if (ignore) return;
         if (typeof err === 'object' && err !== null && 'status' in err && (err as { status?: number }).status === 401) {
-          setIsAuthLocked(true); // AC 1.3: Session lock
+          setIsAuthLocked(true);
         } else {
           console.error('Error during session hydration', err);
         }
@@ -598,7 +579,6 @@ export const MerchantFrame: React.FC = () => {
     };
   }, [refreshTrigger]);
 
-  // Load notifications (AC 5.1)
   useEffect(() => {
     let ignore = false;
 
@@ -610,7 +590,7 @@ export const MerchantFrame: React.FC = () => {
             setNotifications(data);
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.error('Error loading notifications', err);
         });
     }
@@ -631,13 +611,9 @@ export const MerchantFrame: React.FC = () => {
     };
   }, []);
 
-
-
-  // Activate dynamic layout classes on root and body according to active tab
   useEffect(() => {
     const rootEl = document.getElementById('root');
     const bodyEl = document.body;
-    // SaaS mode if role is SaaS Owner, if tab is SaaS-exclusive, or if active category is saas
     const exclusiveSaaS = [
       'saas-dashboard',
       'companies-dashboard',
@@ -668,7 +644,6 @@ export const MerchantFrame: React.FC = () => {
     };
   }, [activeTab, activeCategory, profile?.role]);
 
-  // Latido keepalive automático de estaciones de cocina en Backoffice (inmediato al abrir y cada 15s)
   useEffect(() => {
     const isKitchenArea =
       activeCategory === 'kitchen' ||
@@ -722,7 +697,7 @@ export const MerchantFrame: React.FC = () => {
       await restaurantService.logout();
       clearAuthSession();
       navigate('/login', { replace: true });
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
     }
   };
@@ -731,16 +706,13 @@ export const MerchantFrame: React.FC = () => {
     return <KitchenMonitorView onBackToDashboard={() => setShowKitchenKDS(false)} />;
   }
 
-  // Dynamic SPA view rendering (AC 4.2)
-  // Active featureId's module, if it has a persistent NavHubBar (module-nav-hubs.ts).
   const moduleNavHub = navHubForFeature(activeTab);
 
   const renderSPAView = () => {
-    // Check if this tab is a coming soon stub
     const stub = COMING_SOON_STUBS[activeTab];
     if (stub) {
       return (
-        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm text-left max-w-4xl mx-auto my-8">
+        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm max-w-4xl mx-auto my-8">
           <div className="flex items-center gap-4 border-b border-[#e8e2d8] pb-6 mb-6">
             <span className="material-symbols-outlined text-primary text-5xl">
               {stub.icon}
@@ -786,7 +758,6 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'saas-dashboard') {
       return (
         <div className="space-y-8 animate-fade-in text-left">
-          {/* SaaS Dashboard Header in central canvas */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
             <div>
               <h1 className="font-sans text-h1 text-[#222222] uppercase tracking-tighter">
@@ -816,62 +787,62 @@ export const MerchantFrame: React.FC = () => {
 
           <SaasOverviewContent
             refreshTrigger={refreshTrigger}
-            onNavigateToView={(view) => setActiveTab(view)}
+            onNavigateToView={handleViewChange}
           />
         </div>
       );
     }
 
     if (activeTab === 'categories') {
-      return <CategoriesView onNavigate={(view) => setActiveTab(view)} />;
+      return <CategoriesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'products') {
-      return <ProductsView onNavigate={(view) => setActiveTab(view)} />;
+      return <ProductsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'modifiers') {
-      return <ModifiersView onNavigate={(view) => setActiveTab(view)} />;
+      return <ModifiersView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'variants') {
-      return <VariantsView onNavigate={(view) => setActiveTab(view)} />;
+      return <VariantsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'merchant-tax-rules') {
-      return <TaxRulesView onNavigate={(view) => setActiveTab(view)} />;
+      return <TaxRulesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'merchant-tips-rules') {
-      return <TipRulesView onNavigate={(view) => setActiveTab(view)} />;
+      return <TipRulesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'merchant-overtime-rules') {
-      return <OvertimeRulesView onNavigate={(view) => setActiveTab(view)} />;
+      return <OvertimeRulesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'merchant-payroll-rules') {
-      return <PayrollRulesView onNavigate={(view) => setActiveTab(view)} />;
+      return <PayrollRulesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'cash-drawers') {
-      return <CashDrawersView onNavigate={(view) => setActiveTab(view)} />;
+      return <CashDrawersView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'cash-shifts') {
-      return <CashShiftsView onNavigate={(view) => setActiveTab(view)} />;
+      return <CashShiftsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'cash-transactions') {
-      return <CashTransactionsView onNavigate={(view) => setActiveTab(view)} />;
+      return <CashTransactionsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'cash-movements') {
-      return <CashMovementsView onNavigate={(view) => setActiveTab(view)} />;
+      return <CashMovementsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'cash-drawer-history') {
-      return <CashDrawerHistoryView onNavigate={(view) => setActiveTab(view)} />;
+      return <CashDrawerHistoryView onNavigate={handleViewChange} />;
     }
 
     const safeNavigate = (path: string) => {
@@ -1034,13 +1005,13 @@ export const MerchantFrame: React.FC = () => {
     }
 
     if (activeTab === 'ledger-accounts') {
-      return <LedgerAccountsView onNavigate={(view) => setActiveTab(view)} />;
+      return <LedgerAccountsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'journal-entries') {
       return (
         <JournalEntriesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           onViewLines={(entry) => {
             setLinesEntryFilter(entry);
             setActiveTab('journal-entries-lines');
@@ -1054,7 +1025,7 @@ export const MerchantFrame: React.FC = () => {
         <JournalEntryLinesView
           entry={linesEntryFilter}
           onClearEntry={() => setLinesEntryFilter(null)}
-          onNavigate={(view) => {
+          onNavigate={(view: string) => {
             setLinesEntryFilter(null);
             setActiveTab(view);
           }}
@@ -1082,8 +1053,6 @@ export const MerchantFrame: React.FC = () => {
       return <PlanFeaturesView plan={selectedPlan} onNavigate={handleNavigateView} />;
     }
 
-    // Desde la NavHubBar se llega sin plan elegido: la vista lo necesita, así que se pide
-    // elegirlo en vez de caer en el stub "In Development" de una vista que sí existe.
     if (activeTab === 'plan-features-mapping') {
       return (
         <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
@@ -1120,21 +1089,21 @@ export const MerchantFrame: React.FC = () => {
     }
 
     if (activeTab === 'suppliers') {
-      return <SuppliersView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+      return <SuppliersView onNavigate={handleViewChange} companyId={profile?.company_id} />;
     }
 
     if (activeTab === 'supplier-invoices') {
-      return <SupplierInvoicesView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+      return <SupplierInvoicesView onNavigate={handleViewChange} companyId={profile?.company_id} />;
     }
 
     if (activeTab === 'supplier-invoice-items') {
-      return <SupplierInvoiceItemsView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+      return <SupplierInvoiceItemsView onNavigate={handleViewChange} companyId={profile?.company_id} />;
     }
 
     if (activeTab === 'supplier-credit-notes') {
       return (
         <SupplierCreditNotesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           companyId={profile?.company_id}
           onViewAllocations={(creditNote) => {
             setAllocationsContext({ creditNote });
@@ -1147,7 +1116,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'supplier-payments') {
       return (
         <SupplierPaymentsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           companyId={profile?.company_id}
           onViewItems={(payment) => {
             setItemsPaymentFilter(payment);
@@ -1166,7 +1135,7 @@ export const MerchantFrame: React.FC = () => {
         <SupplierPaymentItemsView
           payment={itemsPaymentFilter}
           onClearPayment={() => setItemsPaymentFilter(null)}
-          onNavigate={(view) => {
+          onNavigate={(view: string) => {
             setItemsPaymentFilter(null);
             setActiveTab(view);
           }}
@@ -1181,7 +1150,7 @@ export const MerchantFrame: React.FC = () => {
           payment={allocationsContext?.payment ?? null}
           creditNote={allocationsContext?.creditNote ?? null}
           onClearContext={() => setAllocationsContext(null)}
-          onNavigate={(view) => {
+          onNavigate={(view: string) => {
             setAllocationsContext(null);
             setActiveTab(view);
           }}
@@ -1191,13 +1160,9 @@ export const MerchantFrame: React.FC = () => {
     }
 
     if (activeTab === 'floor-plans') {
-      // `UserProfile` does not expose merchant_id (only name/role/portraitUrl/Plan_id/company_id, and
-      // company_id is the Accounts Payable scope, not the dining-system merchant), so
-      // the real merchant is resolved from stored session (the same id that travels in the JWT
-      // with which the view calls /api/floor-plan). If no session, the view applies its default.
       return (
         <FloorPlansView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1206,7 +1171,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'collaborators-contracts') {
       return (
         <ContractsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1215,7 +1180,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'collaborators-time-entries' || activeTab === 'time-entries') {
       return (
         <HrTimeEntriesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1224,7 +1189,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'collaborators') {
       return (
         <CollaboratorsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1233,7 +1198,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'tables') {
       return (
         <DiningTablesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1242,17 +1207,16 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'table-assignments') {
       return (
         <TableAssignmentsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
     }
 
-    // Reservations book and its 4 sub-modules (tables, notes, guests, status history).
     if (activeTab === 'reservations') {
       return (
         <ReservationsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1261,7 +1225,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'reservation-tables') {
       return (
         <ReservationTablesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1270,7 +1234,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'reservation-notes') {
       return (
         <ReservationNotesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1279,7 +1243,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'reservation-guests') {
       return (
         <ReservationGuestsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1288,7 +1252,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'delivery-zones') {
       return (
         <DeliveryZonesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1297,7 +1261,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'delivery-fees') {
       return (
         <DeliveryFeesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1306,7 +1270,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'delivery-drivers') {
       return (
         <DeliveryDriversView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1315,7 +1279,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'delivery-assignments') {
       return (
         <DeliveryAssignmentsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1324,7 +1288,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'delivery-tracking') {
       return (
         <DeliveryTrackingView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1333,17 +1297,16 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'reservation-status-history') {
       return (
         <ReservationStatusHistoryView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
     }
 
-    // Zone feature id is `table-zones` (Features.txt), not 'floor-zones'.
     if (activeTab === 'table-zones') {
       return (
         <FloorZonesView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
@@ -1352,44 +1315,44 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'qr-code-locations') {
       return (
         <QRLocationsView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
       );
     }
 
     if (activeTab === 'locations') {
-      return <LocationsView onNavigate={(view) => setActiveTab(view)} />;
+      return <LocationsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'purchase-orders') {
-      return <PurchaseOrdersView onNavigate={(view) => setActiveTab(view)} />;
+      return <PurchaseOrdersView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'stock-movements') {
-      return <StockInventoryView onNavigate={(view) => setActiveTab(view)} />;
+      return <StockInventoryView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'movements') {
-      return <MovementsView onNavigate={(view) => setActiveTab(view)} />;
+      return <MovementsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'raw-materials') {
-      return <RawMaterialsView onNavigate={(view) => setActiveTab(view)} />;
+      return <RawMaterialsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'raw-material-categories') {
-      return <RawMaterialCategoriesView onNavigate={(view) => setActiveTab(view)} />;
+      return <RawMaterialCategoriesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'recipes') {
-      return <RecipesView onNavigate={(view) => setActiveTab(view)} />;
+      return <RecipesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'kds-dashboard' || activeTab === 'kitchen-kds-hub') {
       return (
         <KitchenKDSHubView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
           onOpenLiveMonitor={() => setShowKitchenKDS(true)}
         />
       );
@@ -1398,7 +1361,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') {
       return (
         <ProductsInventoryHubView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
         />
       );
     }
@@ -1406,7 +1369,7 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') {
       return (
         <RawMaterialsHubView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
         />
       );
     }
@@ -1414,52 +1377,49 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') {
       return (
         <OnlineOrderingHubView
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={handleViewChange}
         />
       );
     }
 
     if (activeTab === 'online-stores') {
-      return <OnlineStoresView onNavigate={(view) => setActiveTab(view)} />;
+      return <OnlineStoresView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'online-menus') {
-      return <OnlineMenusView onNavigate={(view) => setActiveTab(view)} />;
+      return <OnlineMenusView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'kitchen-stations') {
-      return <KitchenStationsView onNavigate={(view) => setActiveTab(view)} />;
+      return <KitchenStationsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'kitchen-display-devices') {
-      return <KitchenDisplayDevicesView onNavigate={(view) => setActiveTab(view)} />;
+      return <KitchenDisplayDevicesView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'kitchen-orders') {
-      return <KitchenOrdersView onNavigate={(view) => setActiveTab(view)} />;
+      return <KitchenOrdersView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'kitchen-order-items') {
-      return <KitchenOrderItemsView onNavigate={(view) => setActiveTab(view)} />;
+      return <KitchenOrderItemsView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'kitchen-event-log') {
-      return <KitchenEventLogView onNavigate={(view) => setActiveTab(view)} />;
+      return <KitchenEventLogView onNavigate={handleViewChange} />;
     }
 
     if (activeTab === 'kitchen-analytics') {
-      return <KitchenAnalyticsView onNavigate={(view) => setActiveTab(view)} />;
+      return <KitchenAnalyticsView onNavigate={handleViewChange} />;
     }
 
-
-    // Command Hub de un módulo: destino del botón de regreso de su NavHubBar.
     const commandHub = navHubById(activeTab);
     if (commandHub) {
       return <ModuleCommandHubView hub={commandHub} onNavigate={navigateToFeature} />;
     }
 
     if (activeTab !== 'dashboard') {
-      // Dynamically resolve name and icon from navCategories
       let featureName = activeTab.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       let featureIcon = 'widgets';
       let appName = '';
@@ -1479,7 +1439,6 @@ export const MerchantFrame: React.FC = () => {
 
       return (
         <div className="bg-white border border-[#e8e2d8] rounded shadow-sm overflow-hidden">
-          {/* View Header */}
           <div className="bg-[#222222] px-8 py-6 flex items-center gap-5">
             <div className="w-12 h-12 bg-[#d51f2c] rounded flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-white text-2xl">{featureIcon}</span>
@@ -1494,7 +1453,6 @@ export const MerchantFrame: React.FC = () => {
             </div>
           </div>
 
-          {/* Stub body */}
           <div className="p-10 text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full mb-6">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
@@ -1539,27 +1497,18 @@ export const MerchantFrame: React.FC = () => {
 
     return (
       <div className="space-y-8">
-        {/* Bento Grid Metrics */}
         <div className="grid grid-cols-12 gap-6">
-          {/* Daily Sales Card */}
           <SalesMetricCard refreshTrigger={refreshTrigger} />
-
-          {/* Stacked tables occupancy and performance */}
           <div className="col-span-12 lg:col-span-4 grid grid-rows-2 gap-6">
             <TablesOccupancyCard refreshTrigger={refreshTrigger} />
             <KitchenPerformanceCard refreshTrigger={refreshTrigger} />
           </div>
         </div>
 
-        {/* Dynamic Lists Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Top Selling Items */}
           <TopSellingItems refreshTrigger={refreshTrigger} />
-
-          {/* Current Shifts */}
           <CurrentShifts refreshTrigger={refreshTrigger} />
 
-          {/* Kitchen Insights Visual (AC 3.3) */}
           <div className="bg-white border border-[#e8e2d8] p-0 overflow-hidden relative group h-[400px]">
             <img
               className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
@@ -1588,7 +1537,6 @@ export const MerchantFrame: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer Quick Actions (AC 5.2) */}
         <div className="bg-[#222222] p-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-center md:text-left">
             <h3 className="text-white font-bold text-xl">Quick Launch</h3>
@@ -1625,15 +1573,11 @@ export const MerchantFrame: React.FC = () => {
     );
   };
 
-
-
   return (
     <div className="overflow-hidden min-h-screen relative bg-[#f1ece4]">
-      {/* Sidebar Navigation */}
       <aside className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-[#222222] border-r border-white/10 z-50 flex flex-col transition-transform duration-300 ease-in-out ${
         isSidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
       }`}>
-        {/* Sidebar Nav (AC 4.1) */}
         <nav className="flex-1 overflow-y-auto custom-scrollbar sidebar-scroll py-4 space-y-1 text-left">
           {filteredNavCategories.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-white/50 space-y-1">
@@ -1642,7 +1586,6 @@ export const MerchantFrame: React.FC = () => {
               <p className="text-[10px] text-white/40">"{sidebarSearchQuery}"</p>
             </div>
           ) : profile?.role === 'SaaS Owner' ? (
-            // Dynamic menu for SaaS Owner — uses filteredNavCategories
             filteredNavCategories.map((cat) => {
               const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
               const hasActiveTab = cat.applications.some(app =>
@@ -1652,7 +1595,6 @@ export const MerchantFrame: React.FC = () => {
 
               return (
                 <div key={cat.id} className="w-full text-left">
-                  {/* L1: Category */}
                   <div
                     onClick={() => {
                       const isCurrentlyExpanded = !!expandedCategories[cat.id];
@@ -1687,7 +1629,6 @@ export const MerchantFrame: React.FC = () => {
                     <span className="font-sans text-[13px] tracking-tight">{cat.name}</span>
                   </div>
 
-                  {/* L2: Applications */}
                   {isCatExpanded && (
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
@@ -1767,7 +1708,6 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* L3: Features (Omitted for direct hub apps since they navigate internally from their hub) */}
                             {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
@@ -1803,8 +1743,6 @@ export const MerchantFrame: React.FC = () => {
           ) : (
             filteredNavCategories.map((cat) => {
               const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
-              
-              // Determine if any feature within this category is active
               const hasActiveTab = cat.applications.some(app => 
                 app.features.some(f => f.id === activeTab)
               );
@@ -1812,7 +1750,6 @@ export const MerchantFrame: React.FC = () => {
 
               return (
                 <div key={cat.id} className="w-full text-left">
-                  {/* Level 1: Category */}
                   <div
                     onClick={() => {
                       const isCurrentlyExpanded = !!expandedCategories[cat.id];
@@ -1847,7 +1784,6 @@ export const MerchantFrame: React.FC = () => {
                     <span className="font-sans text-[13px] tracking-tight">{cat.name}</span>
                   </div>
 
-                  {/* Level 2: Applications */}
                   {isCatExpanded && (
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
@@ -1927,7 +1863,6 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* Level 3: Features (Omitted for direct hub apps since they navigate internally from their hub) */}
                             {isAppExpanded && !isDirectHubApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
@@ -1979,8 +1914,6 @@ export const MerchantFrame: React.FC = () => {
           )}
         </nav>
 
-
-        {/* Bottom items */}
         <div className="p-4 border-t border-white/10 space-y-1">
           <div
             onClick={() => alert('Support escalation initiated.')}
@@ -1999,7 +1932,6 @@ export const MerchantFrame: React.FC = () => {
         </div>
       </aside>
 
-      {/* Top Navigation Bar */}
       <GlobalHeader
         activeTab={activeTab}
         activeCategory={activeCategory}
@@ -2031,7 +1963,6 @@ export const MerchantFrame: React.FC = () => {
       <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto overflow-x-hidden bg-[#f1ece4] p-4 md:p-8 custom-scrollbar transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'left-0' : 'left-64'
       }`}>
-
         <div className="w-full min-h-full flex flex-col justify-between">
           <div className="flex-grow space-y-8 pb-8">
             {renderSPAView()}
@@ -2039,7 +1970,6 @@ export const MerchantFrame: React.FC = () => {
           <GlobalFooter />
           {moduleNavHub ? (
             <>
-              {/* La barra es `fixed`: este hueco deja el pie siempre por encima de ella. */}
               <div aria-hidden="true" className="h-16 shrink-0" />
               <ModuleNavHubBar
                 hub={moduleNavHub}
@@ -2051,7 +1981,6 @@ export const MerchantFrame: React.FC = () => {
         </div>
       </main>
 
-      {/* Floating Action Button (FAB - AC 5.3) */}
       {activeTab === 'dashboard' && (
         <button
           onClick={() => setIsQuickOrderOpen(true)}
@@ -2064,17 +1993,14 @@ export const MerchantFrame: React.FC = () => {
         </button>
       )}
 
-      {/* Quick Action Modals */}
       <NewReservationModal isOpen={isReservationOpen} onClose={() => setIsReservationOpen(false)} />
       <VoidTransactionModal isOpen={isVoidOpen} onClose={() => setIsVoidOpen(false)} />
       <EODReportModal isOpen={isEODOpen} onClose={() => setIsEODOpen(false)} />
       <EmergencySupportModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} />
       <NewQuickOrderModal isOpen={isQuickOrderOpen} onClose={() => setIsQuickOrderOpen(false)} />
 
-      {/* Blocking Login Gateway Modal for 401 Unauthorized (AC 1.3) */}
       <LoginGatewayModal isOpen={false} onLoginSuccess={handleLoginSuccess} />
 
-      {/* Floating Demo Controls Button on bottom-left corner of canvas */}
       <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'left-6' : 'left-[272px]'
       }`}>
@@ -2093,7 +2019,6 @@ export const MerchantFrame: React.FC = () => {
               <p className="text-[9px] text-white/50 mb-2">Simulate live conditions.</p>
             </div>
 
-            {/* Role Simulation (Environment) */}
             <div className="border-t border-white/10 pt-2">
               <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Role / Environment</p>
               <select
@@ -2122,7 +2047,6 @@ export const MerchantFrame: React.FC = () => {
               </select>
             </div>
 
-            {/* Plan Simulation (Merchant Only) */}
             {profile?.role !== 'SaaS Owner' && (
               <div className="border-t border-white/10 pt-2">
                 <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
@@ -2150,7 +2074,6 @@ export const MerchantFrame: React.FC = () => {
               </div>
             )}
 
-            {/* API Failure Simulation in SaaS */}
             {profile?.role === 'SaaS Owner' ? (
               <div className="border-t border-white/10 pt-2">
                 <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">SaaS Status</p>
@@ -2186,4 +2109,5 @@ export const MerchantFrame: React.FC = () => {
     </div>
   );
 };
+
 export default MerchantFrame;
