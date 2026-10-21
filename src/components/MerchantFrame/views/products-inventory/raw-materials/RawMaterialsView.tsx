@@ -638,7 +638,11 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
             <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
               {activeColSpan === 0 ? (
-                <NoColumnsEmptyState colSpan={7} />
+                <tr>
+                  <td colSpan={7}>
+                    <NoColumnsEmptyState />
+                  </td>
+                </tr>
               ) : isLoading ? (
                 <tr>
                   <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">

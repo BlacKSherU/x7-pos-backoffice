@@ -537,7 +537,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
         <div className="bg-red-50 border border-red-200 text-[#ae001a] p-4 rounded-lg text-sm font-semibold flex justify-between items-center">
           <span>{error}</span>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             className="px-3 py-1 bg-[#ae001a] text-white text-xs font-bold rounded hover:bg-[#930015] cursor-pointer"
           >
             Retry

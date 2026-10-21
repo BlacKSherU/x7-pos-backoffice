@@ -712,7 +712,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
               pageSize={pageSize}
               totalItems={totalItems > 0 ? totalItems : movements.length}
               onPageChange={setPage}
-              onChangePageSize={(s) => {
+              onPageSizeChange={(s: number) => {
                 setPageSize(s);
                 setPage(1);
               }}

@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import {
   OnlineMenuSetupDrawer,
@@ -37,8 +36,7 @@ interface OnlineMenusViewProps {
   onNavigate?: (view: string) => void;
 }
 
-export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) => {
-  const navigate = useNavigate();
+export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
   const [menus, setMenus] = useState<OnlineMenuItem[]>([]);
   const [stores, setStores] = useState<OnlineStoreOption[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -1111,7 +1109,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
               setPageSize(newSize);
               setCurrentPage(1);
             }}
-            pageSizeOptions={[5, 10, 20, 50]}
           />
         </div>
       ) : filteredMenus.length === 0 ? (
@@ -1283,7 +1280,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = ({ onNavigate }) 
                 setPageSize(newSize);
                 setCurrentPage(1);
               }}
-              pageSizeOptions={[6, 12, 24, 48]}
             />
           </div>
         </div>

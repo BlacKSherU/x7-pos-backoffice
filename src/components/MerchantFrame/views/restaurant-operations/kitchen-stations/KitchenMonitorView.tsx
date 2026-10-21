@@ -460,7 +460,8 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
           startedAt?: string;
           order?: { diningTable?: { name?: string }; table_number?: string; waiter_name?: string; waiter?: { name?: string } };
           notes?: string;
-          station?: { name?: string };
+          stationId?: number;
+          station?: { id?: number; name?: string };
           priority?: number;
           items?: Array<{
             id: string | number;
@@ -469,6 +470,8 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
             variant?: { name?: string };
             variantName?: string;
             quantity?: number;
+            preparedQuantity?: number;
+            prepared_quantity?: number;
             notes?: string;
             course?: string;
             preparationStatus?: string;
@@ -2369,7 +2372,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
                                   {item.variantName && (
                                     <span className="text-[10px] font-normal text-zinc-400">
-                                      ({getLocalizedVariantName(item.variantName, deviceLanguage)})
+                                      ({getLocalizedVariantName(item.variantName)})
                                     </span>
                                   )}
 
@@ -3144,7 +3147,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
                             </h4>
                             {item.variantName && (
                               <span className="inline-block mt-0.5 text-[9px] font-bold px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 truncate max-w-full">
-                                {getLocalizedVariantName(item.variantName, deviceLanguage)}
+                                {getLocalizedVariantName(item.variantName)}
                               </span>
                             )}
                           </div>
@@ -3367,7 +3370,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
                           </h3>
                           {batch.variantName && (
                             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-200 border border-zinc-700 inline-block mt-1">
-                              {getLocalizedVariantName(batch.variantName, deviceLanguage)}
+                              {getLocalizedVariantName(batch.variantName)}
                             </span>
                           )}
                         </div>

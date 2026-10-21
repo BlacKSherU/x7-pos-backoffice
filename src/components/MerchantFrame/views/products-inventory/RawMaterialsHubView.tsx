@@ -209,7 +209,7 @@ export const RawMaterialsHubView: React.FC<RawMaterialsHubViewProps> = ({
       description: 'Track real-time inventory balances, stock counts by location, par levels, and low-stock alerts.',
       icon: 'table_rows',
       badge: lowStockCount > 0 ? `${lowStockCount} Low Stock` : 'Stock Healthy',
-      badgeVariant: lowStockCount > 0 ? 'red' : 'emerald',
+      badgeVariant: lowStockCount > 0 ? 'rose' : 'emerald',
       actionText: 'Manage Stock Levels',
     },
     {

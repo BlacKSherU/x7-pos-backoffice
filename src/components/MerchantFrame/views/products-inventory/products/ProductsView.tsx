@@ -331,7 +331,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
 
   // Action menu handlers (more_vert)
   const handleExportCSV = () => {
-    setIsOptionsMenuOpen(false);
     if (!filteredProducts || filteredProducts.length === 0) return;
     const headers = ['ID', 'Name', 'Category', 'Base Price', 'SKU', 'Status'];
     const rows = filteredProducts.map(p => [
@@ -353,12 +352,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
   };
 
   const handlePrintTable = () => {
-    setIsOptionsMenuOpen(false);
     window.print();
   };
 
   const handleCopySummary = () => {
-    setIsOptionsMenuOpen(false);
     const text = filteredProducts
       .map(p => `#${p.id} ${p.name} (${p.category?.name || 'Uncategorized'}) - $${p.basePrice} [${p.isActive !== false ? 'ACTIVE' : 'INACTIVE'}]`)
       .join('\n');

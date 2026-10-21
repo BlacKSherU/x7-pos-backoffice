@@ -685,7 +685,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
               pageSize={pageSize}
               totalItems={filteredLocations.length}
               onPageChange={setCurrentPage}
-              onChangePageSize={(s) => {
+              onPageSizeChange={(s: number) => {
                 setPageSize(s);
                 setCurrentPage(1);
               }}

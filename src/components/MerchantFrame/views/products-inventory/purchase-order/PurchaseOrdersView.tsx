@@ -1172,7 +1172,11 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
                     <tbody className="divide-y divide-[#e8e2d8]">
                       {activeColSpan === 0 ? (
-                        <NoColumnsEmptyState colSpan={7} />
+                        <tr>
+                          <td colSpan={7}>
+                            <NoColumnsEmptyState />
+                          </td>
+                        </tr>
                       ) : isLoading ? (
                         <tr>
                           <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -1370,7 +1374,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                   pageSize={pageSize}
                   totalItems={filteredOrders.length}
                   onPageChange={setCurrentPage}
-                  onChangePageSize={(s) => {
+                  onPageSizeChange={(s: number) => {
                     setPageSize(s);
                     setCurrentPage(1);
                   }}

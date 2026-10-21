@@ -10,7 +10,6 @@ import type {
   UpdateQRLocationDto,
 } from '../../../../types/qr-location';
 import {
-  QR_LOCATION_STATUS_LABELS,
   QR_LOCATION_STATUSES,
   QR_LOCATION_TYPE_LABELS,
   QR_LOCATION_TYPES,
@@ -40,10 +39,7 @@ interface QRLocationsViewProps {
   merchantId?: number;
 }
 
-export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
-  onNavigate,
-  merchantId,
-}) => {
+export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) => {
   const [locations, setLocations] = useState<QRLocation[]>([]);
   const [merchants, setMerchants] = useState<MerchantRef[]>([]);
   const [menus, setMenus] = useState<QRMenuRef[]>([]);

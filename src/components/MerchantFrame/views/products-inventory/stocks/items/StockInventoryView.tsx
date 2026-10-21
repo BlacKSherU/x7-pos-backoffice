@@ -51,6 +51,15 @@ interface StockItem {
   isActive?: boolean;
 }
 
+interface StockMovementHistoryEntry {
+  id: number | string;
+  type: string;
+  quantity: number;
+  createdAt: string;
+  reference?: string | null;
+  reason?: string | null;
+}
+
 interface StockInventoryViewProps {
   onNavigate?: (view: string) => void;
 }
@@ -76,7 +85,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
   // Stock movements history (Drawer)
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [selectedItemForHistory, setSelectedItemForHistory] = useState<StockItem | null>(null);
-  const [historyMovements, setHistoryMovements] = useState<Record<string, unknown>[]>([]);
+  const [historyMovements, setHistoryMovements] = useState<StockMovementHistoryEntry[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 

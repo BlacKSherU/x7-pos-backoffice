@@ -136,7 +136,7 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       description: 'Manage saleable dishes and retail goods, pricing rules, tax rates, and kitchen display routing.',
       icon: 'inventory_2',
       badge: `${productsCount || 'Live'} Products`,
-      badgeVariant: 'red',
+      badgeVariant: 'rose',
       actionText: 'Manage Products',
     },
     {

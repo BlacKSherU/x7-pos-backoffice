@@ -6,6 +6,7 @@ import { HeaderQuickTabs } from '../../../../shared/HeaderQuickTabs';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { AppModal } from '../../../shared/AppModal';
+import type { KitchenStationType } from './KitchenStationsView';
 import { KitchenQuickLinks } from './KitchenQuickLinks';
 import { useKdsCriticalSla } from '../../../../../lib/kds-sla-config';
 import { KitchenSlaConfigModal } from './KitchenSlaConfigModal';
@@ -334,6 +335,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
   const [isOffline, setIsOffline] = useState<boolean>(() =>
     typeof navigator !== 'undefined' ? !navigator.onLine : false,
   );
+  const [, setQueuedActionsCount] = useState<number>(0);
+  const [, setIsSyncing] = useState<boolean>(false);
 
   // Real-time clock for elapsed second counters
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
@@ -473,7 +476,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
         id: Number(o.id),
         merchantId: Number(o.merchantId || o.merchant_id),
         orderId: (o.orderId || o.order_id || null) as number | null,
-        onlineOrderId: (o.onlineOrderId || o.online_order_id || null) as string | null,
+        onlineOrderId: (o.onlineOrderId || o.online_order_id || null) as number | null,
         stationId: (o.stationId || o.station_id || (o.station as Record<string, unknown> | undefined)?.id || null) as number | null,
         stationName: (o.stationName || (o.station as Record<string, unknown> | undefined)?.name || null) as string | null,
         priority: Number(o.priority ?? 0),
@@ -496,8 +499,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
           variantName: ((it.variant as Record<string, unknown> | undefined)?.name || it.variantName || null) as string | null,
           quantity: Number(it.quantity ?? 1),
           preparedQuantity: Number(it.preparedQuantity ?? it.prepared_quantity ?? 0),
-          preparationStatus: (it.preparationStatus || it.preparation_status || 'pending') as 'held' | 'pending' | 'in_preparation' | 'ready' | 'cancelled',
-          course: (it.course || null) as string | null,
+          preparationStatus: (it.preparationStatus || it.preparation_status || 'pending') as KitchenOrderItemLine['preparationStatus'],
+          course: (it.course || undefined) as KitchenOrderItemLine['course'],
           holdUntil: (it.holdUntil || it.hold_until || null) as string | null,
           firedAt: (it.firedAt || it.fired_at || null) as string | null,
           notes: (it.notes || null) as string | null,
@@ -2002,7 +2005,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
             {lastBumpedOrder && (
               <button
                 type="button"
-                onClick={handleRecallOrder}
+                onClick={() => handleRecallOrder()}
                 className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#5f5e5e] text-xs font-bold uppercase tracking-wider hover:bg-[#f2ede5] hover:text-[#1d1c17] transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 title="Undo last bumped ticket"
               >
@@ -2823,7 +2826,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       {/* DETAIL INSPECTION MODAL (HISTORICAL AUDIT PANEL) */}
       {inspectingTicket && (
         <AppModal
-          isOpen={true}
           onClose={() => setInspectingTicket(null)}
           title={`Audit Details: Ticket #KO-${inspectingTicket.id}`}
         >
@@ -2973,7 +2975,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       {/* CANCELLATION REASON MODAL */}
       {cancellingTicket && (
         <AppModal
-          isOpen={true}
           onClose={() => setCancellingTicket(null)}
           title={`Cancel Kitchen Ticket #KO-${cancellingTicket.id}`}
         >
@@ -3124,7 +3125,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                     setFormOrderId('');
                     setFormNotes('');
                     setFormPriority(0);
-                    setFormItems([{ productName: '', variantName: '', quantity: 1, notes: '' }]);
+                    setFormItems([{ productName: '', variantName: '', quantity: 1, course: 'main_course', notes: '' }]);
                     showToast('New kitchen order created successfully!', 'success');
                     loadOrders(true);
                   } else {

@@ -102,8 +102,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
 
       // Map to local interface format
       const mapped: Category[] = categoriesData.map((cat: { id: number | string; name: string; parents?: { id: number | string }[]; isActive?: boolean }) => {
-        const hasParent = cat.parents && cat.parents.length > 0;
-        const parentId = hasParent ? String(cat.parents[0].id) : 'NULL';
+        const firstParent = cat.parents?.[0];
+        const hasParent = firstParent !== undefined;
+        const parentId = firstParent ? String(firstParent.id) : 'NULL';
         const type = hasParent ? 'Sub-Category' : 'Root Category';
         
         // Contar productos vinculados

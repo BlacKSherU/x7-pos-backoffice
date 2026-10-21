@@ -435,6 +435,8 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
           events: [],
           hasCancellation: false,
           isCompleted: false,
+          // Placeholder; the real status is resolved after the events are sorted
+          latestStatus: 'PENDING',
           totalEvents: 0,
         });
       }
@@ -1010,7 +1012,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
                 <option value="ALL">All Staff ({staffUsers.length})</option>
                 {staffUsers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name || u.username || u.email.split('@')[0]} (ID #{u.id})
+                    {u.username || u.email.split('@')[0]} (ID #{u.id})
                   </option>
                 ))}
               </select>

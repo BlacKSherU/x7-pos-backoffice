@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import {
   OnlineStoreSetupDrawer,
@@ -40,8 +39,7 @@ interface OnlineStoresViewProps {
   onNavigate?: (view: string) => void;
 }
 
-export const OnlineStoresView: React.FC<OnlineStoresViewProps> = ({ onNavigate }) => {
-  const navigate = useNavigate();
+export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
   const [stores, setStores] = useState<OnlineStoreItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

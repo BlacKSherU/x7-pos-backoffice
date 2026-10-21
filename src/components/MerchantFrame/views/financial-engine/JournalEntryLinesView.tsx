@@ -649,6 +649,9 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
     setFormError(null);
     try {
       if (entryId === -1) {
+        // entryId -1 only comes from the create form, so the payload is a full create DTO
+        const createDto = dto as CreateJournalEntryLineDto;
+        const now = new Date().toISOString();
         const nextNum = entries.length + 1;
         const newEntryNumber = `JE-2026-00${nextNum}`;
         const newDraftEntry: JournalEntry = {
@@ -657,22 +660,25 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
           entry_date: new Date().toISOString().split('T')[0],
           description: 'New Inventory Adjustment Entry',
           status: 'DRAFT',
-          total_debit: dto.debit,
-          total_credit: dto.credit,
-          is_balanced: Math.abs(dto.debit - dto.credit) < 0.01,
+          total_debit: createDto.debit,
+          total_credit: createDto.credit,
+          is_balanced: Math.abs(createDto.debit - createDto.credit) < 0.01,
           reference_type: 'ADJUSTMENT',
+          reference_id: null,
+          created_at: now,
+          updated_at: now,
           company: { id: 1, name: 'Main Merchant Branch' },
           lines: [
             {
               id: Date.now() + 1,
-              account: leafAccounts.find((a) => a.id === dto.account_id) || {
-                id: dto.account_id,
+              account: leafAccounts.find((a) => a.id === createDto.account_id) || {
+                id: createDto.account_id,
                 code: '1100',
                 name: 'Raw Material Inventory',
               },
-              debit: dto.debit,
-              credit: dto.credit,
-              description: dto.description || '',
+              debit: createDto.debit,
+              credit: createDto.credit,
+              description: createDto.description || '',
             },
           ],
         };

@@ -489,7 +489,11 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
             </thead>
             <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
               {visibleColumnsCount === 0 ? (
-                <NoColumnsEmptyState colSpan={5} />
+                <tr>
+                  <td colSpan={5}>
+                    <NoColumnsEmptyState />
+                  </td>
+                </tr>
               ) : isLoading ? (
                 <tr>
                   <td colSpan={visibleColumnsCount} className="px-6 py-12 text-center text-secondary font-sans bg-white">
@@ -615,7 +619,7 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
           pageSize={pageSize}
           totalItems={filteredModifiers.length}
           onPageChange={setCurrentPage}
-          onChangePageSize={(size) => {
+          onPageSizeChange={(size: number) => {
             setPageSize(size);
             setCurrentPage(1);
           }}
