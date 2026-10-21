@@ -18,8 +18,8 @@ import {
 } from '../lib/qr-location';
 import { getAccessToken } from '../lib/auth-storage';
 import { ApiError } from '../lib/api-error';
+import { API_BASE, authHeaders } from './http';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 const STORAGE_KEY = 'x7_qr_locations_mock_db';
 
 // Cache for live fetched entities so relations can be hydrated even if backend only returns scalar IDs
@@ -93,15 +93,6 @@ export const MOCK_TABLES: TableRef[] = [
   { id: 205, number: 'VIP-1', merchant_id: 1, capacity: 8, zone_name: 'VIP Lounge' },
   { id: 206, number: 'Bar-5', merchant_id: 2, capacity: 2, zone_name: 'Main Bar' },
 ];
-
-function authHeaders(includeJson = false): Record<string, string> {
-  const token = getAccessToken();
-  return {
-    Accept: 'application/json',
-    ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 function initializeMockData(): QRLocation[] {
   const stored = localStorage.getItem(STORAGE_KEY);

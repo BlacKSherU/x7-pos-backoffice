@@ -1,7 +1,22 @@
-import { ApiError, getApiErrorMessage } from '../lib/api-error';
+import { ApiError, getApiErrorDetails, getApiErrorMessage } from '../lib/api-error';
+import { getAccessToken, redirectToLogin } from '../lib/auth-storage';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+export const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 const REQUEST_TIMEOUT_MS = 30_000;
+
+// Cuerpo vacío (201/204 sin contenido) → undefined; si no, JSON.
+async function parseJsonBody<T>(response: Response): Promise<T> {
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
+}
 
 async function requestJson<T>(
   path: string,
@@ -31,16 +46,7 @@ async function requestJson<T>(
     throw new ApiError(message, response.status);
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const text = await response.text();
-  if (!text.trim()) {
-    return undefined as T;
-  }
-
-  return JSON.parse(text) as T;
+  return parseJsonBody<T>(response);
 }
 
 export function getJson<T>(
@@ -74,4 +80,64 @@ export function postJson<T>(
     },
     fallbackMessage,
   );
+}
+
+/** Cabeceras de una petición autenticada (Bearer del usuario en sesión). */
+export function authHeaders(includeJson = false): Record<string, string> {
+  const token = getAccessToken();
+  return {
+    Accept: 'application/json',
+    ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+/**
+ * Petición autenticada contra la API del backoffice.
+ *
+ * - Añade el token y `Content-Type: application/json` cuando hay cuerpo.
+ * - 401 → cierra la sesión y lleva al login (sesión caducada o token inválido).
+ * - Otros errores → `ApiError` con el mensaje y el `code` que mande el backend.
+ *
+ * No usar para login/registro: ahí un 401 significa credenciales incorrectas.
+ */
+export async function apiRequest<T>(
+  path: string,
+  init: RequestInit,
+  fallbackMessage: string,
+): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      ...authHeaders(Boolean(init.body)),
+      ...init.headers,
+    },
+  });
+
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new ApiError('Unauthorized', 401);
+  }
+
+  if (!response.ok) {
+    const { message, code } = await getApiErrorDetails(response, fallbackMessage);
+    throw new ApiError(message, response.status, code);
+  }
+
+  return parseJsonBody<T>(response);
+}
+
+/** Lista que el backend devuelve unas veces tal cual y otras envuelta en `{ data }`. */
+export type MaybeEnvelopedList<T> = T[] | { data?: T[] };
+
+/** Registro que el backend devuelve unas veces tal cual y otras envuelto en `{ data }`. */
+export type MaybeEnvelopedItem<T> = T | { data?: T };
+
+export function unwrapList<T>(json: MaybeEnvelopedList<T> | null | undefined): T[] {
+  if (Array.isArray(json)) return json;
+  return json?.data ?? [];
+}
+
+export function unwrapItem<T>(json: MaybeEnvelopedItem<T>): T {
+  return (json as { data?: T }).data || (json as T);
 }
