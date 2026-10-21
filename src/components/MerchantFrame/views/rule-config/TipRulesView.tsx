@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
+import { getAccessToken, redirectToLogin } from '../../../../lib/auth-storage';
 import type {
   MerchantTipRule,
   TipCalculationMethod,
@@ -687,8 +687,7 @@ export const TipRulesView: React.FC<TipRulesViewProps> = ({ onNavigate }) => {
       const res = await fetch(`${API_BASE}/merchant-tip-rule?limit=100`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -726,8 +725,7 @@ export const TipRulesView: React.FC<TipRulesViewProps> = ({ onNavigate }) => {
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -761,8 +759,7 @@ export const TipRulesView: React.FC<TipRulesViewProps> = ({ onNavigate }) => {
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -791,8 +788,7 @@ export const TipRulesView: React.FC<TipRulesViewProps> = ({ onNavigate }) => {
       const res = await fetch(`${API_BASE}/merchant-tip-rule/${ruleId}`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -823,8 +819,7 @@ export const TipRulesView: React.FC<TipRulesViewProps> = ({ onNavigate }) => {
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 

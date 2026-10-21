@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
+import { getAccessToken, redirectToLogin } from '../../../../lib/auth-storage';
 import { getCurrentMerchantId } from '../../../../api/users';
 import type {
   CashTransaction,
@@ -370,8 +370,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
       const res = await fetch(`${API_BASE}/cash-transactions?${params.toString()}`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -401,8 +400,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/cash-transactions/${txn.id}`, { headers });
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
       if (!res.ok) throw new Error('Failed to load cash transaction detail');

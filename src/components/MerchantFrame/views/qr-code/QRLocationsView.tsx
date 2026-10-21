@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type {
   CreateQRLocationDto,
   MerchantRef,
@@ -91,7 +91,7 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
 
   const activeMerchantId = merchantId || formData.merchant_id || 3;
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -109,16 +109,18 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
       if (locsRes.status === 'rejected') {
         setError(locsRes.reason?.message || 'Failed to load QR Locations directory.');
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load QR Locations directory.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load QR Locations directory.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeMerchantId]);
 
   useEffect(() => {
-    loadData();
-  }, [activeMerchantId]);
+    void Promise.resolve().then(() => {
+      loadData();
+    });
+  }, [loadData]);
 
   // Handle table selection change -> auto-sync location_type & validate merchant context
   const handleTableSelection = (rawTableId: string) => {
@@ -243,8 +245,8 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
       }
       setIsDrawerOpen(false);
       await loadData();
-    } catch (err: any) {
-      setFormError(err?.message || 'Failed to save QR Location.');
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save QR Location.');
     }
   };
 
@@ -253,8 +255,8 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
       try {
         await deleteQRLocation(id);
         await loadData();
-      } catch (err: any) {
-        alert(err?.message || 'Failed to delete QR Location.');
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : 'Failed to delete QR Location.');
       }
     }
   };
@@ -281,14 +283,6 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
   };
 
   // Batch Selection Handlers
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredLocations.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredLocations.map((l) => l.id)));
-    }
-  };
-
   const toggleSelectId = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -325,6 +319,14 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
       return matchSearch && matchMenu && matchType && matchStatus;
     });
   }, [locations, searchTerm, menuFilter, typeFilter, selectedStatusSet]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredLocations.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredLocations.map((l) => l.id)));
+    }
+  };
 
   // Searchable tables picker list
   const searchableTables = useMemo(() => {

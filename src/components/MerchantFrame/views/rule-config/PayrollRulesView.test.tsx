@@ -5,7 +5,8 @@ import { PayrollRulesView } from './PayrollRulesView';
 import type { MerchantPayrollRule } from '../../../../types/configuration';
 
 
-vi.mock('../../../../lib/auth-storage', () => ({
+vi.mock('../../../../lib/auth-storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/auth-storage')>()),
   getAccessToken: vi.fn(() => 'mock-token'),
   clearAuthSession: vi.fn(),
 }));

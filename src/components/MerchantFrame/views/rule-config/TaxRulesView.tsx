@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
+import { getAccessToken, redirectToLogin } from '../../../../lib/auth-storage';
 import type { MerchantTaxRule, TaxType, CreateTaxRuleDto, UpdateTaxRuleDto } from '../../../../types/configuration';
 import { RuleConfigQuickLinks } from './RuleConfigQuickLinks';
 
@@ -391,8 +391,7 @@ export const TaxRulesView: React.FC<TaxRulesViewProps> = ({ onNavigate }) => {
       const res = await fetch(`${API_BASE}/merchant-tax-rule?limit=100`, { headers }).catch(() => null);
 
       if (res && res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -432,8 +431,7 @@ export const TaxRulesView: React.FC<TaxRulesViewProps> = ({ onNavigate }) => {
       }).catch(() => null);
 
       if (res && res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -470,8 +468,7 @@ export const TaxRulesView: React.FC<TaxRulesViewProps> = ({ onNavigate }) => {
       }).catch(() => null);
 
       if (res && res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -510,8 +507,7 @@ export const TaxRulesView: React.FC<TaxRulesViewProps> = ({ onNavigate }) => {
       }).catch(() => null);
 
       if (res && res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -550,8 +546,7 @@ export const TaxRulesView: React.FC<TaxRulesViewProps> = ({ onNavigate }) => {
       const res = await fetch(`${API_BASE}/merchant-tax-rule/${ruleId}`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 

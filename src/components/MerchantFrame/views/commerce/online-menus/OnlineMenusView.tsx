@@ -388,11 +388,10 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
     return filteredMenus.slice(start, start + pageSize);
   }, [filteredMenus, currentPage, pageSize]);
 
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, totalPages]);
+  // Reset to the first page when filters shrink the result set (adjusting state during render)
+  if (currentPage > totalPages && totalPages > 0) {
+    setCurrentPage(1);
+  }
 
   // KPI Computations (Story 4299)
   const totalMenus = menus.length;

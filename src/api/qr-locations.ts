@@ -3,6 +3,7 @@ import type {
   MerchantRef,
   QRLocation,
   QRMenuRef,
+  QRLocationStatus,
   QRMenuType,
   TableRef,
   UpdateQRLocationDto,
@@ -25,6 +26,50 @@ const STORAGE_KEY = 'x7_qr_locations_mock_db';
 let _cachedMerchants: MerchantRef[] = [];
 let _cachedMenus: QRMenuRef[] = [];
 let _cachedTables: TableRef[] = [];
+
+// Raw backend shapes (TypeORM entities may return relations or plain foreign keys)
+interface BackendQRLocation {
+  id: number;
+  name: string;
+  merchant?: MerchantRef;
+  merchant_id?: number;
+  qrMenu?: QRMenuRef;
+  qr_menu_id?: number;
+  table?: TableRef | null;
+  table_id?: number | null;
+  location_type: string;
+  status?: QRLocationStatus;
+  qr_code_url?: string;
+  qr_code_image?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface BackendMerchant {
+  id: number;
+  name: string;
+  code?: string | null;
+}
+
+interface BackendQRMenu {
+  id: number;
+  name?: string;
+  title?: string;
+  status?: string;
+  merchant?: { id: number } | null;
+  merchant_id?: number;
+}
+
+interface BackendTable {
+  id: number;
+  number: string | number;
+  merchant?: { id: number } | null;
+  merchant_id?: number;
+  capacity?: number;
+  floorZone?: { name?: string } | null;
+  zone?: { name?: string } | null;
+  zone_name?: string;
+}
 
 // Default mock seed data (used when offline, mock mode, or unauthenticated)
 export const MOCK_MERCHANTS: MerchantRef[] = [
@@ -147,7 +192,7 @@ function mapBackendLocationTypeToFrontend(type: string): QRMenuType {
   return 'DINE_IN';
 }
 
-function normalizeBackendQRLocation(item: any): QRLocation {
+function normalizeBackendQRLocation(item: BackendQRLocation): QRLocation {
   const merchantId = item.merchant?.id ?? item.merchant_id ?? 0;
   const qrMenuId = item.qrMenu?.id ?? item.qr_menu_id ?? 0;
   const tableId = item.table?.id ?? item.table_id ?? null;
@@ -222,7 +267,7 @@ export async function fetchAvailableMerchants(): Promise<MerchantRef[]> {
       });
       if (response.ok) {
         const json = await response.json();
-        const rawList: any[] = json.data ?? (Array.isArray(json) ? json : []);
+        const rawList: BackendMerchant[] = json.data ?? (Array.isArray(json) ? json : []);
         if (rawList.length > 0) {
           const list: MerchantRef[] = rawList.map((m) => ({
             id: m.id,
@@ -254,7 +299,7 @@ export async function fetchAvailableQRMenus(merchantId?: number): Promise<QRMenu
       });
       if (response.ok) {
         const json = await response.json();
-        const rawList: any[] = json.data ?? (Array.isArray(json) ? json : []);
+        const rawList: BackendQRMenu[] = json.data ?? (Array.isArray(json) ? json : []);
         if (rawList.length > 0) {
           const mapped: QRMenuRef[] = rawList.map((m) => ({
             id: m.id,
@@ -297,7 +342,7 @@ export async function fetchAvailableTables(merchantId?: number): Promise<TableRe
       });
       if (response.ok) {
         const json = await response.json();
-        const rawList: any[] = json.data ?? (Array.isArray(json) ? json : []);
+        const rawList: BackendTable[] = json.data ?? (Array.isArray(json) ? json : []);
         if (rawList.length > 0) {
           const mapped: TableRef[] = rawList.map((t) => ({
             id: t.id,
@@ -344,7 +389,7 @@ export async function getQRLocations(merchantId?: number): Promise<QRLocation[]>
 
       if (response && response.ok) {
         const json = await response.json();
-        const rawList: any[] = json.data ?? (Array.isArray(json) ? json : []);
+        const rawList: BackendQRLocation[] = json.data ?? (Array.isArray(json) ? json : []);
         const normalized = rawList.map(normalizeBackendQRLocation);
         const filtered = merchantId
           ? normalized.filter((loc) => !loc.merchant_id || loc.merchant_id === merchantId)
@@ -383,7 +428,7 @@ export async function createQRLocation(dto: CreateQRLocationDto): Promise<QRLoca
     const tempUrl = buildQrLandingUrl(dto.merchant_id, 'new');
     const tempImage = generateQrAssetImage(tempUrl, dto.name);
 
-    const backendPayload: Record<string, any> = {
+    const backendPayload: Record<string, unknown> = {
       merchant: Number(dto.merchant_id),
       qrMenu: Number(dto.qr_menu_id),
       name: dto.name.trim(),
@@ -482,7 +527,7 @@ export async function updateQRLocation(
   const token = getAccessToken();
 
   if (token) {
-    const backendPayload: Record<string, any> = {};
+    const backendPayload: Record<string, unknown> = {};
     if (dto.name !== undefined) backendPayload.name = dto.name.trim();
     if (dto.merchant_id !== undefined) backendPayload.merchant = Number(dto.merchant_id);
     if (dto.qr_menu_id !== undefined) backendPayload.qrMenu = Number(dto.qr_menu_id);

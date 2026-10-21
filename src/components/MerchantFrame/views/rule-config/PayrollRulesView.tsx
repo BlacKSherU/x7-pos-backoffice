@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
+import { getAccessToken, redirectToLogin } from '../../../../lib/auth-storage';
 import type {
   MerchantPayrollRule,
   PayrollFrequency,
@@ -491,8 +491,7 @@ export const PayrollRulesView: React.FC<PayrollRulesViewProps> = ({ onNavigate }
       const res = await fetch(`${API_BASE}/merchant-payroll-rule?limit=100`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -569,8 +568,7 @@ export const PayrollRulesView: React.FC<PayrollRulesViewProps> = ({ onNavigate }
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -604,8 +602,7 @@ export const PayrollRulesView: React.FC<PayrollRulesViewProps> = ({ onNavigate }
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -634,8 +631,7 @@ export const PayrollRulesView: React.FC<PayrollRulesViewProps> = ({ onNavigate }
       const res = await fetch(`${API_BASE}/merchant-payroll-rule/${ruleId}`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -666,8 +662,7 @@ export const PayrollRulesView: React.FC<PayrollRulesViewProps> = ({ onNavigate }
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 

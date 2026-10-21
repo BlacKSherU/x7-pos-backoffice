@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
+import { getAccessToken, redirectToLogin } from '../../../../lib/auth-storage';
 import type {
   MerchantOvertimeRule,
   OvertimeCalculationType,
@@ -522,8 +522,7 @@ export const OvertimeRulesView: React.FC<OvertimeRulesViewProps> = ({ onNavigate
       const res = await fetch(`${API_BASE}/merchant-overtime-rule?limit=100`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -561,8 +560,7 @@ export const OvertimeRulesView: React.FC<OvertimeRulesViewProps> = ({ onNavigate
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -596,8 +594,7 @@ export const OvertimeRulesView: React.FC<OvertimeRulesViewProps> = ({ onNavigate
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -626,8 +623,7 @@ export const OvertimeRulesView: React.FC<OvertimeRulesViewProps> = ({ onNavigate
       const res = await fetch(`${API_BASE}/merchant-overtime-rule/${ruleId}`, { headers });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 
@@ -658,8 +654,7 @@ export const OvertimeRulesView: React.FC<OvertimeRulesViewProps> = ({ onNavigate
       });
 
       if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
+        redirectToLogin();
         return;
       }
 

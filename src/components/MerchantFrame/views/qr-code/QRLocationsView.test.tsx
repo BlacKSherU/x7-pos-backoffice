@@ -1,5 +1,5 @@
 import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { QRLocationsView } from './QRLocationsView';
 
@@ -9,9 +9,16 @@ vi.mock('../../../../lib/auth-storage', () => ({
 }));
 
 describe('QRLocationsView Component', () => {
+  beforeEach(() => {
+    // Keep the suite hermetic: without this, relative /api calls reach whatever server
+    // runs on jsdom's localhost origin. Network failure exercises the local mock store.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+  });
+
   afterEach(() => {
     cleanup();
     localStorage.clear();
+    vi.unstubAllGlobals();
   });
 
   it('renders the workspace header and summary metric cards', async () => {

@@ -5,7 +5,8 @@ import { CashTransactionsView } from './CashTransactionsView';
 import { formatDateTime, formatTypeLabel, formatLoyaltySource, getTodayDateString } from './cashTransactionsHelpers';
 import type { CashTransaction } from '../../../../types/cash-transaction';
 
-vi.mock('../../../../lib/auth-storage', () => ({
+vi.mock('../../../../lib/auth-storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/auth-storage')>()),
   getAccessToken: vi.fn(() => 'mock-token'),
   clearAuthSession: vi.fn(),
 }));
