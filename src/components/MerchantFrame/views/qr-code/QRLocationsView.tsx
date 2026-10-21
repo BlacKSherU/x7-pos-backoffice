@@ -71,7 +71,7 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
   const [printTemplate, setPrintTemplate] = useState<'acrylic' | 'sticker' | 'tentCard'>('acrylic');
   const [copiedUrlId, setCopiedUrlId] = useState<number | null>(null);
 
-  // Form state (POST / PATCH /api/v1/qr-locations)
+  // Form state (POST / PATCH /api/qr-locations)
   const [formData, setFormData] = useState<{
     name: string;
     merchant_id: number;
@@ -81,15 +81,15 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
     status: QRLocationStatus;
   }>({
     name: '',
-    merchant_id: merchantId || 3,
-    qr_menu_id: 101,
+    merchant_id: merchantId ?? 0,
+    qr_menu_id: 0,
     table_id: null,
     location_type: 'DINE_IN',
     status: 'active',
   });
   const [formError, setFormError] = useState<string | null>(null);
 
-  const activeMerchantId = merchantId || formData.merchant_id || 3;
+  const activeMerchantId = merchantId || formData.merchant_id;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -149,7 +149,7 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) 
   // Open side drawer for creation
   const handleOpenCreateDrawer = () => {
     setEditingLocation(null);
-    const defaultMenu = menus.length > 0 ? menus[0].id : 101;
+    const defaultMenu = menus[0]?.id ?? 0;
     setFormData({
       name: '',
       merchant_id: activeMerchantId,

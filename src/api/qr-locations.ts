@@ -16,11 +16,13 @@ import {
   validateUniqueLocationName,
   validateQRLocationPayload,
 } from '../lib/qr-location';
-import { getAccessToken } from '../lib/auth-storage';
 import { ApiError } from '../lib/api-error';
-import { API_BASE, authHeaders } from './http';
+import { apiRequest, unwrapItem, unwrapList, type MaybeEnvelopedItem, type MaybeEnvelopedList } from './http';
 
-const STORAGE_KEY = 'x7_qr_locations_mock_db';
+// Rutas del backend (NestJS, prefijo global /api): qr-locations, qr-menus, tables, merchants.
+const QR_LOCATIONS = '/qr-locations';
+// El DTO de mesas limita `limit` a 100; mismo tope para el resto de listas auxiliares.
+const LIST_LIMIT = 100;
 
 // Cache for live fetched entities so relations can be hydrated even if backend only returns scalar IDs
 let _cachedMerchants: MerchantRef[] = [];
@@ -71,102 +73,6 @@ interface BackendTable {
   zone_name?: string;
 }
 
-// Default mock seed data (used when offline, mock mode, or unauthenticated)
-export const MOCK_MERCHANTS: MerchantRef[] = [
-  { id: 1, name: 'Bistro Downtown', code: 'MCH-001' },
-  { id: 2, name: 'La Trattoria Patio', code: 'MCH-002' },
-  { id: 3, name: 'prueba1', code: 'MCH-003' },
-];
-
-export const MOCK_MENUS: QRMenuRef[] = [
-  { id: 101, name: 'Main Dinner & Cocktail Menu', is_active: true },
-  { id: 102, name: 'Lunch Express & Drinks Menu', is_active: true },
-  { id: 103, name: 'Patio & Terrace Special Menu', is_active: true },
-  { id: 104, name: 'Takeout & Pickup Menu', is_active: true },
-];
-
-export const MOCK_TABLES: TableRef[] = [
-  { id: 201, number: '12', merchant_id: 3, capacity: 4, zone_name: 'Main Dining Room' },
-  { id: 202, number: '14', merchant_id: 3, capacity: 6, zone_name: 'Main Dining Room' },
-  { id: 203, number: 'Patio-01', merchant_id: 3, capacity: 2, zone_name: 'Terrace' },
-  { id: 204, number: 'Patio-02', merchant_id: 3, capacity: 4, zone_name: 'Terrace' },
-  { id: 205, number: 'VIP-1', merchant_id: 1, capacity: 8, zone_name: 'VIP Lounge' },
-  { id: 206, number: 'Bar-5', merchant_id: 2, capacity: 2, zone_name: 'Main Bar' },
-];
-
-function initializeMockData(): QRLocation[] {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      // Fallback to seed
-    }
-  }
-
-  const initialList: QRLocation[] = [
-    {
-      id: 1,
-      name: 'Patio Table #12 Access',
-      merchant_id: 3,
-      qr_menu_id: 101,
-      table_id: 201,
-      location_type: 'DINE_IN',
-      status: 'active',
-      qr_code_url: buildQrLandingUrl(3, 1),
-      qr_code_image: generateQrAssetImage(buildQrLandingUrl(3, 1), 'Patio Table #12 Access'),
-      created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      name: 'Curbside Pickup Point',
-      merchant_id: 3,
-      qr_menu_id: 104,
-      table_id: null,
-      location_type: 'PICKUP',
-      status: 'active',
-      qr_code_url: buildQrLandingUrl(3, 2),
-      qr_code_image: generateQrAssetImage(buildQrLandingUrl(3, 2), 'Curbside Pickup Point'),
-      created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 3,
-      name: 'Terrace Table #Patio-01',
-      merchant_id: 3,
-      qr_menu_id: 103,
-      table_id: 203,
-      location_type: 'DINE_IN',
-      status: 'inactive',
-      qr_code_url: buildQrLandingUrl(3, 3),
-      qr_code_image: generateQrAssetImage(buildQrLandingUrl(3, 3), 'Terrace Table #Patio-01'),
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 4,
-      name: 'Room 402 Room Service QR',
-      merchant_id: 3,
-      qr_menu_id: 102,
-      table_id: null,
-      location_type: 'ROOM_SERVICE',
-      status: 'archived',
-      qr_code_url: buildQrLandingUrl(3, 4),
-      qr_code_image: generateQrAssetImage(buildQrLandingUrl(3, 4), 'Room 402 Room Service QR'),
-      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ];
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(initialList));
-  return initialList;
-}
-
-function persistMockData(items: QRLocation[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-}
-
 // Convert front-end QRMenuType to backend enum ('Table' | 'Pickup' | 'Delivery')
 function mapLocationTypeToBackend(type: QRMenuType): 'Table' | 'Pickup' | 'Delivery' {
   if (type === 'PICKUP') return 'Pickup';
@@ -214,24 +120,21 @@ function normalizeBackendQRLocation(item: BackendQRLocation): QRLocation {
 function hydrateRelations(item: QRLocation): QRLocation {
   const merchant =
     item.merchant ||
-    _cachedMerchants.find((m) => m.id === item.merchant_id) ||
-    MOCK_MERCHANTS.find((m) => m.id === item.merchant_id) || {
+    _cachedMerchants.find((m) => m.id === item.merchant_id) || {
       id: item.merchant_id,
       name: `Merchant #${item.merchant_id}`,
     };
 
   const qrMenu =
     item.qrMenu ||
-    _cachedMenus.find((m) => m.id === item.qr_menu_id) ||
-    MOCK_MENUS.find((m) => m.id === item.qr_menu_id) || {
+    _cachedMenus.find((m) => m.id === item.qr_menu_id) || {
       id: item.qr_menu_id,
       name: `Menu #${item.qr_menu_id}`,
       is_active: true,
     };
 
   const foundTable = item.table_id
-    ? _cachedTables.find((t) => t.id === item.table_id) ||
-      MOCK_TABLES.find((t) => t.id === item.table_id) || {
+    ? _cachedTables.find((t) => t.id === item.table_id) || {
         id: item.table_id,
         number: item.table?.number || `${item.table_id}`,
         merchant_id: item.merchant_id,
@@ -247,164 +150,93 @@ function hydrateRelations(item: QRLocation): QRLocation {
 }
 
 /**
- * Fetch available merchants from backend or fallback to mocks
+ * Sucursales (comercios) de la compañía del usuario.
  */
 export async function fetchAvailableMerchants(): Promise<MerchantRef[]> {
-  const token = getAccessToken();
-  if (token) {
-    try {
-      const response = await fetch(`${API_BASE}/merchants/company/branches`, {
-        headers: authHeaders(),
-      });
-      if (response.ok) {
-        const json = await response.json();
-        const rawList: BackendMerchant[] = json.data ?? (Array.isArray(json) ? json : []);
-        if (rawList.length > 0) {
-          const list: MerchantRef[] = rawList.map((m) => ({
-            id: m.id,
-            name: m.name,
-            code: m.code || `MCH-${m.id}`,
-          }));
-          _cachedMerchants = list;
-          return list;
-        }
-      }
-    } catch {
-      // Ignore network errors and fallback
-    }
-  }
-
-  _cachedMerchants = MOCK_MERCHANTS;
-  return MOCK_MERCHANTS;
+  const json = await apiRequest<MaybeEnvelopedList<BackendMerchant>>(
+    '/merchants/company/branches',
+    { method: 'GET' },
+    'Failed to load merchants. Please try again.',
+  );
+  const list: MerchantRef[] = unwrapList(json).map((m) => ({
+    id: m.id,
+    name: m.name,
+    code: m.code || `MCH-${m.id}`,
+  }));
+  _cachedMerchants = list;
+  return list;
 }
 
 /**
- * Fetch available QR Menus from backend or fallback to mocks
+ * Menús QR disponibles, filtrados por comercio cuando se indica.
  */
 export async function fetchAvailableQRMenus(merchantId?: number): Promise<QRMenuRef[]> {
-  const token = getAccessToken();
-  if (token) {
-    try {
-      const response = await fetch(`${API_BASE}/qr-menu?limit=100`, {
-        headers: authHeaders(),
-      });
-      if (response.ok) {
-        const json = await response.json();
-        const rawList: BackendQRMenu[] = json.data ?? (Array.isArray(json) ? json : []);
-        if (rawList.length > 0) {
-          const mapped: QRMenuRef[] = rawList.map((m) => ({
-            id: m.id,
-            name: m.name || m.title || `Menu #${m.id}`,
-            is_active: m.status ? m.status === 'active' : true,
-          }));
-          _cachedMenus = mapped;
+  const json = await apiRequest<MaybeEnvelopedList<BackendQRMenu>>(
+    `/qr-menus?limit=${LIST_LIMIT}`,
+    { method: 'GET' },
+    'Failed to load QR menus. Please try again.',
+  );
+  const rawList = unwrapList(json);
+  const toRef = (m: BackendQRMenu): QRMenuRef => ({
+    id: m.id,
+    name: m.name || m.title || `Menu #${m.id}`,
+    is_active: m.status ? m.status === 'active' : true,
+  });
+  _cachedMenus = rawList.map(toRef);
 
-          if (merchantId) {
-            const filtered = rawList
-              .filter((m) => !m.merchant || m.merchant.id === merchantId || m.merchant_id === merchantId)
-              .map((m) => ({
-                id: m.id,
-                name: m.name || m.title || `Menu #${m.id}`,
-                is_active: m.status ? m.status === 'active' : true,
-              }));
-            if (filtered.length > 0) return filtered;
-          }
-          return mapped;
-        }
-      }
-    } catch {
-      // Ignore network errors and fallback
-    }
-  }
-
-  _cachedMenus = MOCK_MENUS;
-  return MOCK_MENUS;
+  if (!merchantId) return _cachedMenus;
+  return rawList
+    .filter((m) => !m.merchant || m.merchant.id === merchantId || m.merchant_id === merchantId)
+    .map(toRef);
 }
 
 /**
- * Fetch available dining tables from backend or fallback to mocks
+ * Mesas del salón, filtradas por comercio cuando se indica.
  */
 export async function fetchAvailableTables(merchantId?: number): Promise<TableRef[]> {
-  const token = getAccessToken();
-  if (token) {
-    try {
-      const response = await fetch(`${API_BASE}/tables?limit=100`, {
-        headers: authHeaders(),
-      });
-      if (response.ok) {
-        const json = await response.json();
-        const rawList: BackendTable[] = json.data ?? (Array.isArray(json) ? json : []);
-        if (rawList.length > 0) {
-          const mapped: TableRef[] = rawList.map((t) => ({
-            id: t.id,
-            number: String(t.number),
-            merchant_id: t.merchant?.id ?? t.merchant_id ?? (merchantId || 0),
-            capacity: t.capacity,
-            zone_name: t.floorZone?.name ?? t.zone?.name ?? t.zone_name,
-          }));
-          _cachedTables = mapped;
+  const json = await apiRequest<MaybeEnvelopedList<BackendTable>>(
+    `/tables?limit=${LIST_LIMIT}`,
+    { method: 'GET' },
+    'Failed to load tables. Please try again.',
+  );
+  const mapped: TableRef[] = unwrapList(json).map((t) => ({
+    id: t.id,
+    number: String(t.number),
+    merchant_id: t.merchant?.id ?? t.merchant_id ?? (merchantId || 0),
+    capacity: t.capacity,
+    zone_name: t.floorZone?.name ?? t.zone?.name ?? t.zone_name,
+  }));
+  _cachedTables = mapped;
 
-          if (merchantId) {
-            const filtered = mapped.filter((t) => !t.merchant_id || t.merchant_id === merchantId);
-            if (filtered.length > 0) return filtered;
-          }
-          return mapped;
-        }
-      }
-    } catch {
-      // Ignore network errors and fallback
-    }
-  }
-
-  const result = merchantId ? MOCK_TABLES.filter((t) => t.merchant_id === merchantId) : MOCK_TABLES;
-  _cachedTables = result;
-  return result;
+  if (!merchantId) return mapped;
+  return mapped.filter((t) => !t.merchant_id || t.merchant_id === merchantId);
 }
 
 /**
- * Retrieves QR Locations. Handles backend singular (/api/qr-location) and plural (/api/qr-locations).
+ * Puntos de acceso QR (activos e inactivos; el backend excluye los borrados).
  */
 export async function getQRLocations(merchantId?: number): Promise<QRLocation[]> {
-  const token = getAccessToken();
-  if (token) {
-    try {
-      // Backend candidates (singular, plural, and v1 versioning)
-      const candidatePaths = ['/qr-location', '/qr-locations', '/v1/qr-locations', '/v1/qr-location'];
-      let response: Response | null = null;
-      for (const path of candidatePaths) {
-        response = await fetch(`${API_BASE}${path}?limit=100`, {
-          headers: authHeaders(),
-        });
-        if (response.status !== 404) break;
-      }
-
-      if (response && response.ok) {
-        const json = await response.json();
-        const rawList: BackendQRLocation[] = json.data ?? (Array.isArray(json) ? json : []);
-        const normalized = rawList.map(normalizeBackendQRLocation);
-        const filtered = merchantId
-          ? normalized.filter((loc) => !loc.merchant_id || loc.merchant_id === merchantId)
-          : normalized;
-        return filtered.map(hydrateRelations);
-      }
-    } catch {
-      // Fallback to mock persistence
-    }
-  }
-
-  const items = initializeMockData();
-  const filtered = merchantId ? items.filter((i) => i.merchant_id === merchantId) : items;
+  const json = await apiRequest<MaybeEnvelopedList<BackendQRLocation>>(
+    `${QR_LOCATIONS}?limit=${LIST_LIMIT}`,
+    { method: 'GET' },
+    'Failed to load QR Locations directory.',
+  );
+  const normalized = unwrapList(json).map(normalizeBackendQRLocation);
+  const filtered = merchantId
+    ? normalized.filter((loc) => !loc.merchant_id || loc.merchant_id === merchantId)
+    : normalized;
   return filtered.map(hydrateRelations);
 }
 
 /**
- * Creates a new QR Location. Formats body to match backend expectations.
+ * Crea un punto de acceso QR. Valida nombre único y mesa contra los datos reales del comercio.
  */
 export async function createQRLocation(dto: CreateQRLocationDto): Promise<QRLocation> {
-  const tables = await fetchAvailableTables(dto.merchant_id);
-  const items = initializeMockData();
+  const [items, tables] = await Promise.all([
+    getQRLocations(dto.merchant_id),
+    fetchAvailableTables(dto.merchant_id),
+  ]);
 
-  // Enforce Form Validation & Unique Location Naming under merchant
   const payloadCheck = validateQRLocationPayload(dto, dto.merchant_id, items, tables);
   if (!payloadCheck.valid) {
     throw new ApiError(payloadCheck.error || 'Validation failed.', 400);
@@ -412,96 +244,47 @@ export async function createQRLocation(dto: CreateQRLocationDto): Promise<QRLoca
 
   // Business Rule: Table Association Sync
   const finalLocationType = syncLocationTypeWithTable(dto.table_id, dto.location_type);
-  const token = getAccessToken();
+  const tempUrl = buildQrLandingUrl(dto.merchant_id, 'new');
 
-  if (token) {
-    const backendLocationType = mapLocationTypeToBackend(finalLocationType);
-    const tempUrl = buildQrLandingUrl(dto.merchant_id, 'new');
-    const tempImage = generateQrAssetImage(tempUrl, dto.name);
-
-    const backendPayload: Record<string, unknown> = {
-      merchant: Number(dto.merchant_id),
-      qrMenu: Number(dto.qr_menu_id),
-      name: dto.name.trim(),
-      location_type: backendLocationType,
-      status: dto.status === 'active' ? 'active' : 'inactive',
-      qr_code_url: tempUrl,
-      qr_code_image: tempImage,
-    };
-    if (dto.table_id && Number(dto.table_id) > 0) {
-      backendPayload.table = Number(dto.table_id);
-    }
-
-    try {
-      const candidatePaths = ['/qr-location', '/qr-locations', '/v1/qr-locations', '/v1/qr-location'];
-      let response: Response | null = null;
-      for (const path of candidatePaths) {
-        response = await fetch(`${API_BASE}${path}`, {
-          method: 'POST',
-          headers: authHeaders(true),
-          body: JSON.stringify(backendPayload),
-        });
-        if (response.status !== 404) break;
-      }
-
-      if (response && response.ok) {
-        const created = await response.json();
-        const normalized = normalizeBackendQRLocation(created.data ?? created);
-        return hydrateRelations(normalized);
-      } else if (response) {
-        const errorData = await response.json().catch(() => ({}));
-        const message = Array.isArray(errorData.message)
-          ? errorData.message.join(', ')
-          : errorData.message || `Server responded with status ${response.status}`;
-        throw new ApiError(message, response.status);
-      }
-    } catch (err) {
-      if (err instanceof ApiError) {
-        throw err;
-      }
-      // If network unreachable, continue to mock fallback below
-    }
+  const backendPayload: Record<string, unknown> = {
+    merchant: Number(dto.merchant_id),
+    qrMenu: Number(dto.qr_menu_id),
+    name: dto.name.trim(),
+    location_type: mapLocationTypeToBackend(finalLocationType),
+    status: dto.status === 'active' ? 'active' : 'inactive',
+    qr_code_url: tempUrl,
+    qr_code_image: generateQrAssetImage(tempUrl, dto.name),
+  };
+  if (dto.table_id && Number(dto.table_id) > 0) {
+    backendPayload.table = Number(dto.table_id);
   }
 
-  // Fallback to local mock persistence
-  const newId = items.length > 0 ? Math.max(...items.map((i) => i.id)) + 1 : 1;
-  const qr_code_url = buildQrLandingUrl(dto.merchant_id, newId);
-  const qr_code_image = generateQrAssetImage(qr_code_url, dto.name);
-
-  const newItem: QRLocation = {
-    id: newId,
-    name: dto.name,
-    merchant_id: dto.merchant_id,
-    qr_menu_id: dto.qr_menu_id,
-    table_id: dto.table_id || null,
-    location_type: finalLocationType,
-    status: dto.status,
-    qr_code_url,
-    qr_code_image,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const updatedList = [newItem, ...items];
-  persistMockData(updatedList);
-  return hydrateRelations(newItem);
+  const created = await apiRequest<MaybeEnvelopedItem<BackendQRLocation>>(
+    QR_LOCATIONS,
+    { method: 'POST', body: JSON.stringify(backendPayload) },
+    'Failed to save QR Location.',
+  );
+  return hydrateRelations(normalizeBackendQRLocation(unwrapItem(created)));
 }
 
 /**
- * Updates a QR Location.
+ * Actualiza un punto de acceso QR.
  */
 export async function updateQRLocation(
   id: number,
   dto: UpdateQRLocationDto
 ): Promise<QRLocation> {
-  const items = initializeMockData();
+  const items = await getQRLocations();
   const existing = items.find((i) => i.id === id);
+  if (!existing) {
+    throw new ApiError(`QR Location #${id} not found.`, 404);
+  }
 
-  const targetMerchantId = dto.merchant_id ?? existing?.merchant_id ?? 1;
-  const targetTableId = dto.table_id !== undefined ? dto.table_id : existing?.table_id;
+  const targetMerchantId = dto.merchant_id ?? existing.merchant_id;
+  const targetTableId = dto.table_id !== undefined ? dto.table_id : existing.table_id;
   const tables = await fetchAvailableTables(targetMerchantId);
 
-  if (dto.name && existing && dto.name.trim() !== existing.name.trim()) {
+  if (dto.name && dto.name.trim() !== existing.name.trim()) {
     const uniqueCheck = validateUniqueLocationName(dto.name, targetMerchantId, items, id);
     if (!uniqueCheck.valid) {
       throw new ApiError(uniqueCheck.error!, 400);
@@ -513,99 +296,38 @@ export async function updateQRLocation(
     throw new ApiError(validation.error || 'Table validation failed.', 400);
   }
 
-  const currentType = dto.location_type ?? existing?.location_type ?? 'DINE_IN';
+  const currentType = dto.location_type ?? existing.location_type;
   const finalLocationType = syncLocationTypeWithTable(targetTableId, currentType);
-  const token = getAccessToken();
 
-  if (token) {
-    const backendPayload: Record<string, unknown> = {};
-    if (dto.name !== undefined) backendPayload.name = dto.name.trim();
-    if (dto.merchant_id !== undefined) backendPayload.merchant = Number(dto.merchant_id);
-    if (dto.qr_menu_id !== undefined) backendPayload.qrMenu = Number(dto.qr_menu_id);
-    if (dto.table_id !== undefined) {
-      if (dto.table_id && Number(dto.table_id) > 0) {
-        backendPayload.table = Number(dto.table_id);
-      }
-    }
-    if (dto.location_type !== undefined) {
-      backendPayload.location_type = mapLocationTypeToBackend(finalLocationType);
-    }
-    if (dto.status !== undefined) {
-      backendPayload.status = dto.status === 'active' ? 'active' : 'inactive';
-    }
-
-    try {
-      const candidatePaths = ['/qr-location', '/qr-locations', '/v1/qr-locations', '/v1/qr-location'];
-      let response: Response | null = null;
-      for (const path of candidatePaths) {
-        response = await fetch(`${API_BASE}${path}/${id}`, {
-          method: 'PATCH',
-          headers: authHeaders(true),
-          body: JSON.stringify(backendPayload),
-        });
-        if (response.status !== 404) break;
-      }
-
-      if (response && response.ok) {
-        const updated = await response.json();
-        const normalized = normalizeBackendQRLocation(updated.data ?? updated);
-        return hydrateRelations(normalized);
-      } else if (response) {
-        const errorData = await response.json().catch(() => ({}));
-        const message = Array.isArray(errorData.message)
-          ? errorData.message.join(', ')
-          : errorData.message || `Server responded with status ${response.status}`;
-        throw new ApiError(message, response.status);
-      }
-    } catch (err) {
-      if (err instanceof ApiError) {
-        throw err;
-      }
-    }
+  const backendPayload: Record<string, unknown> = {};
+  if (dto.name !== undefined) backendPayload.name = dto.name.trim();
+  if (dto.merchant_id !== undefined) backendPayload.merchant = Number(dto.merchant_id);
+  if (dto.qr_menu_id !== undefined) backendPayload.qrMenu = Number(dto.qr_menu_id);
+  if (dto.table_id && Number(dto.table_id) > 0) {
+    backendPayload.table = Number(dto.table_id);
+  }
+  if (dto.location_type !== undefined) {
+    backendPayload.location_type = mapLocationTypeToBackend(finalLocationType);
+  }
+  if (dto.status !== undefined) {
+    backendPayload.status = dto.status === 'active' ? 'active' : 'inactive';
   }
 
-  if (!existing) {
-    throw new ApiError(`QR Location #${id} not found.`, 404);
-  }
-
-  const updatedUrl = buildQrLandingUrl(targetMerchantId, id);
-  const updatedImage = generateQrAssetImage(updatedUrl, dto.name ?? existing.name);
-
-  const updatedItem: QRLocation = {
-    ...existing,
-    ...dto,
-    location_type: finalLocationType,
-    qr_code_url: updatedUrl,
-    qr_code_image: updatedImage,
-    updated_at: new Date().toISOString(),
-  };
-
-  const updatedList = items.map((i) => (i.id === id ? updatedItem : i));
-  persistMockData(updatedList);
-  return hydrateRelations(updatedItem);
+  const updated = await apiRequest<MaybeEnvelopedItem<BackendQRLocation>>(
+    `${QR_LOCATIONS}/${id}`,
+    { method: 'PATCH', body: JSON.stringify(backendPayload) },
+    'Failed to save QR Location.',
+  );
+  return hydrateRelations(normalizeBackendQRLocation(unwrapItem(updated)));
 }
 
 /**
- * Deletes a QR Location.
+ * Borra (soft delete en el backend: status = 'deleted') un punto de acceso QR.
  */
 export async function deleteQRLocation(id: number): Promise<void> {
-  const token = getAccessToken();
-  if (token) {
-    try {
-      const candidatePaths = ['/qr-location', '/qr-locations', '/v1/qr-locations', '/v1/qr-location'];
-      for (const path of candidatePaths) {
-        const response = await fetch(`${API_BASE}${path}/${id}`, {
-          method: 'DELETE',
-          headers: authHeaders(),
-        });
-        if (response.status !== 404) break;
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  const items = initializeMockData();
-  const updatedList = items.filter((i) => i.id !== id);
-  persistMockData(updatedList);
+  await apiRequest<void>(
+    `${QR_LOCATIONS}/${id}`,
+    { method: 'DELETE' },
+    'Failed to delete QR Location.',
+  );
 }
