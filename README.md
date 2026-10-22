@@ -61,8 +61,10 @@ credentials, with `SEED_API_URL`, `SEED_EMAIL` and `SEED_PASSWORD`.
 
 Areas, in run order: `catalog`, `config`, `inventory`, `kitchen`, `dining`, `cash`, `orders`
 (kitchen tickets), `staff`, `shifts`, `customers`, `reservations`, `delivery`, `online`, `qr`,
-`sales`, `tips`. Shifts and the tip pool are relative to today, so a run on a later day adds
-the shifts for the following week.
+`sales`, `tips`, `supplies` (raw materials and stock), `purchasing`, `payables` (supplier
+invoices, payments, allocations, credit note), `accounting` (journal entries), `timeentries`,
+`payroll`, `onlineorders`, `deliveryorders`. Dates are relative to today, so a run on a later
+day adds the shifts, time entries and payroll period of that week.
 
 Known requirements of the backend:
 

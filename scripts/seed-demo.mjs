@@ -138,6 +138,19 @@ async function existing(listPath) {
 
 const idOf = (ref) => (ref && typeof ref === 'object' ? ref.id : ref);
 
+/** Empresa del comercio demo (varios DTO de finanzas la piden explícitamente). */
+let cachedCompanyId = null;
+async function companyId() {
+  if (cachedCompanyId == null) {
+    const merchant = unwrapItem(await request('GET', `/merchants/${merchantId}`).catch(() => null));
+    cachedCompanyId = idOf(merchant?.companyId ?? merchant?.company) ?? null;
+  }
+  return cachedCompanyId;
+}
+
+/** Fecha (YYYY-MM-DD) `daysFromToday` días a partir de hoy. */
+const day = (daysFromToday) => at(daysFromToday, 12).slice(0, 10);
+
 /** Fecha local `daysFromToday` días a partir de hoy, a la hora indicada, en ISO. */
 const at = (daysFromToday, hour, minute = 0) => {
   const d = new Date();
@@ -765,15 +778,437 @@ const AREAS = {
       console.log('  (sin turno de hoy: ejecuta también el área "shifts")');
       return ctx;
     }
-    const merchant = unwrapItem(await request('GET', `/merchants/${merchantId}`).catch(() => null));
     await ensure('pozo de propinas Almuerzo de hoy', '/tip-pools?limit=100', (p) => idOf(p.shiftId ?? p.shift) === shift.id, '/tip-pools', {
-      companyId: idOf(merchant?.companyId ?? merchant?.company),
+      companyId: await companyId(),
       merchantId,
       shiftId: shift.id,
       name: 'Almuerzo de hoy',
       distributionType: 'equal',
       totalAmount: 0,
       status: 'open',
+    });
+    return ctx;
+  },
+
+  // ---- Fase 3 ----
+
+  async supplies(ctx) {
+    console.log('\nInsumos: materias primas, proveedores y stock en bodega');
+    const [categories, suppliers, locations] = await Promise.all([
+      existing('/v1/raw-material-categories?limit=100'),
+      existing('/v1/inventory/suppliers?limit=100'),
+      existing('/v1/raw-material-stock/locations?limit=100'),
+    ]);
+    const category = (name) => categories.find(byName(name))?.id;
+    const supplier = (name) => suppliers.find(byName(name))?.id;
+    const location = (name) => locations.find(byName(name))?.id;
+    const SUPPLIES = [
+      ['Carne molida vacuno', 'INS-001', 'Carnes', 'gram', 'kg', 1000, 9.5, 'Carnes Patagonia', 'Cámara de frío', 12000, 3000],
+      ['Lomo vetado', 'INS-002', 'Carnes', 'gram', 'kg', 1000, 18.9, 'Carnes Patagonia', 'Cámara de frío', 8000, 2000],
+      ['Queso cheddar', 'INS-003', 'Lácteos', 'gram', 'kg', 1000, 11.2, 'Distribuidora Andes', 'Cámara de frío', 4000, 1000],
+      ['Leche entera', 'INS-004', 'Lácteos', 'milliliter', 'l', 1000, 1.1, 'Distribuidora Andes', 'Cámara de frío', 20000, 5000],
+      ['Limón', 'INS-005', 'Verduras', 'unit', 'caja', 50, 120, 'Verduras del Valle', 'Bodega central', 300, 60],
+      ['Arroz arbóreo', 'INS-006', 'Abarrotes', 'gram', 'kg', 1000, 4.8, 'Distribuidora Andes', 'Bodega central', 10000, 2000],
+    ];
+    for (const [name, code, cat, unit, purchase_unit, conversion_factor, cost_per_unit, supplierName, locationName, qty, minimumQty] of SUPPLIES) {
+      const supply = await ensure(`insumo ${name}`, '/v1/inventory/raw-materials?limit=100', byName(name), '/v1/inventory/raw-materials', {
+        code,
+        sku: `DEMO-${code}`,
+        name,
+        category_id: category(cat),
+        unit,
+        purchase_unit,
+        consumption_unit: unit,
+        conversion_factor,
+        minimumQty,
+        cost_per_unit,
+        isActive: true,
+      });
+      if (!supply || supply.id < 0) continue;
+      if (supplier(supplierName) && !DRY_RUN) {
+        await request('POST', `/v1/inventory/raw-materials/${supply.id}/suppliers`, { supplierIds: [supplier(supplierName)] }).catch((err) =>
+          console.log(`  ! proveedor de ${name}: ${err.message}`),
+        );
+      }
+      // Al crear el insumo el backend ya abre un ítem de stock (en 0) por bodega: se ajusta
+      // el de la bodega elegida, solo si sigue en 0 para no sumar stock en cada ejecución.
+      const locationId = location(locationName);
+      const item = (await existing('/v1/raw-material-stock/items?limit=100')).find(
+        (i) => idOf(i.supply) === supply.id && idOf(i.location) === locationId,
+      );
+      if (!item) {
+        console.log(`  ! sin ítem de stock de ${name} en ${locationName}`);
+        continue;
+      }
+      if (Number(item.currentQty) > 0) {
+        stats.existing += 1;
+        continue;
+      }
+      if (DRY_RUN) {
+        console.log(`  + stock ${name}  POST /items/${item.id}/adjust {"value":${qty}}`);
+        continue;
+      }
+      try {
+        await request('POST', `/items/${item.id}/adjust`, { type: 'absolute', value: qty, reason: 'Inventario inicial (demo)' });
+        stats.created += 1;
+        console.log(`  + stock ${name} en ${locationName}: ${qty}`);
+      } catch (err) {
+        stats.failed += 1;
+        console.log(`  ! stock ${name}: ${err.message}`);
+      }
+    }
+    return ctx;
+  },
+
+  async purchasing(ctx) {
+    console.log('\nCompras: órdenes de compra');
+    const [suppliers, products, locations, orders] = await Promise.all([
+      existing('/v1/inventory/suppliers?limit=100'),
+      existing('/products?limit=100'),
+      existing('/v1/raw-material-stock/locations?limit=100'),
+      existing('/v1/purchase-orders?limit=100'),
+    ]);
+    const mainStorage = locations.find((l) => l.isMainStorage)?.id ?? locations[0]?.id;
+    const PURCHASES = [
+      ['Distribuidora Andes', 'DRAFT', [['Limonada menta jengibre', 24, 900], ['Pisco sour', 12, 1800]]],
+      ['Carnes Patagonia', 'SENT', [['Burger X7', 40, 2600], ['Lomo a lo pobre', 20, 5200]]],
+    ];
+    for (const [supplierName, status, items] of PURCHASES) {
+      const supplierId = suppliers.find(byName(supplierName))?.id;
+      if (!supplierId) continue;
+      const found = orders.find((o) => idOf(o.supplierId ?? o.supplier) === supplierId);
+      if (found) {
+        stats.existing += 1;
+        console.log(`  = orden de compra ${supplierName} (ya existe, id ${found.id})`);
+        continue;
+      }
+      const totalAmount = items.reduce((sum, [, qty, price]) => sum + qty * price, 0);
+      const po = await ensure(`orden de compra ${supplierName} (${status})`, '/v1/purchase-orders?limit=1', () => false, '/v1/purchase-orders', {
+        supplierId,
+        status,
+        totalAmount,
+      });
+      if (!po || po.id < 0) continue;
+      for (const [productName, quantity, unitPrice] of items) {
+        const productId = products.find(byName(productName))?.id;
+        if (!productId) continue;
+        await ensure(`  ${quantity}x ${productName}`, '/purchase-order-item?limit=1', () => false, '/purchase-order-item', {
+          purchaseOrderId: po.id,
+          productId,
+          quantity,
+          unitPrice,
+          locationId: mainStorage,
+        });
+      }
+    }
+    return ctx;
+  },
+
+  async payables(ctx) {
+    console.log('\nCuentas por pagar: facturas, pagos, asignaciones y nota de crédito');
+    const company_id = await companyId();
+    const [suppliers, products] = await Promise.all([existing('/v1/inventory/suppliers?limit=100'), existing('/products?limit=100')]);
+    const supplier = (name) => suppliers.find(byName(name))?.id;
+    const product = (name) => products.find(byName(name));
+    // [número, proveedor, emisión (días), vencimiento (días), ítems, estado]
+    const INVOICES = [
+      ['F-1001', 'Carnes Patagonia', -20, 10, [['Burger X7', 40, 2600], ['Lomo a lo pobre', 20, 5200]], 'paid'],
+      ['F-1002', 'Distribuidora Andes', -12, 18, [['Pisco sour', 12, 1800], ['Limonada menta jengibre', 24, 900]], 'partially_paid'],
+      ['F-1003', 'Verduras del Valle', -5, 25, [['Ceviche mixto', 15, 2900]], 'pending'],
+    ];
+    const invoices = await existing('/supplier-invoices?limit=100');
+    for (const [invoice_number, supplierName, issued, due, items, status] of INVOICES) {
+      const subtotal = items.reduce((sum, [, qty, price]) => sum + qty * price, 0);
+      const tax_total = Math.round(subtotal * 0.19);
+      const total_amount = subtotal + tax_total;
+      const paid_amount = status === 'paid' ? total_amount : status === 'partially_paid' ? Math.round(total_amount / 2) : 0;
+      const found = invoices.find((i) => i.invoice_number === invoice_number);
+      if (found) {
+        stats.existing += 1;
+        console.log(`  = factura ${invoice_number} (ya existe, id ${found.id})`);
+      }
+      const invoice =
+        found ??
+        (await ensure(`factura ${invoice_number} ${supplierName} (${status})`, '/supplier-invoices?limit=1', () => false, '/supplier-invoices', {
+          company_id,
+          supplier_id: supplier(supplierName),
+          invoice_number,
+          invoice_date: day(issued),
+          due_date: day(due),
+          subtotal,
+          tax_total,
+          total_amount,
+          paid_amount,
+          balance_due: total_amount - paid_amount,
+          status,
+        }));
+      if (!invoice || invoice.id < 0) continue;
+      const invoiceItems = await existing(`/supplier-invoice-items?invoice_id=${invoice.id}&limit=100`);
+      for (const [productName, quantity, unit_price] of items) {
+        const p = product(productName);
+        if (!p) continue;
+        if (invoiceItems.some((i) => idOf(i.invoice_id ?? i.invoice) === invoice.id && i.description === productName)) {
+          stats.existing += 1;
+          continue;
+        }
+        const line_subtotal = quantity * unit_price;
+        const tax_amount = Math.round(line_subtotal * 0.19);
+        await ensure(`  ${quantity}x ${productName}`, '/supplier-invoice-items?limit=1', () => false, '/supplier-invoice-items', {
+          // Sin product_id: enlazar con inventario exige también variant_id y los productos
+          // demo no tienen variantes (salvo la burger). La línea queda solo descrita.
+          invoice_id: invoice.id,
+          description: productName,
+          quantity,
+          unit_price,
+          line_subtotal,
+          tax_amount,
+          line_total: line_subtotal + tax_amount,
+        });
+      }
+      if (paid_amount > 0) {
+        const payment_number = `P-${invoice_number.slice(2)}`;
+        const payment = await ensure(`  pago ${payment_number}`, '/supplier-payments?limit=100', (p) => p.payment_number === payment_number, '/supplier-payments', {
+          company_id,
+          supplier_id: supplier(supplierName),
+          payment_number,
+          payment_date: day(issued + 3),
+          payment_method: 'transfer',
+          reference: `Transferencia ${payment_number}`,
+          total_amount: paid_amount,
+          status: 'posted',
+        });
+        if (!payment || payment.id < 0) continue;
+        const forPayment = (r) => idOf(r.payment_id ?? r.payment) === payment.id && r.document_number === invoice_number;
+        // Un pago ya contabilizado (posted) no admite ítems nuevos.
+        if (payment.status === 'draft') {
+          await ensure(`  ítem de pago ${invoice_number}`, '/supplier-payment-items?limit=100', forPayment, '/supplier-payment-items', {
+            payment_id: payment.id,
+            document_type: 'invoice',
+            document_number: invoice_number,
+            amount: paid_amount,
+          });
+        }
+        await ensure(`  asignación ${payment_number} → ${invoice_number}`, '/supplier-payment-allocations?limit=100', forPayment, '/supplier-payment-allocations', {
+          payment_id: payment.id,
+          supplier_id: supplier(supplierName),
+          document_type: 'invoice',
+          document_number: invoice_number,
+          allocated_amount: paid_amount,
+        });
+      }
+    }
+    await ensure('nota de crédito NC-201 Distribuidora Andes', '/supplier-credit-notes?limit=100', (n) => n.credit_note_number === 'NC-201', '/supplier-credit-notes', {
+      company_id,
+      supplier_id: supplier('Distribuidora Andes'),
+      credit_note_number: 'NC-201',
+      issue_date: day(-8),
+      total_amount: 15000,
+      applied_amount: 0,
+      status: 'issued',
+    });
+    return ctx;
+  },
+
+  async accounting(ctx) {
+    console.log('\nContabilidad: asientos');
+    const accounts = await existing('/ledger-accounts?limit=100');
+    const account = (code) => accounts.find((a) => String(a.code) === code)?.id;
+    const ENTRIES = [
+      ['AS-0001', -7, 'POSTED', [['1100', 250000, 0], ['4100', 0, 210084], ['2200', 0, 39916]]],
+      ['AS-0002', -5, 'POSTED', [['5100', 280000, 0], ['2200', 53200, 0], ['2100', 0, 333200]]],
+      ['AS-0003', -1, 'DRAFT', [['5200', 450000, 0], ['1200', 0, 450000]]],
+    ];
+    for (const [entry_number, offset, status, lines] of ENTRIES) {
+      await ensure(`asiento ${entry_number} (${status})`, '/journal-entry?limit=100', (e) => e.entry_number === entry_number, '/journal-entry', {
+        entry_number,
+        entry_date: day(offset),
+        status,
+        lines: lines.map(([code, debit, credit]) => ({ account_id: account(code), debit, credit })),
+      });
+    }
+    return ctx;
+  },
+
+  async timeentries(ctx) {
+    console.log('\nAsistencia: marcas de los últimos 3 días');
+    const company_id = await companyId();
+    const [collaborators, entries] = await Promise.all([existing('/collaborators?limit=100'), existing('/collaborator-time-entries?limit=100')]);
+    const staff = collaborators.filter((c) => c.name !== 'Admin Demo');
+    for (let offset = -3; offset <= -1; offset += 1) {
+      for (const [i, c] of staff.entries()) {
+        // Turno de almuerzo para la mitad, de cena para el resto; uno con horas extra.
+        const lunch = i % 2 === 0;
+        const clock_in = at(offset, lunch ? 11 : 18);
+        const extra = i === 0 ? 2 : 0;
+        const clock_out = at(offset, (lunch ? 17 : 24) + extra);
+        const found = entries.find((e) => idOf(e.collaborator_id ?? e.collaborator) === c.id && new Date(e.clock_in).getTime() === new Date(clock_in).getTime());
+        if (found) {
+          stats.existing += 1;
+          continue;
+        }
+        await ensure(`marca ${c.name} día ${offset}`, '/collaborator-time-entries?limit=1', () => false, '/collaborator-time-entries', {
+          company_id,
+          merchant_id: merchantId,
+          collaborator_id: c.id,
+          clock_in,
+          clock_out,
+          regular_hours: 6,
+          overtime_hours: extra,
+          break_minutes: 30,
+          approved: offset < -1,
+        });
+      }
+    }
+    return ctx;
+  },
+
+  async payroll(ctx) {
+    console.log('\nRemuneraciones: liquidación de la quincena anterior');
+    const company_id = await companyId();
+    // El backend guarda las columnas `date` un día antes (desfase UTC/Chile), así que el período
+    // existente se busca con un día de margen.
+    const period_start = day(-15);
+    const period_end = day(-1);
+    const run = await ensure(`período ${period_start} a ${period_end}`, '/payroll-runs?limit=100', (r) => Math.abs(Date.parse(r.period_start) - Date.parse(period_start)) <= 86_400_000, '/payroll-runs', {
+      company_id,
+      merchant_id: merchantId,
+      period_start,
+      period_end,
+      status: 'draft',
+    });
+    if (!run || run.id < 0) return ctx;
+    const [collaborators, entries] = await Promise.all([existing('/collaborators?limit=100'), existing('/payroll-entries?limit=100')]);
+    const BASE = { waiter: 320000, cook: 380000, bartender: 340000, host: 300000, cashier: 310000, manager: 520000 };
+    for (const c of collaborators.filter((x) => x.name !== 'Admin Demo')) {
+      if (entries.some((e) => idOf(e.payroll_run_id ?? e.payrollRun) === run.id && idOf(e.collaborator_id ?? e.collaborator) === c.id)) {
+        stats.existing += 1;
+        continue;
+      }
+      const base_pay = BASE[c.role] ?? 300000;
+      const tips_amount = c.role === 'waiter' || c.role === 'bartender' ? 45000 : 0;
+      const gross_total = base_pay + tips_amount;
+      const tax_total = Math.round(gross_total * 0.07);
+      await ensure(`  liquidación ${c.name}`, '/payroll-entries?limit=1', () => false, '/payroll-entries', {
+        payroll_run_id: run.id,
+        collaborator_id: c.id,
+        base_pay,
+        overtime_pay: 0,
+        tips_amount,
+        bonuses: 0,
+        deductions: 0,
+        gross_total,
+        tax_total,
+        net_total: gross_total - tax_total,
+      });
+    }
+    return ctx;
+  },
+
+  async onlineorders(ctx) {
+    console.log('\nPedidos online');
+    const [stores, customers, products, orders] = await Promise.all([
+      existing('/online-stores?limit=100'),
+      existing('/customers?limit=100'),
+      existing('/products?limit=100'),
+      existing('/online-orders?limit=100'),
+    ]);
+    const store = stores.find((s) => s.subdomain === 'x7demo-bistro');
+    if (!store) {
+      console.log('  (sin tienda: ejecuta también el área "online")');
+      return ctx;
+    }
+    const ONLINE = [
+      ['WEB-001', 'felipe.araya@cliente.demo', 'paid', [['Burger X7', 2], ['Limonada menta jengibre', 2]]],
+      ['WEB-002', 'daniela.contreras@cliente.demo', 'pending', [['Risotto de hongos', 1], ['Leche asada', 1]]],
+    ];
+    for (const [ref, email, paymentStatus, items] of ONLINE) {
+      const notes = `Pedido ${ref}`;
+      const found = orders.find((o) => o.notes === notes);
+      if (found) {
+        stats.existing += 1;
+        console.log(`  = pedido online ${ref} (ya existe, id ${found.id})`);
+        continue;
+      }
+      const order = await ensure(`pedido online ${ref} (${paymentStatus})`, '/online-orders?limit=1', () => false, '/online-orders', {
+        storeId: store.id,
+        customerId: customers.find((c) => c.email === email)?.id,
+        type: ref === 'WEB-001' ? 'delivery' : 'pickup',
+        paymentStatus,
+        placedAt: new Date().toISOString(),
+        notes,
+      });
+      if (!order || order.id < 0) continue;
+      for (const [name, quantity] of items) {
+        const productId = products.find(byName(name))?.id;
+        if (!productId) continue;
+        await ensure(`  ${quantity}x ${name}`, '/online-order-items?limit=1', () => false, '/online-order-items', {
+          onlineOrderId: order.id,
+          productId,
+          quantity,
+        });
+      }
+    }
+    return ctx;
+  },
+
+  async deliveryorders(ctx) {
+    console.log('\nDelivery: un pedido a domicilio asignado a un repartidor');
+    const active = unwrapItem(await request('GET', '/cash-shifts/active').catch(() => null));
+    const openerId = idOf(active?.openedByCollaborator ?? active?.openedBy);
+    const [subscriptions, tables, customers, zones, drivers, products, orders] = await Promise.all([
+      existing('/merchant-subscription?limit=100'),
+      existing('/tables?limit=100'),
+      existing('/customers?limit=100'),
+      existing('/delivery-zone?limit=100'),
+      existing('/delivery-driver?limit=100'),
+      existing('/products?limit=100'),
+      existing('/orders?limit=100'),
+    ]);
+    const subscription = subscriptions.find((s) => idOf(s.merchantId ?? s.merchant) === merchantId && s.status === 'active');
+    const zone = zones.find(byName('Providencia'));
+    const customer = customers.find((c) => c.email === 'andrea.fuentes@cliente.demo');
+    const driver = drivers.find(byName('Pedro Castillo'));
+    if (!openerId || !subscription || !zone || !customer || !driver) {
+      console.log('  (faltan turno de caja, suscripción, zona, cliente o repartidor: ejecuta cash, sales, delivery y customers)');
+      return ctx;
+    }
+    const deliveryAddress = 'Av. Nueva Providencia 2155, depto 801';
+    let order = orders.find((o) => o.deliveryAddress === deliveryAddress || o.delivery_address === deliveryAddress);
+    if (order) {
+      stats.existing += 1;
+      console.log(`  = pedido a domicilio (ya existe, id ${order.id})`);
+    } else {
+      order = await ensure('pedido a domicilio', '/orders?limit=1', () => false, '/orders', {
+        merchantId,
+        // El DTO exige mesa aunque sea delivery: se usa la barra.
+        tableId: tables.find((t) => String(t.number) === 'B1')?.id,
+        collaboratorId: openerId,
+        subscriptionId: subscription.id,
+        customerId: customer.id,
+        businessStatus: 'pending',
+        source: 'delivery',
+        type: 'delivery',
+        guestCount: 1,
+        deliveryAddress,
+        deliveryZoneId: zone.id,
+        deliveryFee: 1990,
+      });
+      if (!order || order.id < 0) return ctx;
+      for (const [name, quantity] of [['Burger X7', 1], ['Pisco sour', 1]]) {
+        const p = products.find(byName(name));
+        if (!p) continue;
+        await ensure(`  ${quantity}x ${name}`, '/order-item?limit=1', () => false, '/order-item', {
+          orderId: order.id,
+          productId: p.id,
+          quantity,
+          price: Number(p.basePrice),
+        });
+      }
+    }
+    await ensure(`asignación a ${driver.name}`, '/delivery-assignment?limit=100', (a) => idOf(a.order ?? a.order_id ?? a.orderId) === order.id, '/delivery-assignment', {
+      order: order.id,
+      deliveryDriver: driver.id,
+      status: 'active',
     });
     return ctx;
   },
