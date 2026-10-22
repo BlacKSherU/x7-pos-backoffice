@@ -1,4 +1,20 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import {
+  aggregateAllDay,
+  aggregateSummary,
+  isActiveKitchenOrder,
+  mapKitchenOrderToTicket,
+  mapKitchenStation,
+  type BackendKitchenStation,
+  type CourseType,
+  type KdsCardDensity,
+  type KdsView,
+  type KitchenTicket,
+  type PreparationStatus,
+  type RawKitchenOrder,
+} from './kds-monitor-model';
+import { formatCountdown, getCourseTheme, getPriorityBadge } from './kds-monitor-display';
+import { playKitchenFireChime } from '../../../../../lib/kds-chime';
 import { useKdsCriticalSla } from '../../../../../lib/kds-sla-config';
 import { KitchenDevResetButton } from './KitchenDevResetButton';
 import { KitchenRecallTray, type BumpedOrderRecord } from './KitchenRecallTray';
@@ -32,158 +48,19 @@ import {
   getDeviceLanguage,
   setDeviceLanguage,
   extractCleanKitchenInstruction,
+  getLocalizedStationName,
 } from './kdsLocalization';
 
-const getLocalizedStationName = (name: string, lang: 'en' | 'es'): string => {
-  if (lang !== 'es') return name;
-  const n = name.trim().toLowerCase();
-  if (n.includes('hot line')) return 'Línea Caliente y Parrilla';
-  if (n.includes('cold prep')) return 'Preparación Fría y Ensaladas';
-  if (n.includes('main bar')) return 'Bar Principal y Bebidas';
-  if (n.includes('desserts') || n.includes('bakery')) return 'Postres y Panadería';
-  if (n.includes('expo')) return 'Expo y Control de Calidad';
-  return name;
-};
 
-export type CourseType = 'APPETIZER' | 'MAIN_COURSE' | 'DESSERT' | 'BEVERAGE';
-export type PreparationStatus = 'HELD' | 'PENDING' | 'IN_PREPARATION' | 'READY';
-
-export interface TicketItem {
-  id: number;
-  name: string;
-  variantName?: string;
-  qty: number;
-  preparedQuantity?: number;
-  notes?: string;
-  course: CourseType;
-  preparationStatus: PreparationStatus;
-  holdRemainingSeconds?: number;
-  firedAt?: string | null;
-}
-
-export interface KitchenTicket {
-  id: string;
-  backendOrderId?: number;
-  table: string;
-  timeElapsed: number; // minutes
-  createdAtMs?: number;
-  server: string;
-  stationName?: string;
-  stationId?: number;
-  priority: 'normal' | 'high' | 'urgent' | 'vip';
-  items: TicketItem[];
-  orderNotes?: string | null;
-  isPulsing?: boolean;
-  alertMessage?: string | null;
-}
-
-export type KdsView = 'EXPO' | 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID';
 
 interface KitchenMonitorViewProps {
   onBackToDashboard: () => void;
 }
 
-/**
- * Native Audio Chime Synthesizer using Web Audio API (Zero external audio file dependency)
- */
-const playKitchenFireChime = () => {
-  try {
-    const AudioContextClass =
-      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const now = ctx.currentTime;
 
-    // First Harmonic Tone (880 Hz - High Bell A5)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(880, now);
-    gain1.gain.setValueAtTime(0.25, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.45);
-
-    // Second Resonant Tone (1320 Hz - Bell E6)
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(1320, now + 0.08);
-    gain2.gain.setValueAtTime(0.3, now + 0.08);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(now + 0.08);
-    osc2.stop(now + 0.65);
-  } catch (e) {
-    console.warn('Audio chime playback omitted or blocked by browser user gesture policy:', e);
-  }
-};
-
-export interface BackendKitchenStation {
-  id: number;
-  name: string;
-  station_type?: string;
-  stationType?: string;
-  display_mode?: 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID';
-  displayMode?: 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID';
-  display_order?: number;
-  displayOrder?: number;
-  backup_station_id?: number | null;
-  backupStationId?: number | null;
-  max_active_tickets_capacity?: number;
-  maxActiveTicketsCapacity?: number;
-  auto_reroute_on_offline?: boolean;
-  autoRerouteOnOffline?: boolean;
-  auto_reroute_on_capacity?: boolean;
-  autoRerouteOnCapacity?: boolean;
-  fallback_action?: string;
-  fallbackAction?: string;
-  printer_name?: string | null;
-  printerName?: string | null;
-  is_active?: boolean;
-  isActive?: boolean;
-  status?: string;
-}
-
-export type KdsCardDensity = 'compact' | 'normal' | 'spacious';
 
 const completingTicketIdsDebounce = new Set<string>();
 
-// Raw kitchen order as returned by GET /kitchen-orders (camelCase and snake_case variants).
-interface RawKitchenOrderItem {
-  id: number;
-  product?: { name?: string };
-  productName?: string;
-  variant?: { name?: string };
-  variantName?: string;
-  quantity?: number;
-  preparedQuantity?: number;
-  prepared_quantity?: number;
-  notes?: string;
-  course?: string;
-  preparationStatus?: string;
-  holdUntil?: string;
-  firedAt?: string;
-  fired_at?: string;
-}
-
-interface RawKitchenOrder {
-  id: number;
-  businessStatus?: string;
-  status?: string;
-  createdAt?: string;
-  startedAt?: string;
-  order?: { diningTable?: { name?: string }; table_number?: string; waiter_name?: string; waiter?: { name?: string } };
-  notes?: string;
-  stationId?: number;
-  station?: { id?: number; name?: string };
-  priority?: number;
-  items?: RawKitchenOrderItem[];
-  kitchenOrderItems?: RawKitchenOrderItem[];
-}
 
 export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackToDashboard }) => {
   const [tickets, setTickets] = useState<KitchenTicket[]>([]);
@@ -335,31 +212,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         'Request failed. Please try again.',
       );
       const list = unwrapList(json);
-      const mapped: BackendKitchenStation[] = list.map((s) => ({
-        id: Number(s.id),
-        name: String(s.name || ''),
-        station_type: (s.stationType || s.station_type) as string | undefined,
-        stationType: (s.stationType || s.station_type) as string | undefined,
-        display_mode: (s.displayMode || s.display_mode || 'GRID') as 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID',
-        displayMode: (s.displayMode || s.display_mode || 'GRID') as 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID',
-        display_order: Number(s.displayOrder ?? s.display_order ?? s.id),
-        displayOrder: Number(s.displayOrder ?? s.display_order ?? s.id),
-        backup_station_id: (s.backup_station_id ?? s.backupStationId ?? null) as number | null,
-        backupStationId: (s.backupStationId ?? s.backup_station_id ?? null) as number | null,
-        max_active_tickets_capacity: (s.max_active_tickets_capacity ?? s.maxActiveTicketsCapacity ?? 15) as number,
-        maxActiveTicketsCapacity: (s.maxActiveTicketsCapacity ?? s.max_active_tickets_capacity ?? 15) as number,
-        auto_reroute_on_offline: (s.auto_reroute_on_offline ?? s.autoRerouteOnOffline ?? true) as boolean,
-        autoRerouteOnOffline: (s.auto_reroute_on_offline ?? s.autoRerouteOnOffline ?? true) as boolean,
-        auto_reroute_on_capacity: (s.auto_reroute_on_capacity ?? s.autoRerouteOnCapacity ?? true) as boolean,
-        autoRerouteOnCapacity: (s.auto_reroute_on_capacity ?? s.autoRerouteOnCapacity ?? true) as boolean,
-        fallback_action: (s.fallback_action || s.fallbackAction || 'BACKUP_STATION') as string,
-        fallbackAction: (s.fallbackAction || s.fallback_action || 'BACKUP_STATION') as string,
-        printer_name: (s.printer_name || s.printerName || null) as string | null,
-        printerName: (s.printerName || s.printer_name || null) as string | null,
-        is_active: (s.isActive ?? s.is_active ?? true) as boolean,
-        isActive: (s.isActive ?? s.is_active ?? true) as boolean,
-        status: s.status as string | undefined,
-      }));
+      const mapped = list.map(mapKitchenStation);
       setKitchenStations(mapped.filter((s) => s.status !== 'deleted' && s.isActive !== false));
     } catch (err) {
       console.warn('Could not load kitchen stations in KDS:', err);
@@ -474,58 +327,8 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         'Request failed. Please try again.',
       );
       const list = Array.isArray(json) ? json : json.data || [];
-      const activeOrders = list.filter(
-        (o: { businessStatus?: string; status?: string }) => o.businessStatus !== 'completed' && o.businessStatus !== 'cancelled' && o.status !== 'deleted'
-      );
-
-      const mapped: KitchenTicket[] = activeOrders.map((o) => {
-        const customerTimeRef = o.createdAt ? new Date(o.createdAt).getTime() : Date.now();
-        const elapsedMins = Math.max(0, Math.floor((Date.now() - customerTimeRef) / 60000));
-        const tableName = o.order?.diningTable?.name
-          ? `Table ${o.order.diningTable.name}`
-          : o.order?.table_number
-          ? `Table ${o.order.table_number}`
-          : o.notes?.split('•')?.[0]?.trim() || o.notes?.match(/Table \d+/i)?.[0] || (o.notes && o.notes.length <= 30 ? o.notes.trim() : null) || `Ticket #KO-${o.id}`;
-
-        return {
-          id: `KO-${o.id}`,
-          backendOrderId: o.id,
-          table: tableName,
-          orderNotes: o.notes || null,
-          timeElapsed: elapsedMins,
-          createdAtMs: customerTimeRef,
-          server: o.order?.waiter_name || o.order?.waiter?.name || 'Kitchen Staff',
-          stationName: o.station?.name || 'General Kitchen',
-          stationId: o.stationId ?? o.station?.id,
-          priority: (o.priority ?? 0) >= 3 ? 'vip' : (o.priority ?? 0) === 2 ? 'urgent' : (o.priority ?? 0) === 1 ? 'high' : 'normal',
-          items: (o.items || o.kitchenOrderItems || []).map((i) => {
-            const prepStatusUpper = (i.preparationStatus || 'pending').toUpperCase() as PreparationStatus;
-            let holdSeconds: number | undefined = undefined;
-            if (prepStatusUpper === 'HELD') {
-              if (i.holdUntil) {
-                holdSeconds = Math.max(0, Math.floor((new Date(i.holdUntil).getTime() - Date.now()) / 1000));
-              } else {
-                const prioNum = o.priority ?? 0;
-                const defaultMins = prioNum >= 3 ? 1 : prioNum === 2 ? 4 : prioNum === 1 ? 7 : 10;
-                holdSeconds = defaultMins * 60;
-              }
-            }
-
-            return {
-              id: i.id,
-              name: i.product?.name || i.productName || 'Dish Item',
-              variantName: i.variant?.name || i.variantName || undefined,
-              qty: i.quantity || 1,
-              preparedQuantity: i.prepared_quantity ?? i.preparedQuantity ?? 0,
-              notes: i.notes || undefined,
-              course: ((i.course || 'MAIN_COURSE').toUpperCase()) as CourseType,
-              preparationStatus: prepStatusUpper,
-              holdRemainingSeconds: holdSeconds,
-              firedAt: i.firedAt || i.fired_at,
-            };
-          }),
-        };
-      });
+      const now = Date.now();
+      const mapped: KitchenTicket[] = list.filter(isActiveKitchenOrder).map((o) => mapKitchenOrderToTicket(o, now));
 
       setTickets(mapped);
       cacheTicketsLocally(mapped);
@@ -1461,88 +1264,8 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     setIsPacingDrawerOpen(false);
   };
 
-  const formatCountdown = (seconds?: number) => {
-    if (seconds === undefined || seconds <= 0) return '00:00';
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
 
-  const getPriorityBadge = (priority: KitchenTicket['priority']) => {
-    const isEs = deviceLanguage === 'es';
-    switch (priority) {
-      case 'vip':
-        return {
-          border: 'border-fuchsia-500',
-          badge: 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/50 font-black animate-pulse',
-          label: 'VIP RUSH (+3)',
-        };
-      case 'urgent':
-        return {
-          border: 'border-red-500',
-          badge: 'bg-red-500/20 text-red-400 border border-red-500/40 font-black',
-          label: isEs ? 'URGENTE (+2)' : 'URGENT (+2)',
-        };
-      case 'high':
-        return {
-          border: 'border-amber-500',
-          badge: 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold',
-          label: isEs ? 'ALTA (+1)' : 'HIGH (+1)',
-        };
-      case 'normal':
-      default:
-        return {
-          border: 'border-zinc-700',
-          badge: 'bg-zinc-800 text-zinc-300 border border-zinc-700 font-semibold',
-          label: 'NORMAL (0)',
-        };
-    }
-  };
 
-  const getCourseTheme = (course: CourseType) => {
-    switch (course) {
-      case 'APPETIZER':
-        return {
-          title: 'APPETIZERS / STARTERS',
-          icon: 'restaurant',
-          badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-          fireLabel: 'FIRE APPS',
-          prepVerb: 'PREP',
-          prepIcon: 'restaurant',
-          inPrepLabel: 'TO PREP',
-        };
-      case 'MAIN_COURSE':
-        return {
-          title: 'MAIN COURSES',
-          icon: 'lunch_dining',
-          badge: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
-          fireLabel: 'FIRE MAINS',
-          prepVerb: 'COOK',
-          prepIcon: 'skillet',
-          inPrepLabel: 'TO COOK',
-        };
-      case 'DESSERT':
-        return {
-          title: 'DESSERTS',
-          icon: 'cake',
-          badge: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-          fireLabel: 'FIRE DESSERTS',
-          prepVerb: 'PREP',
-          prepIcon: 'cake',
-          inPrepLabel: 'TO PREP',
-        };
-      case 'BEVERAGE':
-        return {
-          title: 'BEVERAGES',
-          icon: 'local_bar',
-          badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-          fireLabel: 'FIRE DRINKS',
-          prepVerb: 'POUR',
-          prepIcon: 'local_bar',
-          inPrepLabel: 'TO POUR',
-        };
-    }
-  };
 
   const getTicketStationMode = useCallback(
     (t: KitchenTicket): 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID' => {
@@ -1905,152 +1628,13 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     }
   };
 
+
+
   // Aggregated items for SUMMARY VIEW (batch preparation)
-  const aggregatedSummary = (() => {
-    interface AggregatedSummaryTable {
-      ticketId: string;
-      itemId: number;
-      table: string;
-      qty: number;
-      status: PreparationStatus;
-    }
-
-    interface AggregatedSummaryItem {
-      key: string;
-      name: string;
-      variantName?: string;
-      course: CourseType;
-      totalQty: number;
-      pendingQty: number;
-      inPrepQty: number;
-      heldQty: number;
-      readyQty: number;
-      notes: string[];
-      tables: AggregatedSummaryTable[];
-    }
-    const map = new Map<string, AggregatedSummaryItem>();
-
-    filteredTickets.forEach((t) => {
-      t.items.forEach((item) => {
-        if (activeCourseFilter !== 'ALL' && item.course !== activeCourseFilter) {
-          return;
-        }
-        const key = `${item.name.trim()}__${item.variantName?.trim() || ''}`;
-        if (!map.has(key)) {
-          map.set(key, {
-            key,
-            name: item.name,
-            variantName: item.variantName,
-            course: item.course,
-            totalQty: 0,
-            pendingQty: 0,
-            inPrepQty: 0,
-            heldQty: 0,
-            readyQty: 0,
-            notes: [],
-            tables: [],
-          });
-        }
-        const record = map.get(key)!;
-        record.totalQty += item.qty;
-        if (item.preparationStatus === 'READY') {
-          record.readyQty += item.qty;
-        } else if (item.preparationStatus === 'HELD') {
-          record.heldQty += item.qty;
-        } else if (item.preparationStatus === 'IN_PREPARATION') {
-          record.inPrepQty += item.qty;
-        } else {
-          record.pendingQty += item.qty;
-        }
-        if (item.notes && !record.notes.includes(item.notes)) {
-          record.notes.push(item.notes);
-        }
-        record.tables.push({
-          ticketId: t.id,
-          itemId: item.id,
-          table: t.table,
-          qty: item.qty,
-          status: item.preparationStatus,
-        });
-      });
-    });
-
-    return Array.from(map.values()).sort(
-      (a, b) =>
-        b.inPrepQty + b.pendingQty + b.heldQty - (a.inPrepQty + a.pendingQty + a.heldQty)
-    );
-  })();
+  const aggregatedSummary = aggregateSummary(filteredTickets, activeCourseFilter);
 
   // Real-Time All-Day Batch Aggregation across active station tickets (Historia X7P-4208)
-  const allDaySummary = (() => {
-    interface AllDayAggregatedItem {
-      key: string;
-      productName: string;
-      variantName?: string;
-      course: CourseType;
-      totalNeeded: number;
-      totalOrdered: number;
-      totalPrepared: number;
-      modifiers: Array<{ note: string; count: number }>;
-    }
-
-    const map = new Map<string, AllDayAggregatedItem>();
-    let totalNeededCount = 0;
-
-    filteredTickets.forEach((ticket) => {
-      ticket.items.forEach((item) => {
-        if (activeCourseFilter !== 'ALL' && item.course !== activeCourseFilter) {
-          return;
-        }
-        if (item.preparationStatus !== 'PENDING' && item.preparationStatus !== 'IN_PREPARATION') {
-          return;
-        }
-
-        const currentPrepared = item.preparedQuantity || 0;
-        const needed = Math.max(0, item.qty - currentPrepared);
-        if (needed <= 0) return;
-
-        totalNeededCount += needed;
-        const key = `${item.name.trim().toLowerCase()}__${(item.variantName || '').trim().toLowerCase()}`;
-
-        if (!map.has(key)) {
-          map.set(key, {
-            key,
-            productName: item.name,
-            variantName: item.variantName,
-            course: item.course,
-            totalNeeded: 0,
-            totalOrdered: 0,
-            totalPrepared: 0,
-            modifiers: [],
-          });
-        }
-
-        const entry = map.get(key)!;
-        entry.totalNeeded += needed;
-        entry.totalOrdered += item.qty;
-        entry.totalPrepared += currentPrepared;
-
-        if (item.notes && item.notes.trim().length > 0) {
-          const noteText = item.notes.trim();
-          const existingMod = entry.modifiers.find(
-            (m) => m.note.toLowerCase() === noteText.toLowerCase()
-          );
-          if (existingMod) {
-            existingMod.count += needed;
-          } else {
-            entry.modifiers.push({ note: noteText, count: needed });
-          }
-        }
-      });
-    });
-
-    const items = Array.from(map.values()).sort((a, b) => b.totalNeeded - a.totalNeeded);
-    return {
-      items,
-      totalNeededCount,
-    };
-  })();
+  const allDaySummary = aggregateAllDay(filteredTickets, activeCourseFilter);
 
   // Active ticket for MANUAL QUEUE view
   const activeManualTicket = (() => {
@@ -2063,7 +1647,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
   // Reusable Ticket Card Renderer
   const renderTicketCard = (ticket: KitchenTicket, isFullWidth: boolean = false) => {
-    const pColors = getPriorityBadge(ticket.priority);
+    const pColors = getPriorityBadge(ticket.priority, deviceLanguage);
     const coursesPresent: CourseType[] = ['BEVERAGE', 'APPETIZER', 'MAIN_COURSE', 'DESSERT'];
     const isCompact = cardDensity === 'compact';
     const isSpacious = cardDensity === 'spacious';
@@ -3566,7 +3150,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
               <div className="flex-1 overflow-y-auto space-y-2.5 mt-3 custom-scrollbar">
                 {filteredTickets.map((t, index) => {
                   const isSelected = activeManualTicket?.id === t.id;
-                  const pColors = getPriorityBadge(t.priority);
+                  const pColors = getPriorityBadge(t.priority, deviceLanguage);
                   return (
                     <div
                       key={t.id}
