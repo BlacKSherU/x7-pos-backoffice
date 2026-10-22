@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type {
   CreateQRLocationDto,
   MerchantRef,
@@ -10,7 +10,6 @@ import type {
   UpdateQRLocationDto,
 } from '../../../../types/qr-location';
 import {
-  QR_LOCATION_STATUS_LABELS,
   QR_LOCATION_STATUSES,
   QR_LOCATION_TYPE_LABELS,
   QR_LOCATION_TYPES,
@@ -40,10 +39,7 @@ interface QRLocationsViewProps {
   merchantId?: number;
 }
 
-export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
-  onNavigate,
-  merchantId,
-}) => {
+export const QRLocationsView: React.FC<QRLocationsViewProps> = ({ merchantId }) => {
   const [locations, setLocations] = useState<QRLocation[]>([]);
   const [merchants, setMerchants] = useState<MerchantRef[]>([]);
   const [menus, setMenus] = useState<QRMenuRef[]>([]);
@@ -75,7 +71,7 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
   const [printTemplate, setPrintTemplate] = useState<'acrylic' | 'sticker' | 'tentCard'>('acrylic');
   const [copiedUrlId, setCopiedUrlId] = useState<number | null>(null);
 
-  // Form state (POST / PATCH /api/v1/qr-locations)
+  // Form state (POST / PATCH /api/qr-locations)
   const [formData, setFormData] = useState<{
     name: string;
     merchant_id: number;
@@ -85,17 +81,17 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
     status: QRLocationStatus;
   }>({
     name: '',
-    merchant_id: merchantId || 3,
-    qr_menu_id: 101,
+    merchant_id: merchantId ?? 0,
+    qr_menu_id: 0,
     table_id: null,
     location_type: 'DINE_IN',
     status: 'active',
   });
   const [formError, setFormError] = useState<string | null>(null);
 
-  const activeMerchantId = merchantId || formData.merchant_id || 3;
+  const activeMerchantId = merchantId || formData.merchant_id;
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -113,16 +109,18 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
       if (locsRes.status === 'rejected') {
         setError(locsRes.reason?.message || 'Failed to load QR Locations directory.');
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load QR Locations directory.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load QR Locations directory.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeMerchantId]);
 
   useEffect(() => {
-    loadData();
-  }, [activeMerchantId]);
+    void Promise.resolve().then(() => {
+      loadData();
+    });
+  }, [loadData]);
 
   // Handle table selection change -> auto-sync location_type & validate merchant context
   const handleTableSelection = (rawTableId: string) => {
@@ -151,7 +149,7 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
   // Open side drawer for creation
   const handleOpenCreateDrawer = () => {
     setEditingLocation(null);
-    const defaultMenu = menus.length > 0 ? menus[0].id : 101;
+    const defaultMenu = menus[0]?.id ?? 0;
     setFormData({
       name: '',
       merchant_id: activeMerchantId,
@@ -247,8 +245,8 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
       }
       setIsDrawerOpen(false);
       await loadData();
-    } catch (err: any) {
-      setFormError(err?.message || 'Failed to save QR Location.');
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save QR Location.');
     }
   };
 
@@ -257,8 +255,8 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
       try {
         await deleteQRLocation(id);
         await loadData();
-      } catch (err: any) {
-        alert(err?.message || 'Failed to delete QR Location.');
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : 'Failed to delete QR Location.');
       }
     }
   };
@@ -285,14 +283,6 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
   };
 
   // Batch Selection Handlers
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredLocations.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredLocations.map((l) => l.id)));
-    }
-  };
-
   const toggleSelectId = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -329,6 +319,14 @@ export const QRLocationsView: React.FC<QRLocationsViewProps> = ({
       return matchSearch && matchMenu && matchType && matchStatus;
     });
   }, [locations, searchTerm, menuFilter, typeFilter, selectedStatusSet]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredLocations.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredLocations.map((l) => l.id)));
+    }
+  };
 
   // Searchable tables picker list
   const searchableTables = useMemo(() => {

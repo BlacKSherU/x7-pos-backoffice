@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { getAccessToken } from '../../../../../lib/auth-storage';
 import { useKdsCriticalSla } from '../../../../../lib/kds-sla-config';
 import { KitchenDevResetButton } from './KitchenDevResetButton';
 import { KitchenRecallTray, type BumpedOrderRecord } from './KitchenRecallTray';
@@ -10,7 +9,11 @@ import {
   cacheTicketsLocally,
   getCachedTicketsLocally,
   clearOfflineData,
+  isRetryableKdsError,
 } from '../../../../../lib/kds-offline-sync';
+import { sendStationKeepaliveHeartbeat } from '../../../../../lib/kds-keepalive';
+import { API_BASE, apiRequest, authHeaders, unwrapList, type MaybeEnvelopedList } from '../../../../../api/http';
+import { ApiError } from '../../../../../lib/api-error';
 import {
   StationRerouteModal,
   type StationRerouteStatus,
@@ -41,8 +44,6 @@ const getLocalizedStationName = (name: string, lang: 'en' | 'es'): string => {
   if (n.includes('expo')) return 'Expo y Control de Calidad';
   return name;
 };
-
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
 export type CourseType = 'APPETIZER' | 'MAIN_COURSE' | 'DESSERT' | 'BEVERAGE';
 export type PreparationStatus = 'HELD' | 'PENDING' | 'IN_PREPARATION' | 'READY';
@@ -151,6 +152,39 @@ export type KdsCardDensity = 'compact' | 'normal' | 'spacious';
 
 const completingTicketIdsDebounce = new Set<string>();
 
+// Raw kitchen order as returned by GET /kitchen-orders (camelCase and snake_case variants).
+interface RawKitchenOrderItem {
+  id: number;
+  product?: { name?: string };
+  productName?: string;
+  variant?: { name?: string };
+  variantName?: string;
+  quantity?: number;
+  preparedQuantity?: number;
+  prepared_quantity?: number;
+  notes?: string;
+  course?: string;
+  preparationStatus?: string;
+  holdUntil?: string;
+  firedAt?: string;
+  fired_at?: string;
+}
+
+interface RawKitchenOrder {
+  id: number;
+  businessStatus?: string;
+  status?: string;
+  createdAt?: string;
+  startedAt?: string;
+  order?: { diningTable?: { name?: string }; table_number?: string; waiter_name?: string; waiter?: { name?: string } };
+  notes?: string;
+  stationId?: number;
+  station?: { id?: number; name?: string };
+  priority?: number;
+  items?: RawKitchenOrderItem[];
+  kitchenOrderItems?: RawKitchenOrderItem[];
+}
+
 export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackToDashboard }) => {
   const [tickets, setTickets] = useState<KitchenTicket[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -250,18 +284,13 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
   const fetchRerouteStatuses = useCallback(async () => {
     try {
-      const token = getAccessToken();
-      const res = await fetch(`${API_BASE}/kitchen-station/rerouting-status`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setStationRerouteStatuses(data);
-        }
+      const data = await apiRequest<StationRerouteStatus[]>(
+        '/kitchen-station/rerouting-status',
+        { method: 'GET' },
+        'Failed to load station rerouting statuses.',
+      );
+      if (Array.isArray(data)) {
+        setStationRerouteStatuses(data);
       }
     } catch (e) {
       console.warn('Could not fetch station rerouting statuses:', e);
@@ -291,45 +320,47 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     setActiveAlertToast({ id: String(Date.now()), message, type });
   }, [audioChimeEnabled]);
 
+  // The server judged and refused the action (4xx): show why instead of queueing it offline.
+  const reportRejectedAction = (err: unknown) => {
+    if (err instanceof ApiError && err.status === 401) return; // already redirecting to login
+    triggerAlert(`Rejected: ${err instanceof Error ? err.message : 'action refused by the server'}`, 'fire');
+  };
+
   // Load registered kitchen stations and their configured display_mode from backend
   const fetchStations = useCallback(async () => {
     try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-      const res = await fetch(`${API_BASE}/kitchen-station`, { headers });
-      if (res.ok) {
-        const json = await res.json();
-        const list: Record<string, unknown>[] = Array.isArray(json) ? json : json.data || [];
-        const mapped: BackendKitchenStation[] = list.map((s) => ({
-          id: Number(s.id),
-          name: String(s.name || ''),
-          station_type: (s.stationType || s.station_type) as string | undefined,
-          stationType: (s.stationType || s.station_type) as string | undefined,
-          display_mode: (s.displayMode || s.display_mode || 'GRID') as 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID',
-          displayMode: (s.displayMode || s.display_mode || 'GRID') as 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID',
-          display_order: Number(s.displayOrder ?? s.display_order ?? s.id),
-          displayOrder: Number(s.displayOrder ?? s.display_order ?? s.id),
-          backup_station_id: (s.backup_station_id ?? s.backupStationId ?? null) as number | null,
-          backupStationId: (s.backupStationId ?? s.backup_station_id ?? null) as number | null,
-          max_active_tickets_capacity: (s.max_active_tickets_capacity ?? s.maxActiveTicketsCapacity ?? 15) as number,
-          maxActiveTicketsCapacity: (s.maxActiveTicketsCapacity ?? s.max_active_tickets_capacity ?? 15) as number,
-          auto_reroute_on_offline: (s.auto_reroute_on_offline ?? s.autoRerouteOnOffline ?? true) as boolean,
-          autoRerouteOnOffline: (s.auto_reroute_on_offline ?? s.autoRerouteOnOffline ?? true) as boolean,
-          auto_reroute_on_capacity: (s.auto_reroute_on_capacity ?? s.autoRerouteOnCapacity ?? true) as boolean,
-          autoRerouteOnCapacity: (s.auto_reroute_on_capacity ?? s.autoRerouteOnCapacity ?? true) as boolean,
-          fallback_action: (s.fallback_action || s.fallbackAction || 'BACKUP_STATION') as string,
-          fallbackAction: (s.fallbackAction || s.fallback_action || 'BACKUP_STATION') as string,
-          printer_name: (s.printer_name || s.printerName || null) as string | null,
-          printerName: (s.printerName || s.printer_name || null) as string | null,
-          is_active: (s.isActive ?? s.is_active ?? true) as boolean,
-          isActive: (s.isActive ?? s.is_active ?? true) as boolean,
-          status: s.status as string | undefined,
-        }));
-        setKitchenStations(mapped.filter((s) => s.status !== 'deleted' && s.isActive !== false));
-      }
+      const json = await apiRequest<MaybeEnvelopedList<Record<string, unknown>>>(
+        '/kitchen-station',
+        { method: 'GET' },
+        'Request failed. Please try again.',
+      );
+      const list = unwrapList(json);
+      const mapped: BackendKitchenStation[] = list.map((s) => ({
+        id: Number(s.id),
+        name: String(s.name || ''),
+        station_type: (s.stationType || s.station_type) as string | undefined,
+        stationType: (s.stationType || s.station_type) as string | undefined,
+        display_mode: (s.displayMode || s.display_mode || 'GRID') as 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID',
+        displayMode: (s.displayMode || s.display_mode || 'GRID') as 'AUTO' | 'MANUAL' | 'SUMMARY' | 'GRID',
+        display_order: Number(s.displayOrder ?? s.display_order ?? s.id),
+        displayOrder: Number(s.displayOrder ?? s.display_order ?? s.id),
+        backup_station_id: (s.backup_station_id ?? s.backupStationId ?? null) as number | null,
+        backupStationId: (s.backupStationId ?? s.backup_station_id ?? null) as number | null,
+        max_active_tickets_capacity: (s.max_active_tickets_capacity ?? s.maxActiveTicketsCapacity ?? 15) as number,
+        maxActiveTicketsCapacity: (s.maxActiveTicketsCapacity ?? s.max_active_tickets_capacity ?? 15) as number,
+        auto_reroute_on_offline: (s.auto_reroute_on_offline ?? s.autoRerouteOnOffline ?? true) as boolean,
+        autoRerouteOnOffline: (s.auto_reroute_on_offline ?? s.autoRerouteOnOffline ?? true) as boolean,
+        auto_reroute_on_capacity: (s.auto_reroute_on_capacity ?? s.autoRerouteOnCapacity ?? true) as boolean,
+        autoRerouteOnCapacity: (s.auto_reroute_on_capacity ?? s.autoRerouteOnCapacity ?? true) as boolean,
+        fallback_action: (s.fallback_action || s.fallbackAction || 'BACKUP_STATION') as string,
+        fallbackAction: (s.fallbackAction || s.fallback_action || 'BACKUP_STATION') as string,
+        printer_name: (s.printer_name || s.printerName || null) as string | null,
+        printerName: (s.printerName || s.printer_name || null) as string | null,
+        is_active: (s.isActive ?? s.is_active ?? true) as boolean,
+        isActive: (s.isActive ?? s.is_active ?? true) as boolean,
+        status: s.status as string | undefined,
+      }));
+      setKitchenStations(mapped.filter((s) => s.status !== 'deleted' && s.isActive !== false));
     } catch (err) {
       console.warn('Could not load kitchen stations in KDS:', err);
     }
@@ -398,16 +429,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
         if (anyAutoFired && firedItems.length > 0) {
           setTimeout(() => {
-            const token = getAccessToken();
-            const headers: Record<string, string> = {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            };
             firedItems.forEach((f) => {
-              fetch(`${API_BASE}/kitchen-order-items/${f.id}/fire`, {
-                method: 'POST',
-                headers,
-              }).catch((e) => console.warn('Auto-fire backend sync failed:', e));
+              apiRequest<void>(
+                `/kitchen-order-items/${f.id}/fire`,
+                { method: 'POST' },
+                'Auto-fire failed',
+              ).catch((e) => console.warn('Auto-fire backend sync failed:', e));
               triggerAlert(`⏱️ Auto-fired: ${f.name} (${f.table})`, 'pacing');
             });
           }, 0);
@@ -441,126 +468,86 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
   const fetchBackendOrders = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-      const res = await fetch(`${API_BASE}/kitchen-orders?limit=100&sortBy=priority&sortOrder=DESC`, { headers });
-      if (res.ok) {
-        const json = await res.json();
-        const list = Array.isArray(json) ? json : json.data || [];
-        const activeOrders = list.filter(
-          (o: { businessStatus?: string; status?: string }) => o.businessStatus !== 'completed' && o.businessStatus !== 'cancelled' && o.status !== 'deleted'
-        );
+      const json = await apiRequest<MaybeEnvelopedList<RawKitchenOrder>>(
+        '/kitchen-orders?limit=100&sortBy=priority&sortOrder=DESC',
+        { method: 'GET' },
+        'Request failed. Please try again.',
+      );
+      const list = Array.isArray(json) ? json : json.data || [];
+      const activeOrders = list.filter(
+        (o: { businessStatus?: string; status?: string }) => o.businessStatus !== 'completed' && o.businessStatus !== 'cancelled' && o.status !== 'deleted'
+      );
 
-        const mapped: KitchenTicket[] = activeOrders.map((o: {
-          id: string | number;
-          createdAt?: string;
-          startedAt?: string;
-          order?: { diningTable?: { name?: string }; table_number?: string; waiter_name?: string; waiter?: { name?: string } };
-          notes?: string;
-          station?: { name?: string };
-          priority?: number;
-          items?: Array<{
-            id: string | number;
-            product?: { name?: string };
-            productName?: string;
-            variant?: { name?: string };
-            variantName?: string;
-            quantity?: number;
-            notes?: string;
-            course?: string;
-            preparationStatus?: string;
-            holdUntil?: string;
-            firedAt?: string;
-            fired_at?: string;
-          }>;
-          kitchenOrderItems?: Array<{
-            id: string | number;
-            product?: { name?: string };
-            productName?: string;
-            variant?: { name?: string };
-            variantName?: string;
-            quantity?: number;
-            preparedQuantity?: number;
-            prepared_quantity?: number;
-            notes?: string;
-            course?: string;
-            preparationStatus?: string;
-            holdUntil?: string;
-            firedAt?: string;
-            fired_at?: string;
-          }>;
-        }) => {
-          const customerTimeRef = o.createdAt ? new Date(o.createdAt).getTime() : Date.now();
-          const elapsedMins = Math.max(0, Math.floor((Date.now() - customerTimeRef) / 60000));
-          const tableName = o.order?.diningTable?.name
-            ? `Table ${o.order.diningTable.name}`
-            : o.order?.table_number
-            ? `Table ${o.order.table_number}`
-            : o.notes?.split('•')?.[0]?.trim() || o.notes?.match(/Table \d+/i)?.[0] || (o.notes && o.notes.length <= 30 ? o.notes.trim() : null) || `Ticket #KO-${o.id}`;
+      const mapped: KitchenTicket[] = activeOrders.map((o) => {
+        const customerTimeRef = o.createdAt ? new Date(o.createdAt).getTime() : Date.now();
+        const elapsedMins = Math.max(0, Math.floor((Date.now() - customerTimeRef) / 60000));
+        const tableName = o.order?.diningTable?.name
+          ? `Table ${o.order.diningTable.name}`
+          : o.order?.table_number
+          ? `Table ${o.order.table_number}`
+          : o.notes?.split('•')?.[0]?.trim() || o.notes?.match(/Table \d+/i)?.[0] || (o.notes && o.notes.length <= 30 ? o.notes.trim() : null) || `Ticket #KO-${o.id}`;
 
-          return {
-            id: `KO-${o.id}`,
-            backendOrderId: o.id,
-            table: tableName,
-            orderNotes: o.notes || null,
-            timeElapsed: elapsedMins,
-            createdAtMs: customerTimeRef,
-            server: o.order?.waiter_name || o.order?.waiter?.name || 'Kitchen Staff',
-            stationName: o.station?.name || 'General Kitchen',
-            stationId: o.stationId ?? o.station?.id,
-            priority: (o.priority ?? 0) >= 3 ? 'vip' : (o.priority ?? 0) === 2 ? 'urgent' : (o.priority ?? 0) === 1 ? 'high' : 'normal',
-            items: (o.items || o.kitchenOrderItems || []).map((i) => {
-              const prepStatusUpper = (i.preparationStatus || 'pending').toUpperCase() as PreparationStatus;
-              let holdSeconds: number | undefined = undefined;
-              if (prepStatusUpper === 'HELD') {
-                if (i.holdUntil) {
-                  holdSeconds = Math.max(0, Math.floor((new Date(i.holdUntil).getTime() - Date.now()) / 1000));
-                } else {
-                  const prioNum = o.priority ?? 0;
-                  const defaultMins = prioNum >= 3 ? 1 : prioNum === 2 ? 4 : prioNum === 1 ? 7 : 10;
-                  holdSeconds = defaultMins * 60;
-                }
+        return {
+          id: `KO-${o.id}`,
+          backendOrderId: o.id,
+          table: tableName,
+          orderNotes: o.notes || null,
+          timeElapsed: elapsedMins,
+          createdAtMs: customerTimeRef,
+          server: o.order?.waiter_name || o.order?.waiter?.name || 'Kitchen Staff',
+          stationName: o.station?.name || 'General Kitchen',
+          stationId: o.stationId ?? o.station?.id,
+          priority: (o.priority ?? 0) >= 3 ? 'vip' : (o.priority ?? 0) === 2 ? 'urgent' : (o.priority ?? 0) === 1 ? 'high' : 'normal',
+          items: (o.items || o.kitchenOrderItems || []).map((i) => {
+            const prepStatusUpper = (i.preparationStatus || 'pending').toUpperCase() as PreparationStatus;
+            let holdSeconds: number | undefined = undefined;
+            if (prepStatusUpper === 'HELD') {
+              if (i.holdUntil) {
+                holdSeconds = Math.max(0, Math.floor((new Date(i.holdUntil).getTime() - Date.now()) / 1000));
+              } else {
+                const prioNum = o.priority ?? 0;
+                const defaultMins = prioNum >= 3 ? 1 : prioNum === 2 ? 4 : prioNum === 1 ? 7 : 10;
+                holdSeconds = defaultMins * 60;
               }
-
-              return {
-                id: i.id,
-                name: i.product?.name || i.productName || 'Dish Item',
-                variantName: i.variant?.name || i.variantName || undefined,
-                qty: i.quantity || 1,
-                preparedQuantity: i.prepared_quantity ?? i.preparedQuantity ?? 0,
-                notes: i.notes || undefined,
-                course: ((i.course || 'MAIN_COURSE').toUpperCase()) as CourseType,
-                preparationStatus: prepStatusUpper,
-                holdRemainingSeconds: holdSeconds,
-                firedAt: i.firedAt || i.fired_at,
-              };
-            }),
-          };
-        });
-
-        setTickets(mapped);
-        cacheTicketsLocally(mapped);
-
-        // Purge from local bump history any order confirmed active by backend
-        const activeBackendIds = new Set(mapped.map((t) => t.backendOrderId).filter(Boolean));
-        setBumpedOrdersHistory((prev) => {
-          const next = prev.filter((o) => !activeBackendIds.has(o.id));
-          if (next.length !== prev.length) {
-            try {
-              localStorage.setItem('x7_kds_bumped_history', JSON.stringify(next));
-            } catch {
-              /* ignore storage error */
             }
+
+            return {
+              id: i.id,
+              name: i.product?.name || i.productName || 'Dish Item',
+              variantName: i.variant?.name || i.variantName || undefined,
+              qty: i.quantity || 1,
+              preparedQuantity: i.prepared_quantity ?? i.preparedQuantity ?? 0,
+              notes: i.notes || undefined,
+              course: ((i.course || 'MAIN_COURSE').toUpperCase()) as CourseType,
+              preparationStatus: prepStatusUpper,
+              holdRemainingSeconds: holdSeconds,
+              firedAt: i.firedAt || i.fired_at,
+            };
+          }),
+        };
+      });
+
+      setTickets(mapped);
+      cacheTicketsLocally(mapped);
+
+      // Purge from local bump history any order confirmed active by backend
+      const activeBackendIds = new Set(mapped.map((t) => t.backendOrderId).filter(Boolean));
+      setBumpedOrdersHistory((prev) => {
+        const next = prev.filter((o) => !activeBackendIds.has(o.id));
+        if (next.length !== prev.length) {
+          try {
+            localStorage.setItem('x7_kds_bumped_history', JSON.stringify(next));
+          } catch {
+            /* ignore storage error */
           }
-          return next;
-        });
-      }
+        }
+        return next;
+      });
     } catch (err) {
       console.warn('Backend orders sync failed:', err);
-      // Restore from offline IndexedDB cache if server is unreachable
+      // Restore from offline IndexedDB cache only if the server is unreachable: on a 4xx the
+      // cache would show tickets the server just refused to serve.
+      if (!isRetryableKdsError(err)) return;
       const cached = await getCachedTicketsLocally<KitchenTicket>();
       if (cached && cached.length > 0) {
         setTickets(cached);
@@ -584,15 +571,17 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       }
 
       setIsSyncing(true);
-      const token = getAccessToken();
-      console.log('[X7-KDS-SYNC] Token present:', !!token, 'API_BASE:', API_BASE);
-      const res = await flushOfflineQueue(API_BASE, token);
+      const res = await flushOfflineQueue();
       setIsSyncing(false);
-      console.log('[X7-KDS-SYNC] flushOfflineQueue result:', JSON.stringify(res));
 
-      if (res.success && res.syncedCount > 0) {
-        setSyncFeedback(`All ${res.syncedCount} offline change(s) synchronized with server`);
-        setTimeout(() => setSyncFeedback(null), 4000);
+      if (res.success && (res.syncedCount > 0 || res.ignored.length > 0)) {
+        // Rejected actions were applied optimistically on screen: report them and reload.
+        setSyncFeedback(
+          res.ignored.length > 0
+            ? `${res.syncedCount} change(s) synchronized; ${res.ignored.length} rejected by the server and reverted`
+            : `All ${res.syncedCount} offline change(s) synchronized with server`,
+        );
+        setTimeout(() => setSyncFeedback(null), res.ignored.length > 0 ? 8000 : 4000);
         fetchBackendOrders(true);
       }
       const remaining = await getQueuedActions();
@@ -628,13 +617,13 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
     // Heartbeat ping every 2500ms to detect server / ping failure within 3 seconds
     const pingTimer = setInterval(async () => {
-      const token = getAccessToken();
+      // Raw fetch on purpose: a connectivity probe with its own 2s timeout, not a business call.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       try {
         const res = await fetch(`${API_BASE}/kitchen-event-logs/ping`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: authHeaders(),
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
@@ -717,18 +706,17 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         setQueuedActionsCount(q.length);
       } else {
         try {
-          const token = getAccessToken();
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          };
-          const res = await fetch(
-            `${API_BASE}/kitchen-order-items/order/${targetTicket.backendOrderId}/fire-course?course=${course.toLowerCase()}`,
-            { method: 'POST', headers }
+          await apiRequest<void>(
+            `/kitchen-order-items/order/${targetTicket.backendOrderId}/fire-course?course=${course.toLowerCase()}`,
+            { method: 'POST' },
+            'Fire course failed',
           );
-          if (!res.ok) throw new Error('Fire course failed');
           fetchBackendOrders(true);
         } catch (e) {
+          if (!isRetryableKdsError(e)) {
+            reportRejectedAction(e);
+            return;
+          }
           console.warn('Backend fire-course failed, storing offline:', e);
           setIsOffline(true);
           await enqueueOfflineAction({
@@ -792,15 +780,17 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       setQueuedActionsCount(q.length);
     } else {
       try {
-        const token = getAccessToken();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-        const res = await fetch(`${API_BASE}/kitchen-order-items/${itemId}/fire`, { method: 'POST', headers });
-        if (!res.ok) throw new Error('Fire item failed');
+        await apiRequest<void>(
+          `/kitchen-order-items/${itemId}/fire`,
+          { method: 'POST' },
+          'Fire item failed',
+        );
         fetchBackendOrders(true);
       } catch (e) {
+        if (!isRetryableKdsError(e)) {
+          reportRejectedAction(e);
+          return;
+        }
         console.warn('Backend fire-item failed, storing offline:', e);
         setIsOffline(true);
         await enqueueOfflineAction({
@@ -861,26 +851,24 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       setQueuedActionsCount(q.length);
     } else {
       try {
-        const token = getAccessToken();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
         if (isStagedCourse) {
-          const res = await fetch(`${API_BASE}/kitchen-order-items/${itemId}/hold?holdMinutes=${delayMins}`, {
-            method: 'POST',
-            headers,
-          });
-          if (!res.ok) throw new Error('Hold failed');
+          await apiRequest<void>(
+            `/kitchen-order-items/${itemId}/hold?holdMinutes=${delayMins}`,
+            { method: 'POST' },
+            'Hold failed',
+          );
         } else {
-          const res = await fetch(`${API_BASE}/kitchen-order-items/${itemId}`, {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({ preparationStatus: 'pending' }),
-          });
-          if (!res.ok) throw new Error('Revert failed');
+          await apiRequest<void>(
+            `/kitchen-order-items/${itemId}`,
+            { method: 'PUT', body: JSON.stringify({ preparationStatus: 'pending' }) },
+            'Revert failed',
+          );
         }
       } catch (e) {
+        if (!isRetryableKdsError(e)) {
+          reportRejectedAction(e);
+          return;
+        }
         console.warn('Backend revert-item failed, storing offline:', e);
         setIsOffline(true);
         await enqueueOfflineAction({
@@ -950,18 +938,19 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       setQueuedActionsCount(q.length);
     } else {
       try {
-        const token = getAccessToken();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-        const res = await fetch(`${API_BASE}/kitchen-order-items/${itemId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ preparationStatus: nextStatus.toLowerCase() }),
-        });
-        if (!res.ok) throw new Error('Status change failed');
+        await apiRequest<void>(
+          `/kitchen-order-items/${itemId}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({ preparationStatus: nextStatus.toLowerCase() }),
+          },
+          'Status change failed',
+        );
       } catch (e) {
+        if (!isRetryableKdsError(e)) {
+          reportRejectedAction(e);
+          return;
+        }
         console.warn('Backend toggle-item-ready failed, storing offline:', e);
         setIsOffline(true);
         await enqueueOfflineAction({
@@ -1013,18 +1002,35 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     });
   };
 
+  // Batch status change for SUMMARY view. Sequential like before; reports which items the server
+  // accepted so the screen only moves those (a rejected item must not look done).
+  const updateItemStatuses = async (itemIds: number[], preparationStatus: string) => {
+    const accepted = new Set<number>();
+    let failed = 0;
+    let firstError = '';
+    for (const id of itemIds) {
+      try {
+        await apiRequest<void>(
+          `/kitchen-order-items/${id}`,
+          { method: 'PUT', body: JSON.stringify({ preparationStatus }) },
+          'Failed to update item',
+        );
+        accepted.add(id);
+      } catch (err) {
+        failed += 1;
+        firstError ||= err instanceof Error ? err.message : 'Failed to update item';
+      }
+    }
+    return { accepted, failed, firstError };
+  };
+
   // Mark all pending units of a batch as READY in SUMMARY view
   const handleMarkBatchReady = async (batchItemName: string, batchVariant?: string) => {
-    const token = getAccessToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
     const targetItems: Array<{ ticketId: string; itemId: number }> = [];
     filteredTickets.forEach((t) => {
       t.items.forEach((i) => {
         if (
+          accepted.has(i.id) &&
           i.name === batchItemName &&
           i.variantName === batchVariant &&
           i.preparationStatus !== 'READY' &&
@@ -1035,16 +1041,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       });
     });
 
-    for (const ti of targetItems) {
-      try {
-        await fetch(`${API_BASE}/kitchen-order-items/${ti.itemId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ preparationStatus: 'ready' }),
-        });
-      } catch (e) {
-        console.warn('Failed to mark batch item ready:', e);
-      }
+    const { accepted, failed, firstError } = await updateItemStatuses(
+      targetItems.map((ti) => ti.itemId),
+      'ready',
+    );
+    if (failed > 0) {
+      triggerAlert(`${failed} item(s) of ${batchItemName} not updated: ${firstError}`, 'fire');
     }
 
     setTickets((prev) =>
@@ -1060,7 +1062,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       }))
     );
 
-    triggerAlert(`✓ Ready: ${batchItemName}`);
+    if (accepted.size > 0) triggerAlert(`✓ Ready: ${batchItemName}`);
   };
 
   // Release all held units of a batch directly to prep in SUMMARY view
@@ -1087,16 +1089,11 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
   // Start preparation for all queued (PENDING) units of a batch in SUMMARY view
   const handleStartBatchQueue = async (batchItemName: string, batchVariant?: string) => {
-    const token = getAccessToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
     const targetItems: Array<{ ticketId: string; itemId: number }> = [];
     filteredTickets.forEach((t) => {
       t.items.forEach((i) => {
         if (
+          accepted.has(i.id) &&
           i.name === batchItemName &&
           i.variantName === batchVariant &&
           i.preparationStatus === 'PENDING' &&
@@ -1107,16 +1104,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       });
     });
 
-    for (const ti of targetItems) {
-      try {
-        await fetch(`${API_BASE}/kitchen-order-items/${ti.itemId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ preparationStatus: 'in_preparation' }),
-        });
-      } catch (e) {
-        console.warn('Failed to start queued batch item:', e);
-      }
+    const { accepted, failed, firstError } = await updateItemStatuses(
+      targetItems.map((ti) => ti.itemId),
+      'in_preparation',
+    );
+    if (failed > 0) {
+      triggerAlert(`${failed} item(s) of ${batchItemName} not updated: ${firstError}`, 'fire');
     }
 
     setTickets((prev) =>
@@ -1133,21 +1126,16 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       }))
     );
 
-    triggerAlert(`Started: ${batchItemName}`);
+    if (accepted.size > 0) triggerAlert(`Started: ${batchItemName}`);
   };
 
   // Revert a completed batch back to cooking in SUMMARY view
   const handleRevertBatch = async (batchItemName: string, batchVariant?: string) => {
-    const token = getAccessToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
     const targetItems: Array<{ ticketId: string; itemId: number }> = [];
     filteredTickets.forEach((t) => {
       t.items.forEach((i) => {
         if (
+          accepted.has(i.id) &&
           i.name === batchItemName &&
           i.variantName === batchVariant &&
           i.preparationStatus === 'READY' &&
@@ -1158,16 +1146,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       });
     });
 
-    for (const ti of targetItems) {
-      try {
-        await fetch(`${API_BASE}/kitchen-order-items/${ti.itemId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ preparationStatus: 'in_preparation' }),
-        });
-      } catch (e) {
-        console.warn('Failed to revert batch item ready:', e);
-      }
+    const { accepted, failed, firstError } = await updateItemStatuses(
+      targetItems.map((ti) => ti.itemId),
+      'in_preparation',
+    );
+    if (failed > 0) {
+      triggerAlert(`${failed} item(s) of ${batchItemName} not updated: ${firstError}`, 'fire');
     }
 
     setTickets((prev) =>
@@ -1184,7 +1168,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       }))
     );
 
-    triggerAlert(`↺ Reverted: ${batchItemName}`, 'pacing');
+    if (accepted.size > 0) triggerAlert(`↺ Reverted: ${batchItemName}`, 'pacing');
   };
 
   // Toggle individual table item in SUMMARY view (HELD -> FIRE, COOKING -> READY, READY -> COOKING)
@@ -1345,29 +1329,28 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       setQueuedActionsCount(q.length);
     } else {
       try {
-        const token = getAccessToken();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-
-        const res = await fetch(`${API_BASE}/kitchen-order-items/batch-bump-fifo`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            stationId: targetStationId,
-            productName,
-            variantName: variantName || undefined,
-            bumpQuantity,
-          }),
-        });
-
-        if (!res.ok) throw new Error('Batch bump failed');
+        await apiRequest<void>(
+          '/kitchen-order-items/batch-bump-fifo',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              stationId: targetStationId,
+              productName,
+              variantName: variantName || undefined,
+              bumpQuantity,
+            }),
+          },
+          'Batch bump failed',
+        );
 
         setTimeout(() => {
           fetchBackendOrders(true);
         }, 400);
       } catch (err) {
+        if (!isRetryableKdsError(err)) {
+          reportRejectedAction(err);
+          return;
+        }
         console.warn('Backend batch-bump-fifo call failed, storing offline:', err);
         setIsOffline(true);
         await enqueueOfflineAction({
@@ -1440,19 +1423,17 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         triggerAlert(`✓ Ticket #${id} bumped`);
       } else {
         try {
-          const token = getAccessToken();
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          };
-          const res = await fetch(`${API_BASE}/kitchen-orders/${backendOrderId}`, {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({ businessStatus: 'completed' }),
-          });
-          if (!res.ok) throw new Error('Bump request failed');
+          await apiRequest<void>(
+            `/kitchen-orders/${backendOrderId}`,
+            { method: 'PUT', body: JSON.stringify({ businessStatus: 'completed' }) },
+            'Bump request failed',
+          );
           triggerAlert(`✓ Ticket #${id} bumped`);
         } catch (e) {
+          if (!isRetryableKdsError(e)) {
+            reportRejectedAction(e);
+            return;
+          }
           console.warn('Backend bump order failed, storing offline:', e);
           setIsOffline(true);
           await enqueueOfflineAction({
@@ -1473,15 +1454,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
   // Trigger immediate auto-pacing run
   const handleRunAutoPacingNow = async () => {
     try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-      await fetch(`${API_BASE}/kitchen-order-items/auto-pacing/tick`, { method: 'POST', headers });
+      await apiRequest<void>('/kitchen-order-items/auto-pacing/tick', { method: 'POST' }, 'Auto-pacing tick failed');
       fetchBackendOrders(true);
     } catch (e) {
       console.warn('Auto-pacing tick failed:', e);
+      triggerAlert(`Auto-pacing failed: ${e instanceof Error ? e.message : 'server error'}`, 'fire');
+      return;
     }
 
     // Force expire any item with <= 60s remaining for quick test/demo
@@ -1625,18 +1603,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
   const sendStationHeartbeat = useCallback(
     async (stationId: number | string) => {
       if (isOffline || !navigator.onLine) return;
-      try {
-        const token = getAccessToken();
-        await fetch(`${API_BASE}/kitchen-station/${stationId}/heartbeat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-      } catch (err) {
-        console.warn('Failed to send station heartbeat:', err);
-      }
+      await sendStationKeepaliveHeartbeat(stationId);
     },
     [isOffline],
   );
@@ -1742,7 +1709,6 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     }
 
     try {
-      const token = getAccessToken();
       const payloadBody: { reason: string; orderIds?: (string | number)[] } = {
         reason: overflowOnly
           ? 'Queue Capacity Limit Load Balancing (Overflow Only)'
@@ -1763,24 +1729,11 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         }
       }
 
-      const res = await fetch(
-        `${API_BASE}/kitchen-station/${stationId}/reroute-orders`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(payloadBody),
-        },
+      const resData = await apiRequest<{ message?: string }>(
+        `/kitchen-station/${stationId}/reroute-orders`,
+        { method: 'POST', body: JSON.stringify(payloadBody) },
+        'Failed to reroute orders',
       );
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to reroute orders');
-      }
-
-      const resData = await res.json();
       triggerAlert(
         `Dynamic Rerouting Engaged: ${resData.message || 'Orders rerouted to secondary station'}`,
         'pacing',
@@ -2369,7 +2322,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
                                   {item.variantName && (
                                     <span className="text-[10px] font-normal text-zinc-400">
-                                      ({getLocalizedVariantName(item.variantName, deviceLanguage)})
+                                      ({getLocalizedVariantName(item.variantName)})
                                     </span>
                                   )}
 
@@ -3144,7 +3097,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
                             </h4>
                             {item.variantName && (
                               <span className="inline-block mt-0.5 text-[9px] font-bold px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 truncate max-w-full">
-                                {getLocalizedVariantName(item.variantName, deviceLanguage)}
+                                {getLocalizedVariantName(item.variantName)}
                               </span>
                             )}
                           </div>
@@ -3367,7 +3320,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
                           </h3>
                           {batch.variantName && (
                             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-200 border border-zinc-700 inline-block mt-1">
-                              {getLocalizedVariantName(batch.variantName, deviceLanguage)}
+                              {getLocalizedVariantName(batch.variantName)}
                             </span>
                           )}
                         </div>
