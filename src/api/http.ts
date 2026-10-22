@@ -109,7 +109,8 @@ export async function apiRequest<T>(
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
-      ...authHeaders(Boolean(init.body)),
+      // Solo cuerpos JSON (string): con FormData el navegador pone el boundary multipart.
+      ...authHeaders(typeof init.body === 'string'),
       ...init.headers,
     },
   });
