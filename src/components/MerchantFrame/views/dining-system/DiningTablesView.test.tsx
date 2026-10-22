@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { DiningTablesView } from './DiningTablesView';
 import type { UseDiningRealtimeOptions } from '../../../../lib/useDiningRealtime';
+import { jsonResponse } from '../../../../test/fetch';
 
 vi.mock('../../../../lib/auth-storage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/auth-storage')>()),
@@ -110,11 +111,7 @@ const TABLES = [
 ];
 
 function jsonRes(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(body),
-  } as Response);
+  return Promise.resolve(jsonResponse(body, status));
 }
 
 interface FetchOverrides {

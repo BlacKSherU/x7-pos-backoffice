@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
 import { useModalDismiss } from '../../../../lib/useModalDismiss';
 import {
   childTablesOf,
@@ -71,8 +70,11 @@ import {
   tablesOutsideOutline,
   validateOutline,
 } from '../../../../lib/floor-geometry';
+import { ApiError } from '../../../../lib/api-error';
+import { apiRequest } from '../../../../api/http';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+// A 401 inside the batch save: apiRequest already redirected, so the loop just stops.
+const isUnauthorized = (err: unknown): boolean => err instanceof ApiError && err.status === 401;
 
 // ---- Constantes espaciales ----
 
@@ -153,17 +155,6 @@ const shapeRadiusClass = (shape: TableShape): string => {
 
 // Nest returns `message` as string or string[], and ValidationExceptionFilter appends
 // `errors`. Flatten everything to a single line to display beside the table.
-interface ApiErrorBody {
-  message?: string | string[];
-  errors?: string[];
-}
-
-const errorMessageOf = (body: ApiErrorBody | null | undefined): string => {
-  if (!body) return '';
-  if (Array.isArray(body.errors) && body.errors.length > 0) return body.errors.join(', ');
-  if (Array.isArray(body.message)) return body.message.join(', ');
-  return typeof body.message === 'string' ? body.message : '';
-};
 
 // El mayor paso de zoom que deja el lienzo entero dentro del viewport disponible.
 const fitZoom = (
@@ -436,17 +427,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     rootRef.current?.focus({ preventScroll: true });
   }, []);
 
-  const authHeaders = useCallback((): Record<string, string> => {
-    const token = getAccessToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return headers;
-  }, []);
 
-  const handleUnauthorized = useCallback(() => {
-    clearAuthSession();
-    window.location.href = '/login';
-  }, []);
 
   // ---------------- Carga inicial ----------------
 
@@ -460,16 +441,21 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     ): Promise<{ rows: T[]; ok: boolean; unauthorized: boolean }> => {
       const rows: T[] = [];
       for (let page = 1; page <= MAX_PAGES; page += 1) {
-        const res = await fetch(`${API_BASE}/${resource}?limit=${PAGE_LIMIT}&page=${page}`, {
-          headers: authHeaders(),
-        });
-        if (res.status === 401) return { rows, ok: false, unauthorized: true };
-        if (!res.ok) return { rows, ok: false, unauthorized: false };
-        const json = (await res.json()) as {
+        let json: {
           data?: T[];
           paginationMeta?: { totalPages?: number };
           pagination?: { totalPages?: number };
         };
+        try {
+          json = await apiRequest<typeof json>(
+            `/${resource}?limit=${PAGE_LIMIT}&page=${page}`,
+            { method: 'GET' },
+            `Error loading ${resource}`,
+          );
+        } catch (err) {
+          if (!(err instanceof ApiError)) throw err;
+          return { rows, ok: false, unauthorized: err.status === 401 };
+        }
         rows.push(...(json.data ?? []));
         const totalPages =
           json.paginationMeta?.totalPages ?? json.pagination?.totalPages ?? 1;
@@ -477,7 +463,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       }
       return { rows, ok: true, unauthorized: false };
     },
-    [authHeaders],
+    [],
   );
 
   const loadLayout = useCallback(async () => {
@@ -489,10 +475,8 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         fetchAllPages<FloorZone>('floor-zone'),
       ]);
 
-      if (tablesResult.unauthorized || zonesResult.unauthorized) {
-        handleUnauthorized();
-        return;
-      }
+      // apiRequest already redirected to the login page.
+      if (tablesResult.unauthorized || zonesResult.unauthorized) return;
       if (!tablesResult.ok) throw new Error('Error loading floor plan tables');
 
       const allTables = tablesResult.rows;
@@ -541,7 +525,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [fetchAllPages, handleUnauthorized, plan.id, canvasW, canvasH]);
+  }, [fetchAllPages, plan.id, canvasW, canvasH]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -680,19 +664,14 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       if (!source) return;
       setTransferSubmitting(true);
       try {
-        const res = await fetch(`${API_BASE}/tables/transfer`, {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ sourceTableId: source.id, targetTableId: target.id }),
-        });
-        if (res.status === 401) {
-          handleUnauthorized();
-          return;
-        }
-        const json = (await res.json().catch(() => ({}))) as ApiErrorBody;
-        if (!res.ok) {
-          throw new Error(errorMessageOf(json) || 'Transfer rejected by the server');
-        }
+        await apiRequest<void>(
+          '/tables/transfer',
+          {
+            method: 'POST',
+            body: JSON.stringify({ sourceTableId: source.id, targetTableId: target.id }),
+          },
+          'Transfer rejected by the server',
+        );
         setTransferOpen(false);
         await loadLayout();
         setToast({
@@ -708,7 +687,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         setTransferSubmitting(false);
       }
     },
-    [authHeaders, handleUnauthorized, loadLayout, selectedId],
+    [loadLayout, selectedId],
   );
 
   // ---------------- Canal en vivo ----------------
@@ -1017,29 +996,23 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     async (name: string, color: string): Promise<FloorZone | null> => {
       setZoneBusy(true);
       try {
-        const res = await fetch(`${API_BASE}/floor-zone`, {
-          method: 'POST',
-          headers: authHeaders(),
-          // All five fields are @IsNotEmpty and `floorPlan`/`merchant` sent as plain
-          // integers (backend does not infer merchant from JWT in this endpoint).
-          body: JSON.stringify({
-            merchant: merchantId,
-            name,
-            color,
-            floorPlan: plan.id,
-            status: 'active',
-          }),
-        });
-        if (res.status === 401) {
-          handleUnauthorized();
-          return null;
-        }
-        const json = (await res.json().catch(() => ({}))) as ApiErrorBody & {
-          data?: FloorZone;
-        };
-        if (!res.ok || !json.data) {
-          throw new Error(errorMessageOf(json) || 'Failed to create the floor zone');
-        }
+        const json = await apiRequest<{ data?: FloorZone }>(
+          '/floor-zone',
+          {
+            method: 'POST',
+            // All five fields are @IsNotEmpty and `floorPlan`/`merchant` sent as plain
+            // integers (backend does not infer merchant from JWT in this endpoint).
+            body: JSON.stringify({
+              merchant: merchantId,
+              name,
+              color,
+              floorPlan: plan.id,
+              status: 'active',
+            }),
+          },
+          'Failed to create the floor zone',
+        );
+        if (!json.data) throw new Error('Failed to create the floor zone');
         const created = json.data;
         setZones((prev) => [...prev, created]);
         setActiveZoneId(created.id);
@@ -1054,7 +1027,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         setZoneBusy(false);
       }
     },
-    [authHeaders, handleUnauthorized, merchantId, plan.id],
+    [merchantId, plan.id],
   );
 
   const updateZone = useCallback(
@@ -1062,21 +1035,11 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       setZoneBusy(true);
       try {
         // PATCH without `merchant`: zone does not change merchant on rename.
-        const res = await fetch(`${API_BASE}/floor-zone/${id}`, {
-          method: 'PATCH',
-          headers: authHeaders(),
-          body: JSON.stringify({ name, color }),
-        });
-        if (res.status === 401) {
-          handleUnauthorized();
-          return null;
-        }
-        const json = (await res.json().catch(() => ({}))) as ApiErrorBody & {
-          data?: FloorZone;
-        };
-        if (!res.ok) {
-          throw new Error(errorMessageOf(json) || 'Failed to update the floor zone');
-        }
+        const json = await apiRequest<{ data?: FloorZone }>(
+          `/floor-zone/${id}`,
+          { method: 'PATCH', body: JSON.stringify({ name, color }) },
+          'Failed to update the floor zone',
+        );
         const updated = json.data ?? null;
         setZones((prev) =>
           prev.map((z) => (z.id === id ? { ...z, ...(updated ?? {}), name, color } : z)),
@@ -1092,7 +1055,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         setZoneBusy(false);
       }
     },
-    [authHeaders, handleUnauthorized],
+    [],
   );
 
   // ---------------- Zone areas ----------------
@@ -1561,20 +1524,21 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       const poly = zoneAreas.get(zoneId);
       const zone = zones.find((z) => z.id === zoneId);
       try {
-        const res = await fetch(`${API_BASE}/floor-zone/${zoneId}`, {
-          method: 'PATCH',
-          headers: authHeaders(),
-          // Only `area`: backend update uses Object.assign, so sending scalar IDs
-          // would destroy relational entity links.
-          body: JSON.stringify({ area: poly ? serializeOutline(poly) : null }),
-        });
-        if (res.status === 401) {
-          unauthorized = true;
-        } else if (!res.ok) {
-          const json = (await res.json().catch(() => ({}))) as ApiErrorBody;
-          throw new Error(errorMessageOf(json) || 'Zone area rejected by the server');
-        }
+        await apiRequest<void>(
+          `/floor-zone/${zoneId}`,
+          {
+            method: 'PATCH',
+            // Only `area`: backend update uses Object.assign, so sending scalar IDs
+            // would destroy relational entity links.
+            body: JSON.stringify({ area: poly ? serializeOutline(poly) : null }),
+          },
+          'Zone area rejected by the server',
+        );
       } catch (err) {
+        if (isUnauthorized(err)) {
+          unauthorized = true;
+          continue;
+        }
         failures.push(
           `Zone ${zone?.name ?? zoneId}: ${err instanceof Error ? err.message : 'area could not be saved'}`,
         );
@@ -1587,23 +1551,20 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
         failures.push(`Room shape: ${invalid}`);
       } else {
         try {
-          const res = await fetch(`${API_BASE}/floor-plan/${plan.id}`, {
-            method: 'PATCH',
-            headers: authHeaders(),
-            // ONLY `outline`: backend update uses Object.assign, so sending scalar
-            // `merchant` would corrupt relationship.
-            body: JSON.stringify({ outline: serializeOutline(outline) }),
-          });
-          if (res.status === 401) {
-            unauthorized = true;
-          } else if (!res.ok) {
-            const json = (await res.json().catch(() => ({}))) as ApiErrorBody;
-            throw new Error(errorMessageOf(json) || 'Room shape rejected by the server');
-          } else {
-            outlineSaved = true;
-          }
+          await apiRequest<void>(
+            `/floor-plan/${plan.id}`,
+            {
+              method: 'PATCH',
+              // ONLY `outline`: backend update uses Object.assign, so sending scalar
+              // `merchant` would corrupt relationship.
+              body: JSON.stringify({ outline: serializeOutline(outline) }),
+            },
+            'Room shape rejected by the server',
+          );
+          outlineSaved = true;
         } catch (err) {
-          failures.push(
+          if (isUnauthorized(err)) unauthorized = true;
+          else failures.push(
             `Room shape: ${err instanceof Error ? err.message : 'could not be saved'}`,
           );
         }
@@ -1615,20 +1576,17 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     if (!unauthorized) {
       for (const id of pendingDeletes) {
         try {
-          const res = await fetch(`${API_BASE}/tables/${id}`, {
-            method: 'DELETE',
-            headers: authHeaders(),
-          });
-          if (res.status === 401) {
+          await apiRequest<void>(
+            `/tables/${id}`,
+            { method: 'DELETE' },
+            'Delete rejected by the server',
+          );
+          savedDeletes.push(id);
+        } catch (err) {
+          if (isUnauthorized(err)) {
             unauthorized = true;
             break;
           }
-          if (!res.ok) {
-            const json = (await res.json().catch(() => ({}))) as ApiErrorBody;
-            throw new Error(errorMessageOf(json) || 'Delete rejected by the server');
-          }
-          savedDeletes.push(id);
-        } catch (err) {
           failures.push(
             `Table #${id}: ${err instanceof Error ? err.message : 'could not be deleted'}`,
           );
@@ -1682,23 +1640,18 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
             : {}),
         };
         try {
-          const res = await fetch(`${API_BASE}/tables`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify(dto),
-          });
-          if (res.status === 401) {
+          const json = await apiRequest<{ data?: DiningTable }>(
+            '/tables',
+            { method: 'POST', body: JSON.stringify(dto) },
+            'Create rejected by the server',
+          );
+          if (!json.data) throw new Error('Create rejected by the server');
+          created.push({ tempId: t.id, row: json.data });
+        } catch (err) {
+          if (isUnauthorized(err)) {
             unauthorized = true;
             break;
           }
-          const json = (await res.json().catch(() => ({}))) as ApiErrorBody & {
-            data?: DiningTable;
-          };
-          if (!res.ok || !json.data) {
-            throw new Error(errorMessageOf(json) || 'Create rejected by the server');
-          }
-          created.push({ tempId: t.id, row: json.data });
-        } catch (err) {
           failures.push(
             `Table ${t.number}: ${err instanceof Error ? err.message : 'could not be created'}`,
           );
@@ -1734,21 +1687,17 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
           continue;
         }
         try {
-          const res = await fetch(`${API_BASE}/tables/${t.id}`, {
-            method: 'PUT',
-            headers: authHeaders(),
-            body: JSON.stringify(dto),
-          });
-          if (res.status === 401) {
+          await apiRequest<void>(
+            `/tables/${t.id}`,
+            { method: 'PUT', body: JSON.stringify(dto) },
+            'Update rejected by the server',
+          );
+          savedUpdates.push(t.id);
+        } catch (err) {
+          if (isUnauthorized(err)) {
             unauthorized = true;
             break;
           }
-          if (!res.ok) {
-            const json = (await res.json().catch(() => ({}))) as ApiErrorBody;
-            throw new Error(errorMessageOf(json) || 'Update rejected by the server');
-          }
-          savedUpdates.push(t.id);
-        } catch (err) {
           failures.push(
             `Table ${t.number}: ${err instanceof Error ? err.message : 'could not be updated'}`,
           );
@@ -1756,9 +1705,9 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
       }
     }
 
+    // apiRequest already redirected to the login page; stop without touching the canvas.
     if (unauthorized) {
       setSaving(false);
-      handleUnauthorized();
       return;
     }
 
@@ -1817,11 +1766,9 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     onSaved?.();
   }, [
     activeZoneId,
-    authHeaders,
     dirtyCount,
     dirtyIds,
     dirtyZoneIds,
-    handleUnauthorized,
     loadLayout,
     merchantId,
     onSaved,
