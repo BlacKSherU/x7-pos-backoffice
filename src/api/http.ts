@@ -1,5 +1,6 @@
 import { ApiError, getApiErrorDetails, getApiErrorMessage } from '../lib/api-error';
 import { getAccessToken, redirectToLogin } from '../lib/auth-storage';
+import { clearSaasToken, getSaasToken } from '../lib/saas-auth-storage';
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -118,6 +119,45 @@ export async function apiRequest<T>(
   if (response.status === 401) {
     redirectToLogin();
     throw new ApiError('Unauthorized', 401);
+  }
+
+  if (!response.ok) {
+    const { message, code } = await getApiErrorDetails(response, fallbackMessage);
+    throw new ApiError(message, response.status, code);
+  }
+
+  return parseJsonBody<T>(response);
+}
+
+/** Mensaje del error que lanza `saasRequest` cuando caduca la sesión del panel SaaS. */
+export const SAAS_SESSION_EXPIRED = 'SESSION_EXPIRED';
+
+/**
+ * Petición autenticada del panel SaaS (token de administrador de plataforma, no el del merchant).
+ *
+ * - 401 → borra el token SaaS y lanza `ApiError(SAAS_SESSION_EXPIRED, 401)`; cada vista decide
+ *   si muestra un aviso o vuelve al login del panel.
+ * - Otros errores → `ApiError` con el mensaje y el `code` que mande el backend.
+ */
+export async function saasRequest<T>(
+  path: string,
+  init: RequestInit,
+  fallbackMessage: string,
+): Promise<T> {
+  const token = getSaasToken();
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init.headers,
+    },
+  });
+
+  if (response.status === 401) {
+    clearSaasToken();
+    throw new ApiError(SAAS_SESSION_EXPIRED, 401);
   }
 
   if (!response.ok) {
