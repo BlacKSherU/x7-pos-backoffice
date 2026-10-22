@@ -125,3 +125,51 @@ export function getNavFromPath(
   }
   return null;
 }
+
+/** A dónde lleva un enlace interno de las vistas de personal y propinas. */
+export interface StaffTarget {
+  tab: string;
+  path: string;
+  /** Solo las de propinas fijan la categoría; el resto la hereda de la URL. */
+  category?: string;
+}
+
+// Las vistas de personal/propinas navegan con ids de pestaña, alias cortos o URLs indistintamente.
+const STAFF_TARGETS: Array<[string[], StaffTarget]> = [
+  [['/staff-management/schedule/me', 'my-schedule', 'personal-schedule'],
+    { tab: 'my-schedule', path: '/staff-management/schedule/me' }],
+  [['/staff-management/schedule/roster', 'staff-roster', 'roster'],
+    { tab: 'staff-roster', path: '/staff-management/schedule/roster' }],
+  [['/staff-management/schedule/assignments', 'shift-assignment', 'assignments'],
+    { tab: 'shift-assignment', path: '/staff-management/schedule/assignments' }],
+  [['/staff-management/schedule/daily', '/staff-management/schedule/timeline', 'daily-timeline', 'daily'],
+    { tab: 'daily-timeline', path: '/staff-management/schedule/daily' }],
+  [['/staff-management/schedule/shifts', '/staff-management/schedule/scheduler', 'shifts', 'scheduler'],
+    { tab: 'shifts', path: '/staff-management/schedule/shifts' }],
+  [['/staff-management/schedule/swaps', 'staff-swaps', 'swaps'],
+    { tab: 'staff-swaps', path: '/staff-management/schedule/swaps' }],
+  [['/staff-management/schedule/marketplace', '/staff-management/schedule/open-shifts', 'open-shifts', 'marketplace'],
+    { tab: 'open-shifts', path: '/staff-management/schedule/marketplace' }],
+  [['/staff-management/schedule/labor-forecasting', 'labor-forecasting', 'forecasting'],
+    { tab: 'labor-forecasting', path: '/staff-management/schedule/labor-forecasting' }],
+  [['/staff-management/attendance/ledger', 'collaborators-time-entries', 'time-entries', 'ledger'],
+    { tab: 'collaborators-time-entries', path: '/staff-management/attendance/ledger' }],
+  [['/staff-management/attendance/kiosk', 'time-clock', 'time-clock-kiosk', 'kiosk'],
+    { tab: 'time-clock-kiosk', path: '/staff-management/attendance/kiosk' }],
+  [['/store-operations/tips-ledger', '/tips/ledger', 'tips-ledger', 'tips'],
+    { tab: 'tips-ledger', path: '/store-operations/tips-ledger', category: OPS }],
+  [['/store-operations/tips-allocations', '/tips/allocations', 'tips-allocations', 'tip-allocations'],
+    { tab: 'tips-allocations', path: '/tips/allocations', category: OPS }],
+  [['/tips/pools', 'tips-pools', '/store-operations/tips-pools', '/store-operations/tip-pools'],
+    { tab: 'tips-pools', path: '/tips/pools', category: OPS }],
+  [['/tips/pool-members', 'tips-pool-members', 'pool-members', '/store-operations/tips-pool-members', '/store-operations/tip-pool-members'],
+    { tab: 'tips-pool-members', path: '/tips/pool-members', category: OPS }],
+  [['/store-operations/tips-settlements', '/store-operations/tip-settlements', '/tips/settlements', 'tips-settlements', 'tip-settlements'],
+    { tab: 'tips-settlements', path: '/tips/settlements', category: OPS }],
+  [['/tips/cash-movements', 'tips-cash-movements', 'cash-tip-movements'],
+    { tab: 'tips-cash-movements', path: '/tips/cash-movements', category: OPS }],
+];
+
+export function resolveStaffTarget(target: string): StaffTarget | null {
+  return STAFF_TARGETS.find(([aliases]) => aliases.includes(target))?.[1] ?? null;
+}

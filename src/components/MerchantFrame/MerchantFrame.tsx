@@ -19,11 +19,6 @@ import type {
 } from '../../services/navigationService';
 import { GlobalHeader } from './layout/GlobalHeader';
 import { GlobalFooter } from './layout/GlobalFooter';
-import { SalesMetricCard } from './dashboard/SalesMetricCard';
-import { TablesOccupancyCard } from './dashboard/TablesOccupancyCard';
-import { KitchenPerformanceCard } from './dashboard/KitchenPerformanceCard';
-import { TopSellingItems } from './dashboard/TopSellingItems';
-import { CurrentShifts } from './dashboard/CurrentShifts';
 import { KitchenMonitorView } from './views/restaurant-operations/kitchen-stations/KitchenMonitorView';
 import { sendStationKeepaliveHeartbeat } from '../../lib/kds-keepalive';
 import {
@@ -34,124 +29,19 @@ import {
   NewQuickOrderModal,
   LoginGatewayModal
 } from './modals/QuickActionModals';
-import { SaasOverviewContent } from '../SaaSFrame/dashboard/SaasOverviewContent';
-import { SubscriptionPlansView } from '../SaaSFrame/views/SubscriptionPlansView';
-import { PlatformApplicationsView } from '../SaaSFrame/views/PlatformApplicationsView';
-import { PlatformFeatureCatalogView } from '../SaaSFrame/views/PlatformFeatureCatalogView';
-import { PlanApplicationsView } from '../SaaSFrame/views/PlanApplicationsView';
-import { PlanFeaturesView } from '../SaaSFrame/views/PlanFeaturesView';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
 import type { SubscriptionPlan } from '../../types/subscription';
-
-import { CategoriesView } from './views/products-inventory/category/CategoriesView';
-import { ProductsView } from './views/products-inventory/products/ProductsView';
-import { VariantsView } from './views/products-inventory/variants/VariantsView';
-import { ModifiersView } from './views/products-inventory/modifiers/ModifiersView';
-import { TaxRulesView } from './views/rule-config/TaxRulesView';
-import { TipRulesView } from './views/rule-config/TipRulesView';
-import { OvertimeRulesView } from './views/rule-config/OvertimeRulesView';
-import { PayrollRulesView } from './views/rule-config/PayrollRulesView';
-import { CashDrawersView } from './views/restaurant-operations/CashDrawersView';
-import { CashShiftsView } from './views/restaurant-operations/CashShiftsView';
-import { CashTransactionsView } from './views/restaurant-operations/CashTransactionsView';
-import { CashMovementsView } from './views/restaurant-operations/CashMovementsView';
-import { CashDrawerHistoryView } from './views/restaurant-operations/CashDrawerHistoryView';
-import { CollaboratorPersonalScheduleView } from './views/restaurant-operations/CollaboratorPersonalScheduleView';
-import { ShiftAssignmentView } from './views/restaurant-operations/ShiftAssignmentView';
-import { TimeClockKioskView } from './views/restaurant-operations/TimeClockKioskView';
-import { TimeEntriesView as RestaurantTimeEntriesView } from './views/restaurant-operations/TimeEntriesView';
-import { TipsLedgerView } from './views/restaurant-operations/TipsLedgerView';
-import { TipPoolsView } from './views/restaurant-operations/TipPoolsView';
-import { TipPoolMembersView } from './views/restaurant-operations/TipPoolMembersView';
-import { TipAllocationsView } from './views/restaurant-operations/TipAllocationsView';
-import { TipSettlementsView } from './views/restaurant-operations/TipSettlementsView';
-import { CashTipMovementsView } from './views/restaurant-operations/CashTipMovementsView';
-import { OpenShiftsMarketplaceView } from './views/restaurant-operations/OpenShiftsMarketplaceView';
-import { LaborCostForecastingView } from './views/restaurant-operations/LaborCostForecastingView';
-import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
-import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
-import { JournalEntryLinesView } from './views/financial-engine/JournalEntryLinesView';
 import type { JournalEntry } from '../../types/accounting';
-import { SuppliersView } from './views/accounts-payable/SuppliersView';
-import { SupplierInvoicesView } from './views/accounts-payable/SupplierInvoicesView';
-import { SupplierInvoiceItemsView } from './views/accounts-payable/SupplierInvoiceItemsView';
-import { SupplierCreditNotesView } from './views/accounts-payable/SupplierCreditNotesView';
-import { SupplierPaymentsView } from './views/accounts-payable/SupplierPaymentsView';
-import { SupplierPaymentItemsView } from './views/accounts-payable/SupplierPaymentItemsView';
-import { SupplierPaymentAllocationsView } from './views/accounts-payable/SupplierPaymentAllocationsView';
-import type { SupplierPayment, SupplierCreditNote } from '../../types/accounts-payable';
-import { LocationsView } from './views/products-inventory/stocks/locations/LocationsView';
-import { PurchaseOrdersView } from './views/products-inventory/purchase-order/PurchaseOrdersView';
-import { StockInventoryView } from './views/products-inventory/stocks/items/StockInventoryView';
-import { MerchantDirectoryView } from './views/company-admin/MerchantDirectoryView';
-import { UserManagementView } from './views/company-admin/UserManagementView';
-import { CompanyProfileView } from './views/company-admin/CompanyProfileView';
-import { CompanyConfigurationsView } from './views/company-admin/CompanyConfigurationsView';
-import { MovementsView } from './views/products-inventory/stocks/movements/MovementsView';
-import { FloorPlansView } from './views/dining-system/FloorPlansView';
-import { FloorZonesView } from './views/dining-system/FloorZonesView';
-import { DiningTablesView } from './views/dining-system/DiningTablesView';
-import { CollaboratorsView } from './views/hr/CollaboratorsView';
-import { TimeEntriesView as HrTimeEntriesView } from './views/hr/TimeEntriesView';
-import { ContractsView } from './views/hr/ContractsView';
-import { TableAssignmentsView } from './views/dining-system/TableAssignmentsView';
-import { ReservationsView } from './views/reservations/ReservationsView';
-import { ReservationTablesView } from './views/reservations/ReservationTablesView';
-import { ReservationNotesView } from './views/reservations/ReservationNotesView';
-import { ReservationGuestsView } from './views/reservations/ReservationGuestsView';
-import { DeliveryZonesView } from './views/delivery/DeliveryZonesView';
-import { DeliveryFeesView } from './views/delivery/DeliveryFeesView';
-import { DeliveryDriversView } from './views/delivery/DeliveryDriversView';
-import { DeliveryTrackingView } from './views/delivery/DeliveryTrackingView';
-import { DeliveryAssignmentsView } from './views/delivery/DeliveryAssignmentsView';
-import { ReservationStatusHistoryView } from './views/reservations/ReservationStatusHistoryView';
+import type { SupplierPayment } from '../../types/accounts-payable';
 import { navHubById, navHubForFeature } from '../../lib/module-nav-hubs';
 import { ModuleNavHubBar } from './layout/ModuleNavHubBar';
 import { ModuleCommandHubView } from './views/ModuleCommandHubView';
-import { RawMaterialsView } from './views/products-inventory/raw-materials/RawMaterialsView';
-import { RawMaterialCategoriesView } from './views/products-inventory/category/RawMaterialCategoriesView';
-import { RecipesView } from './views/products-inventory/recipes/RecipesView';
-import { KitchenStationsView } from './views/restaurant-operations/kitchen-stations/KitchenStationsView';
-import { KitchenKDSHubView } from './views/restaurant-operations/kitchen-stations/KitchenKDSHubView';
-import { ProductsInventoryHubView } from './views/products-inventory/ProductsInventoryHubView';
-import { RawMaterialsHubView } from './views/products-inventory/RawMaterialsHubView';
-import { OnlineOrderingHubView } from './views/commerce/OnlineOrderingHubView';
-import { OnlineStoresView } from './views/commerce/online-stores/OnlineStoresView';
-import { OnlineMenusView } from './views/commerce/online-menus/OnlineMenusView';
-import { KitchenDisplayDevicesView } from './views/restaurant-operations/kitchen-stations/KitchenDisplayDevicesView';
-import { KitchenOrdersView } from './views/restaurant-operations/kitchen-stations/KitchenOrdersView';
-import { KitchenOrderItemsView } from './views/restaurant-operations/kitchen-stations/KitchenOrderItemsView';
-import { KitchenEventLogView } from './views/restaurant-operations/kitchen-stations/KitchenEventLogView';
-import { KitchenAnalyticsView } from './views/restaurant-operations/kitchen-stations/KitchenAnalyticsView';
-import { QRLocationsView } from './views/qr-code/QRLocationsView';
 import { clearAuthSession } from '../../lib/auth-storage';
-import { getCurrentMerchantId } from '../../api/users';
-import { getNavFromPath } from './merchant-routes';
-
-// Coming Soon stubs lookup table: maps tab IDs to their display config
-interface ComingSoonStub {
-  title: string;
-  route: string;
-  icon: string;
-}
-
-const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
-  'privacy-policy': {
-    title: 'Privacy Policy',
-    route: '/legal/privacy-policy',
-    icon: 'gavel'
-  },
-  'terms-of-service': {
-    title: 'Terms of Service',
-    route: '/legal/terms-of-service',
-    icon: 'gavel'
-  },
-  'help-center': {
-    title: 'Help Center',
-    route: '/support/help-center',
-    icon: 'help'
-  },
-};
+import { getNavFromPath, resolveStaffTarget } from './merchant-routes';
+import { renderMerchantView } from './views/merchant-view-registry';
+import type { AllocationsContext, MerchantViewContext } from './views/merchant-view-registry';
+import { FeatureInDevelopmentView } from './views/PlaceholderViews';
+import { MerchantHomeDashboard } from './dashboard/MerchantHomeDashboard';
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
@@ -167,10 +57,7 @@ export const MerchantFrame: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [linesEntryFilter, setLinesEntryFilter] = useState<JournalEntry | null>(null);
   const [itemsPaymentFilter, setItemsPaymentFilter] = useState<SupplierPayment | null>(null);
-  const [allocationsContext, setAllocationsContext] = useState<{
-    payment?: SupplierPayment | null;
-    creditNote?: SupplierCreditNote | null;
-  } | null>(null);
+  const [allocationsContext, setAllocationsContext] = useState<AllocationsContext | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
 
   const SAAS_VIEW_TAB_MAP: Record<string, string> = {
@@ -465,711 +352,55 @@ export const MerchantFrame: React.FC = () => {
 
   const moduleNavHub = navHubForFeature(activeTab);
 
+  const goToDashboard = () => {
+    if (profile?.role === 'SaaS Owner') {
+      setActiveCategory('saas');
+      setActiveTab('saas-dashboard');
+    } else {
+      setActiveCategory('core');
+      setActiveTab('dashboard');
+    }
+    navigate('/dashboard');
+  };
+
+  const handleStaffNavigate = (target: string) => {
+    const staffTarget = resolveStaffTarget(target);
+    if (!staffTarget) {
+      setActiveTab(target);
+      return;
+    }
+    if (staffTarget.category) setActiveCategory(staffTarget.category);
+    setActiveTab(staffTarget.tab);
+    try {
+      navigate(staffTarget.path);
+    } catch {
+      // Router navigation suppressed if context not available
+    }
+  };
+
+  const viewContext: MerchantViewContext = {
+    activeCategory,
+    profile,
+    selectedPlan,
+    refreshTrigger,
+    onNavigate: handleViewChange,
+    onStaffNavigate: handleStaffNavigate,
+    onSaasNavigate: handleNavigateView,
+    navigateToFeature,
+    setActiveTab,
+    goToDashboard,
+    openLiveMonitor: () => setShowKitchenKDS(true),
+    linesEntryFilter,
+    setLinesEntryFilter,
+    itemsPaymentFilter,
+    setItemsPaymentFilter,
+    allocationsContext,
+    setAllocationsContext,
+  };
+
   const renderSPAView = () => {
-    const stub = COMING_SOON_STUBS[activeTab];
-    if (stub) {
-      return (
-        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm max-w-4xl mx-auto my-8">
-          <div className="flex items-center gap-4 border-b border-[#e8e2d8] pb-6 mb-6">
-            <span className="material-symbols-outlined text-primary text-5xl">
-              {stub.icon}
-            </span>
-            <div>
-              <h2 className="text-h2 font-black text-[#222222] uppercase leading-none">
-                {stub.title}
-              </h2>
-              <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mt-1.5">
-                Provisional SPA Route: <span className="text-primary">{stub.route}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="p-6 bg-[#f1ece4] border border-[#e8e2d8] rounded mb-6 text-left">
-            <p className="font-bold text-primary text-sm uppercase tracking-wider mb-2">Feature Coming Soon</p>
-            <p className="text-body-md text-[#5f5e5e] leading-relaxed">
-              This section is under active development. In a future update, it will be available with full functionality in <strong>X7 Point of Sale</strong>.
-            </p>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              onClick={() => {
-                if (profile?.role === 'SaaS Owner') {
-                  setActiveCategory('saas');
-                  setActiveTab('saas-dashboard');
-                } else {
-                  setActiveCategory('core');
-                  setActiveTab('dashboard');
-                }
-                navigate('/dashboard');
-              }}
-              className="px-6 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-primary transition-all rounded shadow-md"
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    if (activeTab === 'saas-dashboard') {
-      return (
-        <div className="space-y-8 animate-fade-in text-left">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-            <div>
-              <h1 className="font-sans text-h1 text-[#222222] uppercase tracking-tighter">
-                Platform SaaS <span className="text-[#d51f2c]">/</span> Overview
-              </h1>
-              <p className="text-body-md text-[#666666] mt-1">
-                Real-time performance metrics and merchant growth tracking.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => alert('Exporting SaaS report...')}
-                className="px-4 py-2 border border-[#222222] text-[#222222] font-bold text-label-caps hover:bg-[#222222] hover:text-white transition-all flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-sm">download</span>
-                Export Report
-              </button>
-              <button
-                onClick={() => alert('New Merchant simulation')}
-                className="px-4 py-2 bg-[#d51f2c] text-white font-bold text-label-caps hover:opacity-90 transition-all flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-sm">add</span>
-                New Merchant
-              </button>
-            </div>
-          </div>
-
-          <SaasOverviewContent
-            refreshTrigger={refreshTrigger}
-            onNavigateToView={handleViewChange}
-          />
-        </div>
-      );
-    }
-
-    if (activeTab === 'categories') {
-      return <CategoriesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'products') {
-      return <ProductsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'modifiers') {
-      return <ModifiersView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'variants') {
-      return <VariantsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'merchant-tax-rules') {
-      return <TaxRulesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'merchant-tips-rules') {
-      return <TipRulesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'merchant-overtime-rules') {
-      return <OvertimeRulesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'merchant-payroll-rules') {
-      return <PayrollRulesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'cash-drawers') {
-      return <CashDrawersView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'cash-shifts') {
-      return <CashShiftsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'cash-transactions') {
-      return <CashTransactionsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'cash-movements') {
-      return <CashMovementsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'cash-drawer-history') {
-      return <CashDrawerHistoryView onNavigate={handleViewChange} />;
-    }
-
-    const safeNavigate = (path: string) => {
-      try {
-        navigate(path);
-      } catch {
-        // Router navigation suppressed if context not available
-      }
-    };
-
-    const handleStaffNavigate = (target: string) => {
-      if (target === '/staff-management/schedule/me' || target === 'my-schedule' || target === 'personal-schedule') {
-        setActiveTab('my-schedule');
-        safeNavigate('/staff-management/schedule/me');
-      } else if (target === '/staff-management/schedule/roster' || target === 'staff-roster' || target === 'roster') {
-        setActiveTab('staff-roster');
-        safeNavigate('/staff-management/schedule/roster');
-      } else if (target === '/staff-management/schedule/assignments' || target === 'shift-assignment' || target === 'assignments') {
-        setActiveTab('shift-assignment');
-        safeNavigate('/staff-management/schedule/assignments');
-      } else if (target === '/staff-management/schedule/daily' || target === '/staff-management/schedule/timeline' || target === 'daily-timeline' || target === 'daily') {
-        setActiveTab('daily-timeline');
-        safeNavigate('/staff-management/schedule/daily');
-      } else if (target === '/staff-management/schedule/shifts' || target === '/staff-management/schedule/scheduler' || target === 'shifts' || target === 'scheduler') {
-        setActiveTab('shifts');
-        safeNavigate('/staff-management/schedule/shifts');
-      } else if (target === '/staff-management/schedule/swaps' || target === 'staff-swaps' || target === 'swaps') {
-        setActiveTab('staff-swaps');
-        safeNavigate('/staff-management/schedule/swaps');
-      } else if (target === '/staff-management/schedule/marketplace' || target === '/staff-management/schedule/open-shifts' || target === 'open-shifts' || target === 'marketplace') {
-        setActiveTab('open-shifts');
-        safeNavigate('/staff-management/schedule/marketplace');
-      } else if (target === '/staff-management/schedule/labor-forecasting' || target === 'labor-forecasting' || target === 'forecasting') {
-        setActiveTab('labor-forecasting');
-        safeNavigate('/staff-management/schedule/labor-forecasting');
-      } else if (target === '/staff-management/attendance/ledger' || target === 'collaborators-time-entries' || target === 'time-entries' || target === 'ledger') {
-        setActiveTab('collaborators-time-entries');
-        safeNavigate('/staff-management/attendance/ledger');
-      } else if (target === '/staff-management/attendance/kiosk' || target === 'time-clock' || target === 'time-clock-kiosk' || target === 'kiosk') {
-        setActiveTab('time-clock-kiosk');
-        safeNavigate('/staff-management/attendance/kiosk');
-      } else if (
-        target === '/store-operations/tips-ledger' ||
-        target === '/tips/ledger' ||
-        target === 'tips-ledger' ||
-        target === 'tips'
-      ) {
-        setActiveCategory('restaurant-operations');
-        setActiveTab('tips-ledger');
-        safeNavigate('/store-operations/tips-ledger');
-      } else if (
-        target === '/store-operations/tips-allocations' ||
-        target === '/tips/allocations' ||
-        target === 'tips-allocations' ||
-        target === 'tip-allocations'
-      ) {
-        setActiveCategory('restaurant-operations');
-        setActiveTab('tips-allocations');
-        safeNavigate('/tips/allocations');
-      } else if (
-        target === '/tips/pools' ||
-        target === 'tips-pools' ||
-        target === '/store-operations/tips-pools' ||
-        target === '/store-operations/tip-pools'
-      ) {
-        setActiveCategory('restaurant-operations');
-        setActiveTab('tips-pools');
-        safeNavigate('/tips/pools');
-      } else if (
-        target === '/tips/pool-members' ||
-        target === 'tips-pool-members' ||
-        target === 'pool-members' ||
-        target === '/store-operations/tips-pool-members' ||
-        target === '/store-operations/tip-pool-members'
-      ) {
-        setActiveCategory('restaurant-operations');
-        setActiveTab('tips-pool-members');
-        try { navigate('/tips/pool-members'); } catch { /* ignore */ }
-      } else if (
-        target === '/store-operations/tips-settlements' ||
-        target === '/store-operations/tip-settlements' ||
-        target === '/tips/settlements' ||
-        target === 'tips-settlements' ||
-        target === 'tip-settlements'
-      ) {
-        setActiveCategory('restaurant-operations');
-        setActiveTab('tips-settlements');
-        try { navigate('/tips/settlements'); } catch { /* ignore */ }
-      } else if (target === '/tips/cash-movements' || target === 'tips-cash-movements' || target === 'cash-tip-movements') {
-        setActiveCategory('restaurant-operations');
-        setActiveTab('tips-cash-movements');
-        try { navigate('/tips/cash-movements'); } catch { /* ignore */ }
-      } else {
-        setActiveTab(target);
-      }
-    };
-
-    if (activeTab === 'my-schedule' || activeTab === 'personal-schedule' || activeTab === '/staff-management/schedule/me') {
-      return <CollaboratorPersonalScheduleView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'shifts' || activeTab === 'daily-timeline' || activeTab === 'daily' || activeTab === '/staff-management/schedule/daily') {
-      return <ShiftAssignmentView initialViewMode="daily" onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'shift-assignment' || activeTab === 'assignments' || activeTab === 'scheduler') {
-      return <ShiftAssignmentView initialViewMode="weekly" onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'staff-roster' || activeTab === 'roster') {
-      return <ShiftAssignmentView initialViewMode="monthly" onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'staff-swaps' || activeTab === 'swaps') {
-      return <ShiftAssignmentView initialViewMode="swaps" onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'open-shifts' || activeTab === 'marketplace' || activeTab === '/staff-management/schedule/marketplace' || activeTab === '/staff-management/schedule/open-shifts') {
-      return <OpenShiftsMarketplaceView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'labor-forecasting' || activeTab === 'forecasting' || activeTab === '/staff-management/schedule/labor-forecasting') {
-      return <LaborCostForecastingView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (
-      (activeCategory === 'restaurant-operations' && (activeTab === 'collaborators-time-entries' || activeTab === 'time-entries')) ||
-      activeTab === 'attendance-ledger' ||
-      activeTab === 'ledger'
-    ) {
-      return <RestaurantTimeEntriesView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'tips-ledger' || activeTab === 'tips' || activeTab === '/store-operations/tips-ledger') {
-      return <TipsLedgerView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'tips-pools' || activeTab === 'tip-pools' || activeTab === '/tips/pools' || activeTab === '/store-operations/tips-pools' || activeTab === '/store-operations/tip-pools') {
-      return <TipPoolsView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'tips-pool-members' || activeTab === 'tip-pool-members' || activeTab === 'pool-members' || activeTab === '/tips/pool-members' || activeTab === '/store-operations/tips-pool-members' || activeTab === '/store-operations/tip-pool-members') {
-      return <TipPoolMembersView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'tips-allocations' || activeTab === 'tip-allocations' || activeTab === '/tips/allocations' || activeTab === '/store-operations/tips-allocations') {
-      return <TipAllocationsView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'tips-settlements' || activeTab === 'tip-settlements' || activeTab === '/tips/settlements' || activeTab === '/store-operations/tips-settlements') {
-      return <TipSettlementsView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'tips-cash-movements' || activeTab === 'cash-tip-movements' || activeTab === 'tip-movements' || activeTab === '/tips/cash-movements') {
-      return <CashTipMovementsView onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'time-clock' || activeTab === 'time-clock-kiosk' || activeTab === 'kiosk') {
-      return <TimeClockKioskView onClose={() => setActiveTab('dashboard')} onNavigate={handleStaffNavigate} />;
-    }
-
-    if (activeTab === 'ledger-accounts') {
-      return <LedgerAccountsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'journal-entries') {
-      return (
-        <JournalEntriesView
-          onNavigate={handleViewChange}
-          onViewLines={(entry) => {
-            setLinesEntryFilter(entry);
-            setActiveTab('journal-entries-lines');
-          }}
-        />
-      );
-    }
-
-    if (activeTab === 'journal-entries-lines') {
-      return (
-        <JournalEntryLinesView
-          entry={linesEntryFilter}
-          onClearEntry={() => setLinesEntryFilter(null)}
-          onNavigate={(view: string) => {
-            setLinesEntryFilter(null);
-            setActiveTab(view);
-          }}
-        />
-      );
-    }
-
-    if (activeTab === 'sub-plans-core') {
-      return <SubscriptionPlansView onNavigate={handleNavigateView} />;
-    }
-
-    if (activeTab === 'apps-config') {
-      return <PlatformApplicationsView onNavigate={handleNavigateView} />;
-    }
-
-    if (activeTab === 'features-control') {
-      return <PlatformFeatureCatalogView onNavigate={handleNavigateView} />;
-    }
-
-    if (activeTab === 'plan-apps-rules') {
-      return <PlanApplicationsView plan={selectedPlan ?? undefined} onNavigate={handleNavigateView} />;
-    }
-
-    if (activeTab === 'plan-features-mapping' && selectedPlan) {
-      return <PlanFeaturesView plan={selectedPlan} onNavigate={handleNavigateView} />;
-    }
-
-    if (activeTab === 'plan-features-mapping') {
-      return (
-        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
-          <span className="material-symbols-outlined text-[#ae001a] text-6xl" aria-hidden="true">checklist</span>
-          <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">Plan Features</h2>
-          <p className="text-body-md text-[#666666] mt-2 max-w-md">
-            Select a subscription plan to manage the features it unlocks.
-          </p>
-          <button
-            type="button"
-            onClick={() => navigateToFeature('sub-plans-core')}
-            className="mt-6 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-colors duration-200"
-          >
-            Choose a plan
-          </button>
-        </div>
-      );
-    }
-
-    if (activeTab === 'merchant-directory') {
-      return <MerchantDirectoryView />;
-    }
-
-    if (activeTab === 'user-management') {
-      return <UserManagementView />;
-    }
-
-    if (activeTab === 'company-profile') {
-      return <CompanyProfileView />;
-    }
-
-    if (activeTab === 'company-configurations') {
-      return <CompanyConfigurationsView />;
-    }
-
-    if (activeTab === 'suppliers') {
-      return <SuppliersView onNavigate={handleViewChange} companyId={profile?.company_id} />;
-    }
-
-    if (activeTab === 'supplier-invoices') {
-      return <SupplierInvoicesView onNavigate={handleViewChange} companyId={profile?.company_id} />;
-    }
-
-    if (activeTab === 'supplier-invoice-items') {
-      return <SupplierInvoiceItemsView onNavigate={handleViewChange} companyId={profile?.company_id} />;
-    }
-
-    if (activeTab === 'supplier-credit-notes') {
-      return (
-        <SupplierCreditNotesView
-          onNavigate={handleViewChange}
-          companyId={profile?.company_id}
-          onViewAllocations={(creditNote) => {
-            setAllocationsContext({ creditNote });
-            setActiveTab('supplier-payments-allocation');
-          }}
-        />
-      );
-    }
-
-    if (activeTab === 'supplier-payments') {
-      return (
-        <SupplierPaymentsView
-          onNavigate={handleViewChange}
-          companyId={profile?.company_id}
-          onViewItems={(payment) => {
-            setItemsPaymentFilter(payment);
-            setActiveTab('supplier-payment-items');
-          }}
-          onViewAllocations={(payment) => {
-            setAllocationsContext({ payment });
-            setActiveTab('supplier-payments-allocation');
-          }}
-        />
-      );
-    }
-
-    if (activeTab === 'supplier-payment-items') {
-      return (
-        <SupplierPaymentItemsView
-          payment={itemsPaymentFilter}
-          onClearPayment={() => setItemsPaymentFilter(null)}
-          onNavigate={(view: string) => {
-            setItemsPaymentFilter(null);
-            setActiveTab(view);
-          }}
-          companyId={profile?.company_id}
-        />
-      );
-    }
-
-    if (activeTab === 'supplier-payments-allocation') {
-      return (
-        <SupplierPaymentAllocationsView
-          payment={allocationsContext?.payment ?? null}
-          creditNote={allocationsContext?.creditNote ?? null}
-          onClearContext={() => setAllocationsContext(null)}
-          onNavigate={(view: string) => {
-            setAllocationsContext(null);
-            setActiveTab(view);
-          }}
-          companyId={profile?.company_id}
-        />
-      );
-    }
-
-    if (activeTab === 'floor-plans') {
-      return (
-        <FloorPlansView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'collaborators-contracts') {
-      return (
-        <ContractsView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'collaborators-time-entries' || activeTab === 'time-entries') {
-      return (
-        <HrTimeEntriesView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'collaborators') {
-      return (
-        <CollaboratorsView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'tables') {
-      return (
-        <DiningTablesView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'table-assignments') {
-      return (
-        <TableAssignmentsView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'reservations') {
-      return (
-        <ReservationsView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'reservation-tables') {
-      return (
-        <ReservationTablesView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'reservation-notes') {
-      return (
-        <ReservationNotesView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'reservation-guests') {
-      return (
-        <ReservationGuestsView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'delivery-zones') {
-      return (
-        <DeliveryZonesView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'delivery-fees') {
-      return (
-        <DeliveryFeesView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'delivery-drivers') {
-      return (
-        <DeliveryDriversView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'delivery-assignments') {
-      return (
-        <DeliveryAssignmentsView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'delivery-tracking') {
-      return (
-        <DeliveryTrackingView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'reservation-status-history') {
-      return (
-        <ReservationStatusHistoryView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'table-zones') {
-      return (
-        <FloorZonesView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'qr-code-locations') {
-      return (
-        <QRLocationsView
-          onNavigate={handleViewChange}
-          merchantId={getCurrentMerchantId() ?? undefined}
-        />
-      );
-    }
-
-    if (activeTab === 'locations') {
-      return <LocationsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'purchase-orders') {
-      return <PurchaseOrdersView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'stock-movements') {
-      return <StockInventoryView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'movements') {
-      return <MovementsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'raw-materials') {
-      return <RawMaterialsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'raw-material-categories') {
-      return <RawMaterialCategoriesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'recipes') {
-      return <RecipesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'kds-dashboard' || activeTab === 'kitchen-kds-hub') {
-      return (
-        <KitchenKDSHubView
-          onNavigate={handleViewChange}
-          onOpenLiveMonitor={() => setShowKitchenKDS(true)}
-        />
-      );
-    }
-
-    if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') {
-      return (
-        <ProductsInventoryHubView
-          onNavigate={handleViewChange}
-        />
-      );
-    }
-
-    if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') {
-      return (
-        <RawMaterialsHubView
-          onNavigate={handleViewChange}
-        />
-      );
-    }
-
-    if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') {
-      return (
-        <OnlineOrderingHubView
-          onNavigate={handleViewChange}
-        />
-      );
-    }
-
-    if (activeTab === 'online-stores') {
-      return <OnlineStoresView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'online-menus') {
-      return <OnlineMenusView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'kitchen-stations') {
-      return <KitchenStationsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'kitchen-display-devices') {
-      return <KitchenDisplayDevicesView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'kitchen-orders') {
-      return <KitchenOrdersView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'kitchen-order-items') {
-      return <KitchenOrderItemsView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'kitchen-event-log') {
-      return <KitchenEventLogView onNavigate={handleViewChange} />;
-    }
-
-    if (activeTab === 'kitchen-analytics') {
-      return <KitchenAnalyticsView onNavigate={handleViewChange} />;
-    }
+    const registered = renderMerchantView(activeTab, viewContext);
+    if (registered !== undefined) return registered;
 
     const commandHub = navHubById(activeTab);
     if (commandHub) {
@@ -1195,138 +426,35 @@ export const MerchantFrame: React.FC = () => {
       }
 
       return (
-        <div className="bg-white border border-[#e8e2d8] rounded shadow-sm overflow-hidden">
-          <div className="bg-[#222222] px-8 py-6 flex items-center gap-5">
-            <div className="w-12 h-12 bg-[#d51f2c] rounded flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-white text-2xl">{featureIcon}</span>
-            </div>
-            <div className="text-left">
-              <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-0.5">
-                {appName || 'Module'}
-              </p>
-              <h2 className="text-white font-black text-xl uppercase tracking-tight leading-none">
-                {featureName}
-              </h2>
-            </div>
-          </div>
-
-          <div className="p-10 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full mb-6">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              <span className="text-amber-700 text-[11px] font-bold uppercase tracking-wider">In Development</span>
-            </div>
-
-            <p className="text-body-md text-[#5f5e5e] max-w-md mx-auto leading-relaxed">
-              The module <strong className="text-[#222222]">{featureName}</strong> is under active development.
-              It will be available in an upcoming release of <strong className="text-[#d51f2c]">X7 Point of Sale</strong>.
-            </p>
-
-            <div className="flex justify-center gap-3 mt-8">
-              {moduleNavHub && (
-                <button
-                  onClick={() => {
-                    navigateToFeature(moduleNavHub.hubId);
-                  }}
-                  className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#930015] transition-all rounded shadow-sm flex items-center gap-2 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-base">arrow_back</span>
-                  <span>Back to {moduleNavHub.title}</span>
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  if (profile?.role === 'SaaS Owner') {
-                    setActiveTab('saas-dashboard');
-                  } else {
-                    setActiveCategory('core');
-                    setActiveTab('dashboard');
-                  }
-                }}
-                className="px-5 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#d51f2c] transition-all rounded shadow-sm cursor-pointer"
-              >
-                Back to Dashboard
-              </button>
-            </div>
-          </div>
-        </div>
+        <FeatureInDevelopmentView
+          featureName={featureName}
+          featureIcon={featureIcon}
+          appName={appName}
+          hub={moduleNavHub}
+          onBackToHub={() => {
+            if (moduleNavHub) navigateToFeature(moduleNavHub.hubId);
+          }}
+          onBackToDashboard={() => {
+            if (profile?.role === 'SaaS Owner') {
+              setActiveTab('saas-dashboard');
+            } else {
+              setActiveCategory('core');
+              setActiveTab('dashboard');
+            }
+          }}
+        />
       );
     }
 
     return (
-      <div className="space-y-8">
-        <div className="grid grid-cols-12 gap-6">
-          <SalesMetricCard refreshTrigger={refreshTrigger} />
-          <div className="col-span-12 lg:col-span-4 grid grid-rows-2 gap-6">
-            <TablesOccupancyCard refreshTrigger={refreshTrigger} />
-            <KitchenPerformanceCard refreshTrigger={refreshTrigger} />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <TopSellingItems refreshTrigger={refreshTrigger} />
-          <CurrentShifts refreshTrigger={refreshTrigger} />
-
-          <div className="bg-white border border-[#e8e2d8] p-0 overflow-hidden relative group h-[400px]">
-            <img
-              className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
-              alt="Kitchen display station screen"
-              src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&h=400&fit=crop&q=80"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#222222] via-transparent to-transparent opacity-80"></div>
-            <div className="absolute bottom-0 left-0 p-6 w-full text-left">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="text-white text-[10px] font-bold uppercase tracking-widest">
-                  Live Kitchen Status
-                </span>
-              </div>
-              <h4 className="text-white font-bold text-lg mb-1">Peak Hour Incoming</h4>
-              <p className="text-white/70 text-body-sm">
-                12 new orders in last 10 minutes. Staffing at optimal levels.
-              </p>
-              <button
-                onClick={() => setShowKitchenKDS(true)}
-                className="mt-4 w-full py-2 bg-[#d51f2c] text-white font-bold text-xs uppercase tracking-widest hover:bg-[#b01a24] transition-colors"
-              >
-                View Monitor
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[#222222] p-8 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-center md:text-left">
-            <h3 className="text-white font-bold text-xl">Quick Launch</h3>
-            <p className="text-white/60 text-sm">Access core POS functions instantly.</p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-4">
-            <button
-              onClick={() => setIsReservationOpen(true)}
-              className="px-6 py-3 bg-white text-[#222222] font-bold text-xs uppercase border-b-4 border-[#d51f2c] hover:translate-y-[-2px] transition-transform duration-200"
-            >
-              New Reservation
-            </button>
-            <button
-              onClick={() => setIsVoidOpen(true)}
-              className="px-6 py-3 bg-white text-[#222222] font-bold text-xs uppercase border-b-4 border-[#d51f2c] hover:translate-y-[-2px] transition-transform duration-200"
-            >
-              Void Transaction
-            </button>
-            <button
-              onClick={() => setIsEODOpen(true)}
-              className="px-6 py-3 bg-white text-[#222222] font-bold text-xs uppercase border-b-4 border-[#d51f2c] hover:translate-y-[-2px] transition-transform duration-200"
-            >
-              Run EOD Report
-            </button>
-            <button
-              onClick={() => setIsSupportOpen(true)}
-              className="px-6 py-3 bg-[#d51f2c] text-white font-bold text-xs uppercase hover:bg-[#b01a24] transition-colors duration-200"
-            >
-              Emergency Support
-            </button>
-          </div>
-        </div>
-      </div>
+      <MerchantHomeDashboard
+        refreshTrigger={refreshTrigger}
+        onOpenKitchenMonitor={() => setShowKitchenKDS(true)}
+        onNewReservation={() => setIsReservationOpen(true)}
+        onVoidTransaction={() => setIsVoidOpen(true)}
+        onRunEodReport={() => setIsEODOpen(true)}
+        onEmergencySupport={() => setIsSupportOpen(true)}
+      />
     );
   };
 
@@ -1699,16 +827,7 @@ export const MerchantFrame: React.FC = () => {
         setShowNotifications={setShowNotifications}
         isSidebarCollapsed={isSidebarCollapsed}
         onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        onLogoClick={() => {
-          if (profile?.role === 'SaaS Owner') {
-            setActiveCategory('saas');
-            setActiveTab('saas-dashboard');
-          } else {
-            setActiveCategory('core');
-            setActiveTab('dashboard');
-          }
-          navigate('/dashboard');
-        }}
+        onLogoClick={goToDashboard}
         onSelectFeature={(featureId, categoryId) => {
           if (categoryId) setActiveCategory(categoryId);
           setActiveTab(featureId);
