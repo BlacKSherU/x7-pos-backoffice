@@ -43,6 +43,35 @@ Open [http://localhost:5173](http://localhost:5173).
 
 API calls use the Vite proxy (`/api` → `http://localhost:3001`).
 
+## Demo data
+
+`scripts/seed-demo.mjs` fills the backend with demo data through the API, the same way the
+backoffice does. Everything goes into its own company and merchant (**X7 Demo Bistro**), so it
+does not touch anyone else's data, and it can be re-run: it only creates what is missing.
+
+```bash
+node scripts/seed-demo.mjs --dry-run              # show what would be created, write nothing
+node scripts/seed-demo.mjs                        # create what is missing
+node scripts/seed-demo.mjs --only=kitchen,orders  # only some areas
+```
+
+Sign in as `demo.admin@x7demo.dev` / `Demo1234!`; the staff users (e.g. `camila@x7demo.dev`)
+use the same password. The API comes from `VITE_API_URL` in `.env`; override it, or the
+credentials, with `SEED_API_URL`, `SEED_EMAIL` and `SEED_PASSWORD`.
+
+Areas, in run order: `catalog`, `config`, `inventory`, `kitchen`, `dining`, `cash`, `orders`
+(kitchen tickets), `staff`, `shifts`, `customers`, `reservations`, `delivery`, `online`, `qr`,
+`sales`, `tips`. Shifts and the tip pool are relative to today, so a run on a later day adds
+the shifts for the following week.
+
+Known requirements of the backend:
+
+- The schema must be up to date (`npm run migration:run` in the backend).
+- Onboarding does not create the company subscription; the demo one was inserted by SQL (plan
+  Executive, one year). Without it every call answers 402.
+- `cash` needs the admin's collaborator profile, which `staff` creates: on a fresh database run
+  `--only=staff` first, then the full script.
+
 ## Routes
 
 | Path | Description |
