@@ -1030,7 +1030,6 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     filteredTickets.forEach((t) => {
       t.items.forEach((i) => {
         if (
-          accepted.has(i.id) &&
           i.name === batchItemName &&
           i.variantName === batchVariant &&
           i.preparationStatus !== 'READY' &&
@@ -1053,16 +1052,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       prev.map((t) => ({
         ...t,
         items: t.items.map((i) =>
-          i.name === batchItemName &&
-          i.variantName === batchVariant &&
-          (activeCourseFilter === 'ALL' || i.course === activeCourseFilter)
-            ? { ...i, preparationStatus: 'READY' }
-            : i
+          accepted.has(i.id) ? { ...i, preparationStatus: 'READY' } : i
         ),
       }))
     );
 
-    if (accepted.size > 0) triggerAlert(`✓ Ready: ${batchItemName}`);
+    if (accepted.size > 0 && failed === 0) triggerAlert(`✓ Ready: ${batchItemName}`);
   };
 
   // Release all held units of a batch directly to prep in SUMMARY view
@@ -1093,7 +1088,6 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     filteredTickets.forEach((t) => {
       t.items.forEach((i) => {
         if (
-          accepted.has(i.id) &&
           i.name === batchItemName &&
           i.variantName === batchVariant &&
           i.preparationStatus === 'PENDING' &&
@@ -1116,17 +1110,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       prev.map((t) => ({
         ...t,
         items: t.items.map((i) =>
-          i.name === batchItemName &&
-          i.variantName === batchVariant &&
-          i.preparationStatus === 'PENDING' &&
-          (activeCourseFilter === 'ALL' || i.course === activeCourseFilter)
-            ? { ...i, preparationStatus: 'IN_PREPARATION' as PreparationStatus }
-            : i
+          accepted.has(i.id) ? { ...i, preparationStatus: 'IN_PREPARATION' as PreparationStatus } : i
         ),
       }))
     );
 
-    if (accepted.size > 0) triggerAlert(`Started: ${batchItemName}`);
+    if (accepted.size > 0 && failed === 0) triggerAlert(`Started: ${batchItemName}`);
   };
 
   // Revert a completed batch back to cooking in SUMMARY view
@@ -1135,7 +1124,6 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     filteredTickets.forEach((t) => {
       t.items.forEach((i) => {
         if (
-          accepted.has(i.id) &&
           i.name === batchItemName &&
           i.variantName === batchVariant &&
           i.preparationStatus === 'READY' &&
@@ -1158,17 +1146,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       prev.map((t) => ({
         ...t,
         items: t.items.map((i) =>
-          i.name === batchItemName &&
-          i.variantName === batchVariant &&
-          i.preparationStatus === 'READY' &&
-          (activeCourseFilter === 'ALL' || i.course === activeCourseFilter)
-            ? { ...i, preparationStatus: 'IN_PREPARATION' as PreparationStatus }
-            : i
+          accepted.has(i.id) ? { ...i, preparationStatus: 'IN_PREPARATION' as PreparationStatus } : i
         ),
       }))
     );
 
-    if (accepted.size > 0) triggerAlert(`↺ Reverted: ${batchItemName}`, 'pacing');
+    if (accepted.size > 0 && failed === 0) triggerAlert(`↺ Reverted: ${batchItemName}`, 'pacing');
   };
 
   // Toggle individual table item in SUMMARY view (HELD -> FIRE, COOKING -> READY, READY -> COOKING)
