@@ -99,14 +99,12 @@ import { ReservationsView } from './views/reservations/ReservationsView';
 import { ReservationTablesView } from './views/reservations/ReservationTablesView';
 import { ReservationNotesView } from './views/reservations/ReservationNotesView';
 import { ReservationGuestsView } from './views/reservations/ReservationGuestsView';
-import { featureIdForDeliveryPath } from '../../lib/delivery-navigation';
 import { DeliveryZonesView } from './views/delivery/DeliveryZonesView';
 import { DeliveryFeesView } from './views/delivery/DeliveryFeesView';
 import { DeliveryDriversView } from './views/delivery/DeliveryDriversView';
 import { DeliveryTrackingView } from './views/delivery/DeliveryTrackingView';
 import { DeliveryAssignmentsView } from './views/delivery/DeliveryAssignmentsView';
 import { ReservationStatusHistoryView } from './views/reservations/ReservationStatusHistoryView';
-import { featureIdForReservationPath } from '../../lib/reservation-navigation';
 import { navHubById, navHubForFeature } from '../../lib/module-nav-hubs';
 import { ModuleNavHubBar } from './layout/ModuleNavHubBar';
 import { ModuleCommandHubView } from './views/ModuleCommandHubView';
@@ -128,6 +126,7 @@ import { KitchenAnalyticsView } from './views/restaurant-operations/kitchen-stat
 import { QRLocationsView } from './views/qr-code/QRLocationsView';
 import { clearAuthSession } from '../../lib/auth-storage';
 import { getCurrentMerchantId } from '../../api/users';
+import { getNavFromPath } from './merchant-routes';
 
 // Coming Soon stubs lookup table: maps tab IDs to their display config
 interface ComingSoonStub {
@@ -152,117 +151,6 @@ const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
     route: '/support/help-center',
     icon: 'help'
   },
-};
-
-interface NavigationLocationState {
-  activeTab?: string;
-  activeCategory?: string;
-  merchantId?: string | number;
-}
-
-const getNavFromPath = (
-  path: string,
-  locationState?: NavigationLocationState | null,
-  profileRole?: string
-): { category: string; tab: string } | null => {
-  if (path === '/legal/privacy-policy') {
-    return { category: 'legal', tab: 'privacy-policy' };
-  } else if (path === '/legal/terms-of-service') {
-    return { category: 'legal', tab: 'terms-of-service' };
-  } else if (path === '/support/help-center') {
-    return { category: 'support', tab: 'help-center' };
-  } else if (path === '/dashboard/products') {
-    return { category: 'inventory', tab: 'products' };
-  } else if (path === '/dashboard/categories') {
-    return { category: 'inventory', tab: 'categories' };
-  } else if (path === '/dashboard/merchants') {
-    return { category: 'platformsaas', tab: 'merchant-directory' };
-  } else if (path === '/dashboard/users') {
-    return { category: 'platformsaas', tab: 'user-management' };
-  } else if (path === '/dashboard/company-profile') {
-    return { category: 'platformsaas', tab: 'company-profile' };
-  } else if (path === '/dashboard/company-configurations') {
-    return { category: 'platformsaas', tab: 'company-configurations' };
-  } else if (path === '/staff-management/schedule/roster') {
-    return { category: 'restaurant-operations', tab: 'staff-roster' };
-  } else if (path === '/staff-management/schedule/assignments') {
-    return { category: 'restaurant-operations', tab: 'shift-assignment' };
-  } else if (path === '/staff-management/schedule/daily' || path === '/staff-management/schedule/timeline') {
-    return { category: 'restaurant-operations', tab: 'daily-timeline' };
-  } else if (path === '/staff-management/schedule/shifts' || path === '/staff-management/schedule/scheduler') {
-    return { category: 'restaurant-operations', tab: 'shifts' };
-  } else if (path === '/staff-management/schedule/swaps') {
-    return { category: 'restaurant-operations', tab: 'staff-swaps' };
-  } else if (path === '/staff-management/schedule/marketplace' || path === '/staff-management/schedule/open-shifts') {
-    return { category: 'restaurant-operations', tab: 'open-shifts' };
-  } else if (path === '/staff-management/schedule/labor-forecasting' || path === '/staff-management/schedule/forecasting') {
-    return { category: 'restaurant-operations', tab: 'labor-forecasting' };
-  } else if (path === '/staff-management/attendance/ledger') {
-    return { category: 'restaurant-operations', tab: 'collaborators-time-entries' };
-  } else if (path === '/staff-management/schedule/me') {
-    return { category: 'restaurant-operations', tab: 'my-schedule' };
-  } else if (path === '/staff-management/attendance/kiosk') {
-    return { category: 'restaurant-operations', tab: 'time-clock-kiosk' };
-  } else if (path.startsWith('/reservations/')) {
-    return { category: 'restaurant-operations', tab: featureIdForReservationPath(path) };
-  } else if (path === '/delivery' || path.startsWith('/delivery/')) {
-    return { category: 'commerce', tab: featureIdForDeliveryPath(path) };
-  } else if (path === '/store-operations/tips-ledger' || path === '/tips/ledger') {
-    return { category: 'restaurant-operations', tab: 'tips-ledger' };
-  } else if (path === '/store-operations/tips-allocations' || path === '/tips/allocations') {
-    return { category: 'restaurant-operations', tab: 'tips-allocations' };
-  } else if (path === '/store-operations/tips-pools' || path === '/store-operations/tip-pools' || path === '/tips/pools') {
-    return { category: 'restaurant-operations', tab: 'tips-pools' };
-  } else if (path === '/store-operations/tips-pool-members' || path === '/store-operations/tip-pool-members' || path === '/tips/pool-members') {
-    return { category: 'restaurant-operations', tab: 'tips-pool-members' };
-  } else if (path === '/tips/cash-movements' || path === '/store-operations/cash-movements') {
-    return { category: 'restaurant-operations', tab: 'cash-movements' };
-  } else if (path === '/dashboard/raw-materials' || path === '/inventory/raw-materials') {
-    return { category: 'inventory', tab: 'raw-materials' };
-  } else if (path === '/dashboard/raw-material-categories') {
-    return { category: 'inventory', tab: 'raw-material-categories' };
-  } else if (path === '/dashboard/recipes' || path === '/inventory/recipes') {
-    return { category: 'inventory', tab: 'recipes' };
-  } else if (path === '/inventory/stocks') {
-    return { category: 'inventory', tab: 'stock-movements' };
-  } else if (path === '/inventory/movements') {
-    return { category: 'inventory', tab: 'movements' };
-  } else if (path === '/qr-code/locations' || path === '/dashboard/qr-locations' || path === '/qr-code-locations') {
-    return { category: 'commerce', tab: 'qr-code-locations' };
-  } else if (path === '/inventory/dashboard' || path === '/inventory/hub' || path === '/dashboard/inventory') {
-    return { category: 'inventory', tab: 'inventory-dashboard' };
-  } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
-    return { category: 'inventory', tab: 'raw-materials-dashboard' };
-  } else if (path === '/online-ordering' || path === '/online-ordering/hub' || path === '/online-ordering/dashboard' || path === '/dashboard/online-ordering') {
-    return { category: 'commerce', tab: 'online-ordering-hub' };
-  } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores' || path === '/online-ordering/stores') {
-    return { category: 'commerce', tab: 'online-stores' };
-  } else if (path === '/online-ordering/payments') {
-    return { category: 'commerce', tab: 'online-payments' };
-  } else if (path === '/commerce/online-menus' || path === '/dashboard/online-menus' || path === '/online-menus' || path === '/online-ordering/menus') {
-    return { category: 'commerce', tab: 'online-menus' };
-  } else if (path === '/online-ordering/categories') {
-    return { category: 'commerce', tab: 'online-menu-categories' };
-  } else if (path === '/online-ordering/items') {
-    return { category: 'commerce', tab: 'online-menu-items' };
-  } else if (path === '/online-ordering/orders') {
-    return { category: 'commerce', tab: 'online-orders' };
-  } else if (path === '/online-ordering/order-items') {
-    return { category: 'commerce', tab: 'online-order-items' };
-  } else if (path === '/online-ordering/delivery' || path === '/online-ordering/delivery-info') {
-    return { category: 'commerce', tab: 'online-delivery-info' };
-  } else if (path === '/dashboard') {
-    const stateTab = locationState?.activeTab;
-    const stateCategory = locationState?.activeCategory;
-    if (stateTab && stateCategory) {
-      return { category: stateCategory, tab: stateTab };
-    }
-    if (profileRole === 'SaaS Owner') {
-      return { category: 'saas', tab: 'saas-dashboard' };
-    }
-    return { category: 'core', tab: 'dashboard' };
-  }
-  return null;
 };
 
 export const MerchantFrame: React.FC = () => {
@@ -345,144 +233,13 @@ export const MerchantFrame: React.FC = () => {
     }
   }
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Entrar a /dashboard desde el directorio de merchants fija la sucursal de trabajo.
   useEffect(() => {
-    const path = location.pathname;
-    if (path === '/legal/privacy-policy') {
-      setActiveCategory('legal');
-      setActiveTab('privacy-policy');
-    } else if (path === '/legal/terms-of-service') {
-      setActiveCategory('legal');
-      setActiveTab('terms-of-service');
-    } else if (path === '/support/help-center') {
-      setActiveCategory('support');
-      setActiveTab('help-center');
-    } else if (path === '/dashboard/products') {
-      setActiveCategory('inventory');
-      setActiveTab('products');
-    } else if (path === '/dashboard/categories') {
-      setActiveCategory('inventory');
-      setActiveTab('categories');
-    } else if (path === '/dashboard/merchants') {
-      setActiveCategory('platformsaas');
-      setActiveTab('merchant-directory');
-    } else if (path === '/dashboard/users') {
-      setActiveCategory('platformsaas');
-      setActiveTab('user-management');
-    } else if (path === '/dashboard/company-profile') {
-      setActiveCategory('platformsaas');
-      setActiveTab('company-profile');
-    } else if (path === '/dashboard/company-configurations') {
-      setActiveCategory('platformsaas');
-      setActiveTab('company-configurations');
-    } else if (path === '/staff-management/schedule/roster') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('staff-roster');
-    } else if (path === '/staff-management/schedule/assignments') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('shift-assignment');
-    } else if (path === '/staff-management/schedule/daily' || path === '/staff-management/schedule/timeline') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('daily-timeline');
-    } else if (path === '/staff-management/schedule/shifts' || path === '/staff-management/schedule/scheduler') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('shifts');
-    } else if (path === '/staff-management/schedule/swaps') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('staff-swaps');
-    } else if (path === '/staff-management/schedule/marketplace' || path === '/staff-management/schedule/open-shifts') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('open-shifts');
-    } else if (path === '/staff-management/schedule/labor-forecasting' || path === '/staff-management/schedule/forecasting') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('labor-forecasting');
-    } else if (path === '/staff-management/attendance/ledger') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('collaborators-time-entries');
-    } else if (path === '/staff-management/schedule/me') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('my-schedule');
-    } else if (path === '/staff-management/attendance/kiosk') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('time-clock-kiosk');
-    } else if (path === '/store-operations/tips-ledger' || path === '/tips/ledger') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-ledger');
-    } else if (path === '/store-operations/tips-allocations' || path === '/tips/allocations') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-allocations');
-    } else if (path === '/store-operations/tips-pools' || path === '/store-operations/tip-pools' || path === '/tips/pools') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-pools');
-    } else if (path === '/store-operations/tips-pool-members' || path === '/store-operations/tip-pool-members' || path === '/tips/pool-members') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-pool-members');
-    } else if (path === '/store-operations/tips-settlements' || path === '/store-operations/tip-settlements' || path === '/tips/settlements') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-settlements');
-    } else if (path === '/tips/cash-movements' || path === '/store-operations/tips-cash-movements' || path === '/store-operations/cash-tip-movements') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-cash-movements');
-    } else if (path === '/store-operations/cash-movements') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('cash-movements');
-    } else if (path === '/dashboard/raw-materials' || path === '/inventory/raw-materials') {
-      setActiveCategory('inventory');
-      setActiveTab('raw-materials');
-    } else if (path === '/dashboard/raw-material-categories') {
-      setActiveCategory('inventory');
-      setActiveTab('raw-material-categories');
-    } else if (path === '/dashboard/recipes' || path === '/inventory/recipes') {
-      setActiveCategory('inventory');
-      setActiveTab('recipes');
-    } else if (path === '/inventory/stocks') {
-      setActiveCategory('inventory');
-      setActiveTab('stock-movements');
-    } else if (path === '/inventory/dashboard' || path === '/inventory/hub' || path === '/dashboard/inventory') {
-      setActiveCategory('inventory');
-      setActiveTab('inventory-dashboard');
-    } else if (path === '/inventory/raw-materials-dashboard' || path === '/inventory/raw-materials/dashboard' || path === '/dashboard/raw-materials-hub') {
-      setActiveCategory('inventory');
-      setActiveTab('raw-materials-dashboard');
-    } else if (path === '/online-ordering' || path === '/online-ordering/hub' || path === '/online-ordering/dashboard' || path === '/dashboard/online-ordering') {
-      setActiveCategory('commerce');
-      setActiveTab('online-ordering-hub');
-    } else if (path === '/commerce/online-stores' || path === '/dashboard/online-stores' || path === '/online-stores' || path === '/online-ordering/stores') {
-      setActiveCategory('commerce');
-      setActiveTab('online-stores');
-    } else if (path === '/online-ordering/payments') {
-      setActiveCategory('commerce');
-      setActiveTab('online-payments');
-    } else if (path === '/online-ordering/menus') {
-      setActiveCategory('commerce');
-      setActiveTab('online-menus');
-    } else if (path === '/online-ordering/categories') {
-      setActiveCategory('commerce');
-      setActiveTab('online-menu-categories');
-    } else if (path === '/online-ordering/items') {
-      setActiveCategory('commerce');
-      setActiveTab('online-menu-items');
-    } else if (path === '/online-ordering/orders') {
-      setActiveCategory('commerce');
-      setActiveTab('online-orders');
-    } else if (path === '/online-ordering/order-items') {
-      setActiveCategory('commerce');
-      setActiveTab('online-order-items');
-    } else if (path === '/online-ordering/delivery' || path === '/online-ordering/delivery-info') {
-      setActiveCategory('commerce');
-      setActiveTab('online-delivery-info');
-    } else if (path === '/dashboard') {
-      const stateTab = location.state?.activeTab;
-      const stateCategory = location.state?.activeCategory;
-      if (stateTab) setActiveTab(stateTab);
-      if (stateCategory) setActiveCategory(stateCategory);
-      const stateMerchantId = location.state?.merchantId;
-      if (stateMerchantId != null) {
-        sessionStorage.setItem('x7:branch-context', String(stateMerchantId));
-      }
+    const stateMerchantId = location.state?.merchantId;
+    if (location.pathname === '/dashboard' && stateMerchantId != null) {
+      sessionStorage.setItem('x7:branch-context', String(stateMerchantId));
     }
   }, [location.pathname, location.state]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
