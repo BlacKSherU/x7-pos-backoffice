@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import {
   OnlineMenuSetupDrawer,
   type OnlineMenuFormData,
@@ -13,6 +12,7 @@ import {
   type TableDensity,
 } from '../../../../shared/TableOptionsMenu';
 import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
+import { apiRequest, unwrapList, type MaybeEnvelopedList } from '../../../../../api/http';
 
 export interface OnlineMenuItem {
   id: number;
@@ -85,40 +85,26 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
-  const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
-
   // 1. Fetch Online Stores (for dropdown filter & drawer binding)
   const fetchStores = useCallback(async () => {
     try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(`${API_BASE}/online-stores?limit=100`, { headers });
-      if (res.status === 401) {
-        clearAuthSession();
-        window.location.assign('/login');
-        return;
-      }
-      if (res.ok) {
-        const json = await res.json();
-        const rawStores: Record<string, unknown>[] = Array.isArray(json)
-          ? json
-          : json.data || json.items || [];
-        const mappedStores: OnlineStoreOption[] = rawStores.map((s) => ({
-          id: Number(s.id),
-          subdomain: String(s.subdomain || ''),
-          is_active: Boolean(s.is_active ?? s.isActive ?? true),
-          status: String(s.status || 'active'),
-        }));
-        setStores(mappedStores);
-      }
+      const json = await apiRequest<MaybeEnvelopedList<Record<string, unknown>>>(
+        '/online-stores?limit=100',
+        { method: 'GET' },
+        'Failed to load online stores.',
+      );
+      const rawStores = unwrapList(json);
+      const mappedStores: OnlineStoreOption[] = rawStores.map((s) => ({
+        id: Number(s.id),
+        subdomain: String(s.subdomain || ''),
+        is_active: Boolean(s.is_active ?? s.isActive ?? true),
+        status: String(s.status || 'active'),
+      }));
+      setStores(mappedStores);
     } catch (err) {
       console.warn('Error fetching stores for menu binding:', err);
     }
-  }, [API_BASE]);
+  }, []);
 
   // 2. Fetch Online Menus
   const fetchMenus = useCallback(
@@ -127,30 +113,12 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
         if (!silent) setIsLoading(true);
         setIsRefreshing(true);
         setError(null);
-        const token = getAccessToken();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-
-        const res = await fetch(`${API_BASE}/online-menus?limit=100&sortBy=createdAt&sortOrder=DESC`, {
-          headers,
-        });
-
-        if (res.status === 401) {
-          clearAuthSession();
-          window.location.assign('/login');
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error(`Failed to load online menus (${res.status})`);
-        }
-
-        const json = await res.json();
-        const rawMenus: Record<string, unknown>[] = Array.isArray(json)
-          ? json
-          : json.data || json.items || [];
+        const json = await apiRequest<MaybeEnvelopedList<Record<string, unknown>>>(
+          '/online-menus?limit=100&sortBy=createdAt&sortOrder=DESC',
+          { method: 'GET' },
+          'Failed to load online menus.',
+        );
+        const rawMenus = unwrapList(json);
 
         const list: OnlineMenuItem[] = rawMenus.map((item) => {
           const storeObj = item.store as { id?: number; subdomain?: string } | undefined;
@@ -194,7 +162,7 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
         setIsRefreshing(false);
       }
     },
-    [API_BASE]
+    []
   );
 
   useEffect(() => {
@@ -215,48 +183,37 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
 
   // Save Menu (Create or Edit)
   const handleSaveMenu = async (formData: OnlineMenuFormData) => {
-    const token = getAccessToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
     if (drawerMode === 'create') {
-      const res = await fetch(`${API_BASE}/online-menus`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          storeId: formData.storeId,
-          name: formData.name,
-          description: formData.description || undefined,
-          isActive: formData.isActive,
-        }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.message || `Failed to create menu (${res.status})`);
-      }
+      await apiRequest<void>(
+        '/online-menus',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            storeId: formData.storeId,
+            name: formData.name,
+            description: formData.description || undefined,
+            isActive: formData.isActive,
+          }),
+        },
+        'Failed to create menu.',
+      );
 
       showToast(`Menu "${formData.name}" created successfully!`);
       await fetchMenus(true);
     } else if (drawerMode === 'edit' && formData.id) {
-      const res = await fetch(`${API_BASE}/online-menus/${formData.id}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          storeId: formData.storeId,
-          name: formData.name,
-          description: formData.description || undefined,
-          isActive: formData.isActive,
-        }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.message || `Failed to update menu (${res.status})`);
-      }
-
+      await apiRequest<void>(
+        `/online-menus/${formData.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            storeId: formData.storeId,
+            name: formData.name,
+            description: formData.description || undefined,
+            isActive: formData.isActive,
+          }),
+        },
+        'Failed to update menu.',
+      );
       showToast(`Menu #${formData.id} updated successfully!`);
       await fetchMenus(true);
     }
@@ -275,24 +232,16 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
     );
 
     try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(`${API_BASE}/online-menus/${menu.id}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          isActive: newActive,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed to toggle menu status (${res.status})`);
-      }
-
+      await apiRequest<void>(
+        `/online-menus/${menu.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            isActive: newActive,
+          }),
+        },
+        'Failed to toggle menu status.',
+      );
       showToast(
         `Menu #${menu.id} is now ${newActive ? 'Published' : 'Draft / Inactive'}`
       );
@@ -309,22 +258,11 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
     try {
       setIsDeleting(true);
       setDeleteError(null);
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(`${API_BASE}/online-menus/${menuToDelete.id}`, {
-        method: 'DELETE',
-        headers,
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.message || `Failed to delete menu (${res.status})`);
-      }
-
+      await apiRequest<void>(
+        `/online-menus/${menuToDelete.id}`,
+        { method: 'DELETE' },
+        'Failed to delete menu.',
+      );
       showToast(`Menu #${menuToDelete.id} (${menuToDelete.name}) permanently removed.`);
       setIsDeleteModalOpen(false);
       setMenuToDelete(null);

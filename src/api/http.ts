@@ -128,15 +128,15 @@ export async function apiRequest<T>(
   return parseJsonBody<T>(response);
 }
 
-/** Lista que el backend devuelve unas veces tal cual y otras envuelta en `{ data }`. */
-export type MaybeEnvelopedList<T> = T[] | { data?: T[] };
+/** Lista que el backend devuelve tal cual o envuelta en `{ data }` (algunos módulos usan `{ items }`). */
+export type MaybeEnvelopedList<T> = T[] | { data?: T[]; items?: T[] };
 
 /** Registro que el backend devuelve unas veces tal cual y otras envuelto en `{ data }`. */
 export type MaybeEnvelopedItem<T> = T | { data?: T };
 
 export function unwrapList<T>(json: MaybeEnvelopedList<T> | null | undefined): T[] {
   if (Array.isArray(json)) return json;
-  return json?.data ?? [];
+  return json?.data ?? json?.items ?? [];
 }
 
 export function unwrapItem<T>(json: MaybeEnvelopedItem<T>): T {
