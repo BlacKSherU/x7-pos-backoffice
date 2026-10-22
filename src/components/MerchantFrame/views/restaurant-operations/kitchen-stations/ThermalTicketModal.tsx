@@ -1,5 +1,5 @@
 import React from 'react';
-import type { KitchenTicket } from './KitchenMonitorView';
+import type { KitchenTicket } from './kds-monitor-model';
 import { detectAllergies } from './kdsLocalization';
 
 export interface ThermalTicketPayload {

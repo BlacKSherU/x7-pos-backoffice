@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { BackendKitchenStation, KitchenTicket } from './KitchenMonitorView';
+import type { BackendKitchenStation, KitchenTicket } from './kds-monitor-model';
 import { apiRequest } from '../../../../../api/http';
 export interface StationRerouteStatus {
   stationId: number;
