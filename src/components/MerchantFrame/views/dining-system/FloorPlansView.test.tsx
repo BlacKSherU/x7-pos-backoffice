@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { FloorPlansView } from './FloorPlansView';
 import type { DiningTable, FloorZone } from '../../../../types/dining-system';
 
-vi.mock('../../../../lib/auth-storage', () => ({
+vi.mock('../../../../lib/auth-storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/auth-storage')>()),
   getAccessToken: vi.fn(() => 'mock-token'),
   clearAuthSession: vi.fn(),
 }));

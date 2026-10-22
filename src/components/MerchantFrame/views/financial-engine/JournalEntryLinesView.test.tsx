@@ -5,7 +5,8 @@ import { JournalEntryLinesView } from './JournalEntryLinesView';
 import { flattenJournalEntryLines, isLeafAccount } from './journalEntryLinesHelpers';
 import type { JournalEntry, LedgerAccount } from '../../../../types/accounting';
 
-vi.mock('../../../../lib/auth-storage', () => ({
+vi.mock('../../../../lib/auth-storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/auth-storage')>()),
   getAccessToken: vi.fn(() => 'mock-token'),
   clearAuthSession: vi.fn(),
 }));

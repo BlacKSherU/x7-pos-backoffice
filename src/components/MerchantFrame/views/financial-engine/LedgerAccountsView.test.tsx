@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { LedgerAccountsView } from './LedgerAccountsView';
 import type { LedgerAccount } from '../../../../types/accounting';
 
-vi.mock('../../../../lib/auth-storage', () => ({
+vi.mock('../../../../lib/auth-storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/auth-storage')>()),
   getAccessToken: vi.fn(() => 'mock-token'),
   clearAuthSession: vi.fn(),
 }));
