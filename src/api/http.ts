@@ -142,3 +142,21 @@ export function unwrapList<T>(json: MaybeEnvelopedList<T> | null | undefined): T
 export function unwrapItem<T>(json: MaybeEnvelopedItem<T>): T {
   return (json as { data?: T }).data || (json as T);
 }
+
+/**
+ * GET que prueba varias rutas en orden y pasa a la siguiente si una falla (salvo 401, que ya
+ * redirigió al login). Solo para recursos que el backend expone en dos módulos a la vez
+ * (p. ej. `v1/raw-material-stock/items` y el antiguo `items`); no usarlo para adivinar rutas.
+ */
+export async function getWithFallback<T>(paths: string[], fallbackMessage: string): Promise<T> {
+  let lastError: unknown = new ApiError(fallbackMessage, 0);
+  for (const path of paths) {
+    try {
+      return await apiRequest<T>(path, { method: 'GET' }, fallbackMessage);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) throw err;
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
