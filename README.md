@@ -63,8 +63,12 @@ Areas, in run order: `catalog`, `config`, `inventory`, `kitchen`, `dining`, `cas
 (kitchen tickets), `staff`, `shifts`, `customers`, `reservations`, `delivery`, `online`, `qr`,
 `sales`, `tips`, `supplies` (raw materials and stock), `purchasing`, `payables` (supplier
 invoices, payments, allocations, credit note), `accounting` (journal entries), `timeentries`,
-`payroll`, `onlineorders`, `deliveryorders`. Dates are relative to today, so a run on a later
-day adds the shifts, time entries and payroll period of that week.
+`payroll`, `onlineorders`, `deliveryorders`, `rules` (payroll, overtime and tip rules),
+`contracts`, `cashtransactions`, `tipdistribution` (tips, allocations, settlement, cash tip
+movement, pool members), `recipes`, `movements` (waste and a transfer), `tableassignments`,
+`kdsdevices`. Dates are relative to today, so a run on a later day adds the shifts, time entries,
+payroll period and tip pool of that day. Table assignments go to today's current shift (lunch, or
+dinner after 17:00): the backend allows a single open assignment per table.
 
 Known requirements of the backend:
 

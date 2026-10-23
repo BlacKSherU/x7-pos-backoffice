@@ -95,11 +95,12 @@ let dryRunId = -1;
 
 /**
  * Busca en `listPath` un registro que cumpla `match`; si no existe, lo crea con POST.
- * Devuelve el registro (o uno simulado con id negativo en --dry-run).
+ * Devuelve el registro (o uno simulado con id negativo en --dry-run). `found` permite pasar el
+ * registro ya buscado en un listado previo, sin volver a pedirlo.
  */
-async function ensure(label, listPath, match, createPath, body) {
+async function ensure(label, listPath, match, createPath, body, found) {
   try {
-    const existing = unwrapList(await list(listPath)).find(match);
+    const existing = found ?? unwrapList(await list(listPath)).find(match);
     if (existing) {
       stats.existing += 1;
       console.log(`  = ${label} (ya existe, id ${existing.id})`);
@@ -1210,6 +1211,358 @@ const AREAS = {
       deliveryDriver: driver.id,
       status: 'active',
     });
+    return ctx;
+  },
+
+  // ---- Fase 4 ----
+
+  async rules(ctx) {
+    console.log('\nReglas del comercio: remuneraciones, horas extra y propinas');
+    await ensure('regla de remuneración mensual', '/merchant-payroll-rule?limit=100', byName('Remuneración mensual'), '/merchant-payroll-rule', {
+      name: 'Remuneración mensual',
+      frequencyPayroll: 'monthly',
+      payDayOfMonth: 30,
+      allowNegativePayroll: false,
+      roundingPrecision: 0,
+      currency: 'CLP',
+      autoApprovePayroll: false,
+      requiresManagerApproval: true,
+    });
+    for (const [name, description, calculationMethod, thresholdHours, maxHours, rateValue, appliesOnWeekends, priority] of [
+      ['Horas extra diarias', 'Recargo de 50% sobre 9 horas diarias', 'daily', 9, 12, 150, true, 1],
+      ['Horas extra en feriado', 'Recargo de 100% en días feriados', 'holiday', null, null, 200, false, 2],
+    ]) {
+      await ensure(`regla ${name}`, '/merchant-overtime-rule?limit=100', byName(name), '/merchant-overtime-rule', {
+        name,
+        description,
+        calculationMethod,
+        thresholdHours,
+        maxHours,
+        rateMethod: 'percentage',
+        rateValue,
+        appliesOnHolidays: true,
+        appliesOnWeekends,
+        priority,
+      });
+    }
+    // Con tipCalculationMethod 'percentage' el backend exige que los porcentajes sugeridos sumen
+    // 1, lo que no permite ofrecer 10% / 15%: se usa 'custom', que no los valida.
+    await ensure('regla de propinas Propina sugerida', '/merchant-tip-rule?limit=100', byName('Propina sugerida'), '/merchant-tip-rule', {
+      name: 'Propina sugerida',
+      tipCalculationMethod: 'custom',
+      tipDistributionMethod: 'role_based',
+      suggestedPercentages: [0.1, 0.15],
+      fixedAmountOptions: [1000, 2000, 5000],
+      allowCustomTip: true,
+      maximumTipPercentage: 30,
+      autoDistribute: false,
+      staffPercentage: 0.7,
+      kitchenPercentage: 0.2,
+      managerPercentage: 0.1,
+    });
+    return ctx;
+  },
+
+  async contracts(ctx) {
+    console.log('\nContratos de los colaboradores');
+    const company_id = await companyId();
+    const [collaborators, contracts] = await Promise.all([existing('/collaborators?limit=100'), existing('/collaborator-contracts?limit=100')]);
+    // Sueldo base mensual de los contratos por sueldo; los part-time cobran por hora.
+    const CONTRACTS = {
+      waiter: ['hourly', 'part_time', 'hourly', 0, 4200, 30],
+      host: ['hourly', 'part_time', 'hourly', 0, 4000, 30],
+      bartender: ['mixed', 'full_time', 'monthly', 450000, 3500, 45],
+      cook: ['salary', 'full_time', 'monthly', 750000, 0, 45],
+      cashier: ['salary', 'full_time', 'monthly', 620000, 0, 45],
+      manager: ['salary', 'full_time', 'monthly', 1400000, 0, 45],
+    };
+    for (const c of collaborators) {
+      if (contracts.some((k) => idOf(k.collaborator_id ?? k.collaborator) === c.id)) {
+        stats.existing += 1;
+        continue;
+      }
+      const [contract_type, employment_type, pay_frequency, base_salary, hourly_rate, working_hours_per_week] = CONTRACTS[c.role] ?? CONTRACTS.waiter;
+      await ensure(`contrato ${c.name} (${contract_type})`, '/collaborator-contracts?limit=1', () => false, '/collaborator-contracts', {
+        company_id,
+        merchant_id: merchantId,
+        collaborator_id: c.id,
+        contract_type,
+        employment_type,
+        pay_frequency,
+        base_salary,
+        hourly_rate,
+        wage_rate: hourly_rate,
+        working_hours_per_week,
+        overtime_multiplier: 1.5,
+        double_overtime_multiplier: 2,
+        tips_included_in_payroll: c.role === 'waiter' || c.role === 'bartender',
+        start_date: day(-180),
+        active: true,
+      });
+    }
+    return ctx;
+  },
+
+  async cashtransactions(ctx) {
+    console.log('\nCaja: ventas, propina y retiro del turno abierto');
+    const activeShift = unwrapItem(await request('GET', '/cash-shifts/active').catch(() => null));
+    const cashDrawerId = idOf(activeShift?.cashDrawerId ?? activeShift?.cashDrawer);
+    const collaboratorId = idOf(activeShift?.openedByCollaborator ?? activeShift?.openedBy);
+    if (!cashDrawerId || !collaboratorId) {
+      console.log('  ! sin turno de caja abierto: ejecuta también el área "cash"');
+      return ctx;
+    }
+    const [orders, orderItems, transactions] = await Promise.all([
+      existing('/orders?limit=100'),
+      existing('/order-item?limit=100'),
+      existing('/cash-transactions?limit=100'),
+    ]);
+    const total = (order) =>
+      orderItems
+        .filter((i) => idOf(i.orderId ?? i.order_id ?? i.order) === order.id)
+        .reduce((sum, i) => sum + Number(i.quantity) * Number(i.price), 0);
+    // Se marcan por la nota para no repetirlas: el listado no trae otra clave natural.
+    const MOVES = orders
+      .filter((o) => o.source === 'pos' && total(o) > 0)
+      .map((o) => ['sale', total(o), `Venta pedido #${o.id} (demo)`, o.id]);
+    MOVES.push(['tip', 3500, 'Propina en efectivo (demo)'], ['withdrawal', 20000, 'Retiro a caja fuerte (demo)']);
+    for (const [type, amount, notes, orderId] of MOVES) {
+      await ensure(`${type} ${amount}`, '/cash-transactions?limit=1', () => false, '/cash-transactions', {
+        cashDrawerId,
+        orderId,
+        type,
+        amount,
+        collaboratorId,
+        notes,
+      }, transactions.find((t) => t.notes === notes));
+    }
+    return ctx;
+  },
+
+  async tipdistribution(ctx) {
+    console.log('\nPropinas: propinas de los pedidos, reparto, liquidación y miembros del pozo');
+    const company = await companyId();
+    const [orders, shifts, assignments, pools, collaborators] = await Promise.all([
+      existing('/orders?limit=100'),
+      existing('/shifts?limit=100'),
+      existing('/shift-assignments?limit=100'),
+      existing('/tip-pools?limit=100'),
+      existing('/collaborators?limit=100'),
+    ]);
+    const shift = shifts.find((s) => new Date(s.startTime ?? s.start_time).getTime() === new Date(at(0, 11)).getTime());
+    if (!shift) {
+      console.log('  (sin turno de hoy: ejecuta también el área "shifts")');
+      return ctx;
+    }
+    // Personal asignado al almuerzo de hoy (mesero, cocinero y bartender).
+    const crew = assignments
+      .filter((a) => idOf(a.shiftId ?? a.shift) === shift.id)
+      .map((a) => collaborators.find((c) => c.id === idOf(a.collaboratorId ?? a.collaborator)))
+      .filter(Boolean);
+    const waiter = crew.find((c) => c.role === 'waiter');
+    const bartender = crew.find((c) => c.role === 'bartender');
+
+    const pool = pools.find((p) => idOf(p.shiftId ?? p.shift) === shift.id);
+    if (pool) {
+      const members = await existing('/tip-pool-members?limit=100');
+      for (const c of crew) {
+        const weight = { waiter: 2, bartender: 1.5, cook: 1 }[c.role] ?? 1;
+        await ensure(`miembro del pozo ${c.name}`, '/tip-pool-members?limit=1', () => false, '/tip-pool-members', {
+          tipPoolId: pool.id,
+          collaboratorId: c.id,
+          role: c.role,
+          weight,
+        }, members.find((m) => idOf(m.tipPoolId ?? m.tipPool) === pool.id && idOf(m.collaboratorId ?? m.collaborator) === c.id));
+      }
+    } else {
+      console.log('  (sin pozo de propinas de hoy: ejecuta también el área "tips")');
+    }
+
+    // Una propina por pedido de mesa: con tarjeta (repartida), en efectivo (liquidada) y online
+    // (pendiente), para que se vea cada estado.
+    const orderItems = await existing('/order-item?limit=100');
+    const total = (order) =>
+      orderItems.filter((i) => idOf(i.orderId ?? i.order_id ?? i.order) === order.id).reduce((sum, i) => sum + Number(i.quantity) * Number(i.price), 0);
+    const tipped = orders.filter((o) => o.source === 'pos' && total(o) > 0);
+    const TIPS = [
+      ['card', 0.1, 'allocated'],
+      ['cash', 0.1, 'settled'],
+      ['online', 0.15, 'pending'],
+    ];
+    const tips = await existing('/tips?limit=100');
+    const [allocations, settlements, cashTipMovements] = await Promise.all([
+      existing('/tip-allocations?limit=100'),
+      existing('/tip-settlements?limit=100'),
+      existing('/cash-tip-movements?limit=100'),
+    ]);
+    const activeShift = unwrapItem(await request('GET', '/cash-shifts/active').catch(() => null));
+    const cashDrawerId = idOf(activeShift?.cashDrawerId ?? activeShift?.cashDrawer);
+    for (const [i, order] of tipped.slice(0, TIPS.length).entries()) {
+      const [method, rate, status] = TIPS[i];
+      const amount = Math.round(total(order) * rate);
+      const tip = await ensure(`propina ${method} pedido #${order.id}: ${amount}`, '/tips?limit=1', () => false, '/tips', {
+        companyId: company,
+        merchantId,
+        orderId: order.id,
+        amount,
+        method,
+        status,
+      }, tips.find((t) => idOf(t.orderId ?? t.order) === order.id));
+      if (!tip || tip.id < 0 || status === 'pending') continue;
+
+      // Reparto 70/30 entre el mesero y el bartender del turno.
+      for (const [collaborator, role, percentage] of [[waiter, 'waiter', 70], [bartender, 'bartender', 30]]) {
+        if (!collaborator) continue;
+        await ensure(`  reparto ${percentage}% a ${collaborator.name}`, '/tip-allocations?limit=1', () => false, '/tip-allocations', {
+          tipId: tip.id,
+          collaboratorId: collaborator.id,
+          shiftId: shift.id,
+          role,
+          percentage,
+          amount: Math.round((amount * percentage) / 100),
+        }, allocations.find((a) => idOf(a.tipId ?? a.tip) === tip.id && idOf(a.collaboratorId ?? a.collaborator) === collaborator.id));
+      }
+      if (method === 'cash' && cashDrawerId) {
+        await ensure(`  entrada de propina a caja`, '/cash-tip-movements?limit=1', () => false, '/cash-tip-movements', {
+          cashDrawerId,
+          tipId: tip.id,
+          movementType: 'in',
+          amount,
+        }, cashTipMovements.find((m) => idOf(m.tipId ?? m.tip) === tip.id));
+      }
+      if (status === 'settled' && waiter) {
+        await ensure(`  liquidación a ${waiter.name}`, '/tip-settlements?limit=1', () => false, '/tip-settlements', {
+          collaboratorId: waiter.id,
+          shiftId: shift.id,
+          totalAmount: Math.round(amount * 0.7),
+          settlementMethod: 'cash',
+          settledBy: adminUserId,
+        }, settlements.find((s) => idOf(s.collaboratorId ?? s.collaborator) === waiter.id && idOf(s.shiftId ?? s.shift) === shift.id));
+      }
+    }
+    return ctx;
+  },
+
+  async recipes(ctx) {
+    console.log('\nRecetas: insumos por plato');
+    const [products, supplies, recipes] = await Promise.all([
+      existing('/products?limit=100'),
+      existing('/v1/inventory/raw-materials?limit=100'),
+      existing('/v1/recipes?limit=100'),
+    ]);
+    const RECIPES = [
+      ['Burger X7', [['Carne molida vacuno', 180], ['Queso cheddar', 40]]],
+      ['Lomo a lo pobre', [['Lomo vetado', 250]]],
+      ['Risotto de hongos', [['Arroz arbóreo', 120], ['Leche entera', 80]]],
+      ['Leche asada', [['Leche entera', 150]]],
+      ['Limonada menta jengibre', [['Limón', 2]]],
+      ['Pisco sour', [['Limón', 1]]],
+    ];
+    for (const [productName, lines] of RECIPES) {
+      const product = products.find(byName(productName));
+      if (!product) continue;
+      const recipeLines = lines
+        .map(([name, quantity]) => {
+          const supply = supplies.find(byName(name));
+          return supply && { raw_material_id: supply.id, quantity, unit_of_measure: supply.consumption_unit ?? supply.unit };
+        })
+        .filter(Boolean);
+      if (recipeLines.length === 0) {
+        console.log(`  ! receta ${productName}: faltan insumos (ejecuta "supplies")`);
+        continue;
+      }
+      await ensure(`receta ${productName}`, '/v1/recipes?limit=1', () => false, '/v1/recipes', {
+        productId: product.id,
+        name: productName,
+        yieldQuantity: 1,
+        isActive: true,
+        lines: recipeLines,
+      }, recipes.find((r) => idOf(r.finishedProductId ?? r.finishedProduct) === product.id));
+    }
+    return ctx;
+  },
+
+  async movements(ctx) {
+    console.log('\nInventario: merma y traspaso entre bodegas');
+    // El inventario inicial ya deja un movimiento de entrada por insumo (área "supplies").
+    const [items, locations, movements] = await Promise.all([
+      existing('/v1/raw-material-stock/items?limit=100'),
+      existing('/v1/raw-material-stock/locations?limit=100'),
+      existing('/v1/raw-material-stock/movements?limit=100'),
+    ]);
+    const item = (supplyName) => items.find((i) => (i.supply?.name ?? '') === supplyName && Number(i.currentQty) > 0);
+    const cold = locations.find(byName('Cámara de frío'));
+    const MOVES = [
+      ['DEMO-MERMA-01', 'Limón', 12, 'OUT', 'WASTE', 'Merma: limones en mal estado'],
+      ['DEMO-MERMA-02', 'Leche entera', 1000, 'OUT', 'WASTE', 'Merma: leche vencida'],
+      ['DEMO-TRASP-01', 'Arroz arbóreo', 2000, 'TRANSFER', 'TRANSFER', 'Traspaso a cámara de frío para la línea'],
+    ];
+    for (const [reference, supplyName, quantity, type, movementType, reason] of MOVES) {
+      const stockItem = item(supplyName);
+      if (!stockItem) {
+        console.log(`  ! ${reference}: sin stock de ${supplyName} (ejecuta "supplies")`);
+        continue;
+      }
+      await ensure(`${reference} ${supplyName} ${quantity}`, '/v1/raw-material-stock/movements?limit=1', () => false, '/v1/raw-material-stock/movements', {
+        stockItemId: stockItem.id,
+        quantity,
+        type,
+        movementType,
+        reason,
+        reference,
+        sourceLocationId: idOf(stockItem.location),
+        ...(type === 'TRANSFER' && cold ? { destinationLocationId: cold.id } : {}),
+      }, movements.find((m) => m.reference === reference));
+    }
+    return ctx;
+  },
+
+  async tableassignments(ctx) {
+    console.log('\nSalón: mesas asignadas a los meseros en el turno en curso');
+    const [tables, shifts, collaborators, current] = await Promise.all([
+      existing('/tables?limit=100'),
+      existing('/shifts?limit=100'),
+      existing('/collaborators?limit=100'),
+      existing('/table-assignments?limit=100'),
+    ]);
+    const waiters = collaborators.filter((c) => c.role === 'waiter');
+    const dining = tables.filter((t) => /^T\d+$/.test(String(t.number))).sort((a, b) => String(a.number).localeCompare(String(b.number), undefined, { numeric: true }));
+    // El backend admite una sola asignación abierta (sin releasedAt) por mesa y la fecha de
+    // asignación es siempre "ahora": se asigna el almuerzo de hoy o, pasadas las 17:00, la cena.
+    const hour = new Date().getHours() < 17 ? 11 : 18;
+    const shift = shifts.find((s) => new Date(s.startTime ?? s.start_time).getTime() === new Date(at(0, hour)).getTime());
+    if (!shift || waiters.length === 0) {
+      console.log('  (sin turno de hoy o sin meseros: ejecuta también "staff" y "shifts")');
+      return ctx;
+    }
+    // El salón se divide en dos, una mitad por mesero.
+    for (const [i, table] of dining.entries()) {
+      const waiter = waiters[Math.floor((i * waiters.length) / dining.length)];
+      await ensure(`mesa ${table.number} → ${waiter.name} (${hour}:00)`, '/table-assignments?limit=1', () => false, '/table-assignments', {
+        shiftId: shift.id,
+        tableId: table.id,
+        collaboratorId: waiter.id,
+        status: 'active',
+      }, current.find((a) => idOf(a.tableId ?? a.table) === table.id && !(a.releasedAt ?? a.released_at)));
+    }
+    return ctx;
+  },
+
+  async kdsdevices(ctx) {
+    console.log('\nCocina: una pantalla KDS por estación');
+    const stations = await existing('/kitchen-station?limit=100');
+    for (const [i, station] of stations.entries()) {
+      const deviceIdentifier = `DEMO-KDS-${String(station.stationType ?? station.name).toUpperCase()}`;
+      await ensure(`pantalla ${station.name}`, '/kitchen-display-devices?limit=100', (d) => d.deviceIdentifier === deviceIdentifier, '/kitchen-display-devices', {
+        stationId: station.id,
+        name: `Pantalla ${station.name}`,
+        deviceIdentifier,
+        ipAddress: `192.168.1.${101 + i}`,
+        isOnline: true,
+        lastSync: new Date().toISOString(),
+        status: 'active',
+      });
+    }
     return ctx;
   },
 };
