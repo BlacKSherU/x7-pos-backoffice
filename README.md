@@ -66,7 +66,11 @@ invoices, payments, allocations, credit note), `accounting` (journal entries), `
 `payroll`, `onlineorders`, `deliveryorders`, `rules` (payroll, overtime and tip rules),
 `contracts`, `cashtransactions`, `tipdistribution` (tips, allocations, settlement, cash tip
 movement, pool members), `recipes`, `movements` (waste and a transfer), `tableassignments`,
-`kdsdevices`. Dates are relative to today, so a run on a later day adds the shifts, time entries,
+`kdsdevices`, `onlinemenu` (online menu categories and items), `onlinepayments` (payments and
+delivery info of online orders), `reservationdetails` (guests and notes), `orderdetails`
+(modifiers, VAT and payments of table orders), `receipts`, `cashmovements` (shift expense and
+inflow), `kitchenevents`, `deliverytracking`, `payrolldetails` (health contribution, bonuses and
+deductions). Dates are relative to today, so a run on a later day adds the shifts, time entries,
 payroll period and tip pool of that day. Table assignments go to today's current shift (lunch, or
 dinner after 17:00): the backend allows a single open assignment per table.
 
@@ -75,6 +79,8 @@ Known requirements of the backend:
 - The schema must be up to date (`npm run migration:run` in the backend).
 - Onboarding does not create the company subscription; the demo one was inserted by SQL (plan
   Executive, one year). Without it every call answers 402.
+- `receipts` fails with 500 until the backend sets `merchant_id` when creating a receipt
+  (`receipts.service.ts`).
 - `cash` needs the admin's collaborator profile, which `staff` creates: on a fresh database run
   `--only=staff` first, then the full script.
 

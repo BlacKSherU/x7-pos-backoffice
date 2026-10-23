@@ -998,7 +998,34 @@ const AREAS = {
         });
       }
     }
-    await ensure('nota de crédito NC-201 Distribuidora Andes', '/supplier-credit-notes?limit=100', (n) => n.credit_note_number === 'NC-201', '/supplier-credit-notes', {
+    // Los pagos anteriores ya están contabilizados y no admiten ítems: el de la factura pendiente
+    // queda en borrador (pago programado) con su ítem.
+    const pending = INVOICES.find(([, , , , , status]) => status === 'pending');
+    if (pending) {
+      const [invoice_number, supplierName, issued, , items] = pending;
+      const subtotal = items.reduce((sum, [, qty, price]) => sum + qty * price, 0);
+      const amount = subtotal + Math.round(subtotal * 0.19);
+      const payment_number = `P-${invoice_number.slice(2)}`;
+      const payment = await ensure(`  pago programado ${payment_number} (borrador)`, '/supplier-payments?limit=100', (p) => p.payment_number === payment_number, '/supplier-payments', {
+        company_id,
+        supplier_id: supplier(supplierName),
+        payment_number,
+        payment_date: day(issued + 25),
+        payment_method: 'transfer',
+        reference: `Transferencia programada ${payment_number}`,
+        total_amount: amount,
+        status: 'draft',
+      });
+      if (payment && payment.id > 0 && payment.status === 'draft') {
+        await ensure(`  ítem de pago ${invoice_number}`, '/supplier-payment-items?limit=100', (r) => idOf(r.payment_id ?? r.payment) === payment.id, '/supplier-payment-items', {
+          payment_id: payment.id,
+          document_type: 'invoice',
+          document_number: invoice_number,
+          amount,
+        });
+      }
+    }
+    await ensure('nota de crédito NC-201 Distribuidora Andes','/supplier-credit-notes?limit=100', (n) => n.credit_note_number === 'NC-201', '/supplier-credit-notes', {
       company_id,
       supplier_id: supplier('Distribuidora Andes'),
       credit_note_number: 'NC-201',
@@ -1562,6 +1589,330 @@ const AREAS = {
         lastSync: new Date().toISOString(),
         status: 'active',
       });
+    }
+    return ctx;
+  },
+
+  // ---- Fase 5 ----
+
+  async onlinemenu(ctx) {
+    console.log('\nVenta online: categorías y platos de la Carta principal');
+    const [menus, categories, products, menuCategories, menuItems] = await Promise.all([
+      existing('/online-menus?limit=100'),
+      existing('/category?limit=100'),
+      existing('/products?limit=100'),
+      existing('/online-menu-categories?limit=100'),
+      existing('/online-menu-items?limit=100'),
+    ]);
+    const menu = menus.find(byName('Carta principal'));
+    if (!menu) {
+      console.log('  (sin menú online: ejecuta también el área "online")');
+      return ctx;
+    }
+    const inMenu = (r) => idOf(r.menuId ?? r.menu) === menu.id;
+    for (const [displayOrder, name] of ['Entradas', 'Platos de fondo', 'Postres', 'Bebidas'].entries()) {
+      const category = categories.find(byName(name));
+      if (!category) continue;
+      await ensure(`categoría online ${name}`, '/online-menu-categories?limit=1', () => false, '/online-menu-categories', {
+        menuId: menu.id,
+        categoryId: category.id,
+        displayOrder,
+      }, menuCategories.find((c) => inMenu(c) && idOf(c.categoryId ?? c.category) === category.id));
+    }
+    // Todos los platos, con un precio online algo mayor en los de fondo (comisión de la app);
+    // el lomo aparece agotado.
+    for (const [displayOrder, product] of products.filter((p) => String(p.sku ?? '').startsWith('DEMO-')).entries()) {
+      const main = String(product.sku).startsWith('DEMO-FON');
+      await ensure(`plato online ${product.name}`, '/online-menu-items?limit=1', () => false, '/online-menu-items', {
+        menuId: menu.id,
+        productId: product.id,
+        isAvailable: product.name !== 'Lomo a lo pobre',
+        priceOverride: main ? Number(product.basePrice) + 1000 : null,
+        displayOrder,
+      }, menuItems.find((i) => inMenu(i) && idOf(i.productId ?? i.product) === product.id));
+    }
+    return ctx;
+  },
+
+  async onlinepayments(ctx) {
+    console.log('\nVenta online: pagos y datos de despacho de los pedidos');
+    const [orders, customers, payments, deliveries] = await Promise.all([
+      existing('/online-orders?limit=100'),
+      existing('/customers?limit=100'),
+      existing('/online-payments?limit=100'),
+      existing('/online-delivery-info?limit=100'),
+    ]);
+    const forOrder = (order) => (r) => idOf(r.onlineOrderId ?? r.onlineOrder) === order.id;
+    for (const order of orders.filter((o) => /^Pedido WEB-/.test(o.notes ?? ''))) {
+      const ref = order.notes.slice('Pedido '.length);
+      const paid = order.paymentStatus === 'paid';
+      await ensure(`pago ${ref} (${order.paymentStatus})`, '/online-payments?limit=1', () => false, '/online-payments', {
+        onlineOrderId: order.id,
+        paymentProvider: 'webpay',
+        transactionId: `DEMO-WP-${ref}`,
+        amount: Number(order.totalAmount ?? 0),
+        status: order.paymentStatus,
+        processedAt: paid ? order.placedAt : null,
+      }, payments.find(forOrder(order)));
+      if (order.type !== 'delivery') continue;
+      const customer = customers.find((c) => c.id === idOf(order.customerId ?? order.customer));
+      await ensure(`despacho ${ref}`, '/online-delivery-info?limit=1', () => false, '/online-delivery-info', {
+        onlineOrderId: order.id,
+        customerName: customer?.name ?? 'Cliente demo',
+        address: customer?.address ?? 'Av. Italia 1450, depto. 302',
+        city: 'Santiago',
+        phone: customer?.phone ?? '+56 9 5555 0101',
+        deliveryInstructions: 'Tocar el timbre del depto.; no usar el citófono',
+      }, deliveries.find(forOrder(order)));
+    }
+    return ctx;
+  },
+
+  async reservationdetails(ctx) {
+    console.log('\nReservas: invitados y notas del personal');
+    const [reservations, customers, notes] = await Promise.all([
+      existing('/reservation?limit=100'),
+      existing('/customers?limit=100'),
+      existing('/reservation-note?limit=100'),
+    ]);
+    const COMPANIONS = ['Pablo Reyes', 'Antonia Castro', 'Sebastián Lagos'];
+    const NOTES = ['Cliente frecuente: ofrecer la mesa de siempre', 'Celebra cumpleaños, preparar postre con vela', 'Alergia a frutos secos', 'Llega con coche de bebé', 'Pidió confirmar por WhatsApp'];
+    for (const [i, reservation] of reservations.filter((r) => r.merchant_id === merchantId).entries()) {
+      const customer = customers.find((c) => c.id === reservation.customer_id);
+      const guests = reservation.guests ?? [];
+      // El titular (el cliente) y un acompañante por cada dos comensales adicionales.
+      const people = [
+        customer && { name: customer.name, email: customer.email, phone: customer.phone, is_primary: true },
+        ...COMPANIONS.slice(0, Math.floor((reservation.party_size - 1) / 2)).map((name) => ({ name, is_primary: false })),
+      ].filter(Boolean);
+      for (const person of people) {
+        await ensure(`  invitado ${person.name} (reserva ${reservation.id})`, '/reservation-guest?limit=1', () => false, '/reservation-guest', {
+          reservation_id: reservation.id,
+          ...person,
+          // El DTO exige formato internacional (IsPhoneNumber).
+          phone: person.phone?.replace(/[^\d+]/g, '') || undefined,
+        }, guests.find((g) => g.name === person.name));
+      }
+      const note = NOTES[i % NOTES.length];
+      await ensure(`  nota "${note}"`, '/reservation-note?limit=1', () => false, '/reservation-note', {
+        reservation_id: reservation.id,
+        note,
+        created_by: adminUserId,
+      }, notes.find((n) => n.reservation_id === reservation.id && n.note === note));
+    }
+    return ctx;
+  },
+
+  async orderdetails(ctx) {
+    console.log('\nVentas: modificadores, IVA y pagos de los pedidos de mesa');
+    const activeShift = unwrapItem(await request('GET', '/cash-shifts/active').catch(() => null));
+    const collaboratorId = idOf(activeShift?.openedByCollaborator ?? activeShift?.openedBy);
+    if (!collaboratorId) {
+      console.log('  ! sin turno de caja abierto: ejecuta también el área "cash"');
+      return ctx;
+    }
+    const [orders, orderItems, modifiers, itemModifiers, taxes, payments, tips] = await Promise.all([
+      existing('/orders?limit=100'),
+      existing('/order-item?limit=100'),
+      existing('/modifiers?limit=100'),
+      existing('/order-item-modifiers?limit=100'),
+      existing('/order-taxes?limit=100'),
+      existing('/order-payments?limit=100'),
+      existing('/tips?limit=100'),
+    ]);
+    const byOrder = (order) => (r) => idOf(r.orderId ?? r.order_id ?? r.order) === order.id;
+
+    // Las Burger llevan extra queso y una sin cebolla.
+    const burgers = orderItems.filter((i) => i.product?.name === 'Burger X7');
+    for (const [i, item] of burgers.entries()) {
+      for (const name of i === 0 ? ['Extra queso', 'Sin cebolla'] : ['Extra queso']) {
+        const modifier = modifiers.find(byName(name));
+        if (!modifier) continue;
+        await ensure(`  ${name} en Burger (ítem ${item.id})`, '/order-item-modifiers?limit=1', () => false, '/order-item-modifiers', {
+          orderItemId: item.id,
+          modifierId: modifier.id,
+          price: Number(modifier.priceDelta),
+        }, itemModifiers.find((m) => idOf(m.orderItemId ?? m.orderItem) === item.id && idOf(m.modifierId ?? m.modifier) === modifier.id));
+      }
+    }
+
+    // El backend suma los impuestos del pedido al total (trata los precios como netos).
+    for (const order of orders) {
+      const subtotal = Number(order.subtotal ?? 0);
+      if (subtotal <= 0) continue;
+      await ensure(`IVA pedido #${order.id}`, '/order-taxes?limit=1', () => false, '/order-taxes', {
+        orderId: order.id,
+        name: 'IVA 19%',
+        rate: 19,
+        amount: Math.round(subtotal * 0.19),
+      }, taxes.find((t) => byOrder(order)(t) && t.name === 'IVA 19%'));
+    }
+
+    // Se pagan los pedidos con propina con tarjeta o efectivo (fase 4); el resto queda abierto.
+    // Un pago completo descuenta el stock según las recetas y libera la mesa.
+    const refreshed = await existing('/orders?limit=100');
+    for (const order of refreshed.filter((o) => o.source === 'pos')) {
+      const tip = tips.find(byOrder(order));
+      if (!tip || !['card', 'cash'].includes(tip.method)) continue;
+      const amount = Number(order.balanceDue ?? order.total);
+      await ensure(`pago ${tip.method} pedido #${order.id}: ${amount} + propina ${tip.amount}`, '/order-payments?limit=1', () => false, '/order-payments', {
+        orderId: order.id,
+        collaboratorId,
+        amount,
+        method: tip.method,
+        provider: tip.method === 'card' ? 'transbank' : undefined,
+        reference: `DEMO-PAGO-${order.orderNumber ?? order.id}`,
+        tipAmount: Number(tip.amount),
+        source: 'pos',
+        shiftId: activeShift.id,
+      }, payments.find(byOrder(order)) ?? (order.isPaid ? order : undefined));
+    }
+    return ctx;
+  },
+
+  async receipts(ctx) {
+    console.log('\nBoletas de los pedidos pagados');
+    const [orders, orderItems, receipts] = await Promise.all([
+      existing('/orders?limit=100'),
+      existing('/order-item?limit=100'),
+      existing('/receipts?limit=100'),
+    ]);
+    for (const order of orders.filter((o) => o.isPaid)) {
+      const found = receipts.find((r) => idOf(r.orderId ?? r.order_id ?? r.order) === order.id);
+      const receipt = await ensure(`boleta pedido #${order.id}`, '/receipts?limit=1', () => false, '/receipts', {
+        orderId: order.id,
+        type: 'RECEIPT',
+        currency: 'CLP',
+        fiscalData: JSON.stringify({ rut: DEMO_COMPANY.rut, folio: 1000 + order.id, tipoDte: 39 }),
+      }, found);
+      // Ítems e impuesto solo al crearla, para no repetirlos en cada ejecución.
+      if (!receipt || receipt.id < 0 || found) continue;
+      for (const item of orderItems.filter((i) => idOf(i.orderId ?? i.order) === order.id)) {
+        await ensure(`  ${item.quantity}x ${item.product?.name}`, '/receipt-items?limit=1', () => false, '/receipt-items', {
+          receiptId: receipt.id,
+          name: item.product?.name ?? 'Ítem',
+          sku: item.product?.sku,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.price),
+          discountAmount: Number(item.discount ?? 0),
+        });
+      }
+      const subtotal = Number(order.subtotal ?? 0);
+      await ensure('  IVA 19%', '/receipt-taxes?limit=1', () => false, '/receipt-taxes', {
+        receiptId: receipt.id,
+        name: 'IVA 19%',
+        rate: 19,
+        amount: Number(order.taxTotal ?? Math.round(subtotal * 0.19)),
+        scope: 'RECEIPT',
+      });
+    }
+    return ctx;
+  },
+
+  async cashmovements(ctx) {
+    console.log('\nCaja: egreso e ingreso manuales del turno abierto');
+    const shift = unwrapItem(await request('GET', '/cash-shifts/active').catch(() => null));
+    if (!shift?.id) {
+      console.log('  ! sin turno de caja abierto: ejecuta también el área "cash"');
+      return ctx;
+    }
+    // Pese al nombre, este listado trae todos los movimientos del turno (egresos e ingresos).
+    const movements = await existing(`/cash-shifts/${shift.id}/expenses`);
+    for (const [kind, amount, reason] of [
+      ['expenses', 8000, 'Compra de hielo (demo)'],
+      ['inflows', 20000, 'Fondo de sencillo (demo)'],
+    ]) {
+      await ensure(`${kind === 'expenses' ? 'egreso' : 'ingreso'} ${amount}: ${reason}`, '/cash-shifts?limit=1', () => false, `/cash-shifts/${shift.id}/${kind}`, {
+        amount,
+        reason,
+      }, movements.find((m) => m.reason === reason));
+    }
+    return ctx;
+  },
+
+  async kitchenevents(ctx) {
+    console.log('\nCocina: bitácora de eventos de las comandas');
+    const [kitchenOrders, events] = await Promise.all([existing('/kitchen-orders?limit=100'), existing('/kitchen-event-logs?limit=100')]);
+    // Cada comanda registra su inicio; las terminadas, también listo y servido.
+    const offset = (iso, minutes) => new Date(new Date(iso).getTime() + minutes * 60_000).toISOString();
+    for (const order of kitchenOrders.filter((o) => (o.merchantId ?? merchantId) === merchantId)) {
+      const started = order.startedAt ?? order.createdAt;
+      const steps = [['inicio', started, 0]];
+      if (order.businessStatus === 'completed') steps.push(['listo', started, 12], ['servido', started, 15]);
+      if (order.businessStatus === 'cancelled') steps.push(['cancelado', order.cancelledAt ?? started, 0]);
+      for (const [eventType, base, minutes] of steps) {
+        await ensure(`  ${eventType} comanda #${order.id} (${order.notes ?? ''})`, '/kitchen-event-logs?limit=1', () => false, '/kitchen-event-logs', {
+          kitchenOrderId: order.id,
+          stationId: order.stationId,
+          userId: adminUserId,
+          eventType,
+          eventTime: offset(base, minutes),
+          message: `Comanda ${order.notes ?? order.id}: ${eventType}`,
+        }, events.find((e) => idOf(e.kitchenOrderId ?? e.kitchenOrder) === order.id && e.eventType === eventType));
+      }
+    }
+    return ctx;
+  },
+
+  async deliverytracking(ctx) {
+    console.log('\nDelivery: ruta del repartidor hacia el cliente');
+    const [assignments, points] = await Promise.all([existing('/delivery-assignment?limit=100'), existing('/delivery-tracking?limit=100')]);
+    // Del local (Av. Providencia 1234) a Av. Nueva Providencia 2155, un punto cada 3 minutos.
+    const ROUTE = [
+      [-33.426318, -70.617012],
+      [-33.424901, -70.614388],
+      [-33.423377, -70.611505],
+      [-33.421934, -70.608710],
+      [-33.420912, -70.606627],
+    ];
+    for (const assignment of assignments.filter((a) => a.status === 'active')) {
+      if (points.some((p) => idOf(p.deliveryAssignment ?? p.delivery_assignment) === assignment.id)) {
+        stats.existing += 1;
+        console.log(`  = ruta de la asignación ${assignment.id} (ya existe)`);
+        continue;
+      }
+      for (const [i, [latitude, longitude]] of ROUTE.entries()) {
+        await ensure(`  punto ${i + 1} (${latitude}, ${longitude})`, '/delivery-tracking?limit=1', () => false, '/delivery-tracking', {
+          deliveryAssignment: assignment.id,
+          latitude,
+          longitude,
+          recorded_at: new Date(Date.now() - (ROUTE.length - 1 - i) * 3 * 60_000).toISOString(),
+          status: 'active',
+        });
+      }
+    }
+    return ctx;
+  },
+
+  async payrolldetails(ctx) {
+    console.log('\nRemuneraciones: cotizaciones, bonos y descuentos de la liquidación');
+    const [entries, collaborators, taxes, adjustments] = await Promise.all([
+      existing('/payroll-entries?limit=100'),
+      existing('/collaborators?limit=100'),
+      existing('/payroll-tax-details?limit=100'),
+      existing('/payroll-adjustments?limit=100'),
+    ]);
+    const forEntry = (entry) => (r) => idOf(r.payroll_entry_id ?? r.payrollEntry) === entry.id;
+    for (const entry of entries) {
+      const collaborator = collaborators.find((c) => c.id === entry.collaborator_id);
+      // El 7% que descuenta la liquidación corresponde a la cotización de salud.
+      await ensure(`  salud 7% ${collaborator?.name ?? entry.id}`, '/payroll-tax-details?limit=1', () => false, '/payroll-tax-details', {
+        payroll_entry_id: entry.id,
+        tax_type: 'Salud (Fonasa)',
+        percentage: 7,
+        amount: Number(entry.tax_total),
+      }, taxes.find(forEntry(entry)));
+      // Bono a los meseros por la meta de ventas y un anticipo descontado al cocinero.
+      const adjustment =
+        collaborator?.role === 'waiter' ? ['bonus', 25000] : collaborator?.role === 'cook' && collaborator.name.startsWith('Valentina') ? ['deduction', 50000] : null;
+      if (!adjustment) continue;
+      const [adjustment_type, amount] = adjustment;
+      await ensure(`  ${adjustment_type} ${amount} ${collaborator.name}`, '/payroll-adjustments?limit=1', () => false, '/payroll-adjustments', {
+        payroll_entry_id: entry.id,
+        adjustment_type,
+        // El backend exige los descuentos en negativo.
+        amount: adjustment_type === 'deduction' ? -amount : amount,
+      }, adjustments.find(forEntry(entry)));
     }
     return ctx;
   },
