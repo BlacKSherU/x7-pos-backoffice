@@ -1,0 +1,47 @@
+import React from 'react';
+import { QuickLaunchPanel, type QuickLaunchAction } from '@/shared/components/QuickLaunchPanel';
+
+export type HrAnchorKey = 'collaborators' | 'contracts' | 'time-entries';
+
+interface HrQuickLinksProps {
+  active: HrAnchorKey;
+  onNavigate?: (view: string) => void;
+}
+
+// Each anchor maps to featureId that MerchantFrame resolves via onNavigate.
+const HR_ANCHORS: Array<{ key: HrAnchorKey; label: string; featureId: string }> = [
+  { key: 'collaborators', label: 'COLLABORATORS DATABASE', featureId: 'collaborators' },
+  {
+    key: 'contracts',
+    label: 'COLLABORATOR CONTRACTS',
+    featureId: 'collaborators-contracts',
+  },
+  {
+    key: 'time-entries',
+    label: 'TIME ENTRIES CONTROL',
+    featureId: 'collaborators-time-entries',
+  },
+];
+
+// Same shared dashboard used by Dining System and Accounts Payable: the active workspace is
+// rendered highlighted and non-clickable so user always knows current location.
+export const HrQuickLinks: React.FC<HrQuickLinksProps> = ({ active, onNavigate }) => {
+  const actions: QuickLaunchAction[] = HR_ANCHORS.map((anchor) => ({
+    id: anchor.featureId,
+    label: anchor.label,
+    active: anchor.key === active,
+    onClick: () => onNavigate?.(anchor.featureId),
+  }));
+
+  return (
+    <nav aria-label="Human resources workspace shortcuts">
+      <QuickLaunchPanel
+        title="Human Resources"
+        description="Jump across the HR workspaces — the collaborator database, their contracts, and time entry control."
+        actions={actions}
+      />
+    </nav>
+  );
+};
+
+export default HrQuickLinks;

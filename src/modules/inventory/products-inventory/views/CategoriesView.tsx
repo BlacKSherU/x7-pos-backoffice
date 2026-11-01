@@ -1,0 +1,881 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { CatalogQuickLinks } from '@/modules/inventory/products-inventory/views/CatalogQuickLinks';
+import { InventoryNavHubBar } from '@/modules/inventory/shared/InventoryNavHubBar';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
+import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
+import { EmergencySupportModal } from '@/shared/components/QuickActionModals';
+import { apiRequest } from '@/shared/api/http';
+
+interface Category {
+  id: string;
+  name: string;
+  type: 'Root Category' | 'Sub-Category';
+  parentId: string;
+  linkedProducts: number;
+  status: 'Active' | 'Inactive';
+}
+
+interface CategoriesViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filters state
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('All Status');
+  const [categoryPillFilter, setCategoryPillFilter] = useState<'ALL' | 'ROOT' | 'SUB'>('ALL');
+
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+
+  // Table options state
+  const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    name: true,
+    parent: true,
+    products: true,
+    status: true,
+    actions: true,
+  });
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+
+  // Modal Form Fields
+  const [formName, setFormName] = useState<string>('');
+  const [formParent, setFormParent] = useState<string>('NULL');
+  const [formStatus, setFormStatus] = useState<'Active' | 'Inactive'>('Active');
+  const [formLinkedProducts, setFormLinkedProducts] = useState<number>(0);
+  const [isSupportOpen, setIsSupportOpen] = useState<boolean>(false);
+  // State for activation/deactivation confirmation modal
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
+  const [confirmTargetCategory, setConfirmTargetCategory] = useState<Category | null>(null);
+  const [isToggling, setIsToggling] = useState<boolean>(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  const topRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll at startup when mounting view
+  useEffect(() => {
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'instant' });
+    }
+  }, []);
+
+  const fetchCategories = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    setIsRefreshing(true);
+    setError(null);
+    try {
+      const [categoriesJson, productsJson] = await Promise.all([
+        apiRequest<{ data?: { id: number | string; name: string; parents?: { id: number | string }[]; isActive?: boolean }[] }>('/category?limit=100', { method: 'GET' }, 'Error loading data from server'),
+        apiRequest<{ data?: { category?: { id: number | string } }[] }>('/products?limit=100', { method: 'GET' }, 'Error loading data from server'),
+      ]);
+
+      const categoriesData = categoriesJson.data || [];
+      const productsData = productsJson.data || [];
+
+      // Map to local interface format
+      const mapped: Category[] = categoriesData.map((cat: { id: number | string; name: string; parents?: { id: number | string }[]; isActive?: boolean }) => {
+        const firstParent = cat.parents?.[0];
+        const hasParent = firstParent !== undefined;
+        const parentId = firstParent ? String(firstParent.id) : 'NULL';
+        const type = hasParent ? 'Sub-Category' : 'Root Category';
+        
+        // Contar productos vinculados
+        const linkedProducts = productsData.filter((p: { category?: { id: number | string } }) => p.category?.id === cat.id).length;
+
+        return {
+          id: String(cat.id),
+          name: cat.name,
+          type,
+          parentId,
+          linkedProducts,
+          status: cat.isActive !== false ? 'Active' : 'Inactive',
+        };
+      });
+
+      setCategories(mapped);
+    } catch (err: unknown) {
+      console.error('Error fetching categories:', err);
+      if (!silent) {
+        setError('Failed to load categories. Please check if the backend is running.');
+      }
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      fetchCategories(false);
+    });
+  }, [fetchCategories]);
+
+  // Periodic Auto Refresh Effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const timer = setInterval(() => {
+      void fetchCategories(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(timer);
+  }, [autoRefreshInterval, fetchCategories]);
+
+  const categoryCounts = useMemo(() => {
+    const all = categories.length;
+    const active = categories.filter((c) => c.status === 'Active').length;
+    const inactive = categories.filter((c) => c.status === 'Inactive').length;
+    const root = categories.filter((c) => c.type === 'Root Category').length;
+    const sub = categories.filter((c) => c.type === 'Sub-Category').length;
+    return { all, active, inactive, root, sub };
+  }, [categories]);
+
+  const handleExportCSV = () => {
+    if (filteredCategories.length === 0) return;
+    const headers = ['ID', 'Name', 'Type', 'Parent ID', 'Linked Products', 'Status'];
+    const rows = filteredCategories.map(c => [c.id, `"${c.name.replace(/"/g, '""')}"`, c.type, c.parentId, c.linkedProducts, c.status]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `categories_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
+
+  const handlePrintTable = () => { window.print(); };
+
+  const handleCopySummary = () => {
+    const active = filteredCategories.filter(c => c.status === 'Active').length;
+    navigator.clipboard.writeText(`Product Categories: ${filteredCategories.length} total, ${active} active, ${filteredCategories.length - active} inactive.`);
+  };
+
+  // Reactive list filtering and ordering (Active first, Inactive last)
+  const filteredCategories = useMemo(() => {
+    return categories
+      .filter((cat) => {
+        const matchesSearch =
+          cat.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          cat.id.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        const matchesStatus = statusFilter === 'All Status' || cat.status === statusFilter;
+
+        let matchesPill = true;
+        if (categoryPillFilter === 'ROOT') matchesPill = cat.type === 'Root Category';
+        else if (categoryPillFilter === 'SUB') matchesPill = cat.type === 'Sub-Category';
+        
+        return matchesSearch && matchesStatus && matchesPill;
+      })
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'Active' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [categories, searchQuery, statusFilter, categoryPillFilter]);
+
+  const totalPages = Math.ceil(filteredCategories.length / pageSize) || 1;
+  const paginatedCategories = filteredCategories.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Open modal to add
+  const handleOpenAddModal = () => {
+    setModalMode('add');
+    setEditingCategoryId(null);
+    setFormName('');
+    setFormParent('NULL');
+    setFormStatus('Active');
+    setFormLinkedProducts(0);
+    setIsModalOpen(true);
+  };
+
+  // Open modal to edit
+  const handleOpenEditModal = (cat: Category) => {
+    setModalMode('edit');
+    setEditingCategoryId(cat.id);
+    setFormName(cat.name);
+    setFormParent(cat.parentId);
+    setFormStatus(cat.status);
+    setFormLinkedProducts(cat.linkedProducts);
+    setIsModalOpen(true);
+  };
+
+  // Toggle category active/inactive quickly
+  const handleToggleActive = (cat: Category) => {
+    setConfirmTargetCategory(cat);
+    setToggleError(null);
+    setIsConfirmModalOpen(true);
+  };
+
+  const executeToggleActive = async () => {
+    if (!confirmTargetCategory) return;
+    setIsToggling(true);
+    setToggleError(null);
+    try {
+      const newIsActive = confirmTargetCategory.status !== 'Active';
+
+      await apiRequest<void>(
+        `/category/${confirmTargetCategory.id}`,
+        { method: 'PATCH', body: JSON.stringify({ isActive: newIsActive }) },
+        'Error updating category status.',
+      );
+      setCategories((prevCategories) =>
+        prevCategories.map((c) =>
+          c.id === confirmTargetCategory.id ? { ...c, status: newIsActive ? 'Active' : 'Inactive' } : c
+        )
+      );
+      setIsConfirmModalOpen(false);
+      setConfirmTargetCategory(null);
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Error updating category status';
+      setToggleError(msg);
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  // Save form (Add or Edit) to backend
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim()) {
+      alert('Please enter a category name.');
+      return;
+    }
+
+    try {
+      const parentIdNum = formParent === 'NULL' ? null : parseInt(formParent);
+      const body = JSON.stringify({
+        name: formName,
+        parentId: parentIdNum,
+        isActive: formStatus === 'Active'
+      });
+
+      if (modalMode === 'add') {
+        await apiRequest<void>('/category', { method: 'POST', body }, 'Error creating category');
+      } else if (modalMode === 'edit' && editingCategoryId) {
+        await apiRequest<void>(
+          `/category/${editingCategoryId}`,
+          { method: 'PATCH', body },
+          'Error updating category',
+        );
+      }
+
+      setIsModalOpen(false);
+      fetchCategories();
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Error saving category';
+      alert(msg);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-6 animate-fade-in text-left">
+      <div ref={topRef} />
+
+      {/* Section Title */}
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              category
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+            Product Categories Hierarchy
+          </h2>
+          </div>
+          <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
+            Organize products into parent and sub-categories to optimize menu layouts, POS sales, and tax tracking.
+          </p>
+        </div>
+      </div>
+
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Auto Refresh & Updated Time on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search categories by name, ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search categories"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchCategories(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh categories now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: TYPES Pills Strip on left, Status Dropdown & Primary Add Button on right */}
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: TYPES Pills Strip */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Types:
+            </span>
+
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setCategoryPillFilter('ALL');
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                categoryPillFilter === 'ALL'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
+            >
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  categoryPillFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {categoryCounts.all}
+              </span>
+            </button>
+
+            {/* Root Categories Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setCategoryPillFilter(categoryPillFilter === 'ROOT' ? 'ALL' : 'ROOT');
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                categoryPillFilter === 'ROOT'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-white text-blue-800 border-blue-200 hover:bg-blue-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">folder</span>
+              <span>ROOT CATEGORIES</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  categoryPillFilter === 'ROOT' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                }`}
+              >
+                {categoryCounts.root}
+              </span>
+            </button>
+
+            {/* Sub-Categories Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setCategoryPillFilter(categoryPillFilter === 'SUB' ? 'ALL' : 'SUB');
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                categoryPillFilter === 'SUB'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">subdirectory_arrow_right</span>
+              <span>SUB-CATEGORIES</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  categoryPillFilter === 'SUB' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {categoryCounts.sub}
+              </span>
+            </button>
+          </div>
+
+          {/* Right: Status Filter & Primary Add Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Status Filter Dropdown */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">tune</span>
+              <select
+                aria-label="Filter by status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs font-semibold focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer"
+              >
+                <option value="All Status">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
+            {/* Primary Add Button */}
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD CATEGORY
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla Principal */}
+      <div className="bg-white border border-[#e8e2d8] overflow-hidden rounded shadow-sm">
+        {(() => {
+          const densityPadding = getDensityPadding(rowDensity);
+          const activeColSpan =
+            (visibleColumns.name ? 1 : 0) +
+            (visibleColumns.parent ? 1 : 0) +
+            (visibleColumns.products ? 1 : 0) +
+            (visibleColumns.status ? 1 : 0) +
+            (visibleColumns.actions ? 1 : 0);
+
+          return (
+            <>
+              <div className="p-4 bg-[#222222] flex justify-between items-center relative">
+                <div className="flex items-center gap-3">
+                  <span className="text-label-caps font-bold text-white uppercase tracking-wider">
+                    CATEGORY HIERARCHY DIRECTORY
+                  </span>
+                  <span className="text-[10px] font-mono font-bold bg-[#333333] text-zinc-300 px-2 py-0.5 rounded border border-[#444444]">
+                    {filteredCategories.length} {filteredCategories.length === 1 ? 'category' : 'categories'}
+                  </span>
+                </div>
+
+                <TableOptionsMenu
+                  onExportCSV={handleExportCSV}
+                  onPrint={handlePrintTable}
+                  onCopySummary={handleCopySummary}
+                  onReload={() => void fetchCategories(false)}
+                  columns={[
+                    { key: 'name', label: 'Category Name' },
+                    { key: 'parent', label: 'Parent ID' },
+                    { key: 'products', label: 'Linked Products' },
+                    { key: 'status', label: 'Status' },
+                    { key: 'actions', label: 'Actions' },
+                  ]}
+                  visibleColumns={visibleColumns}
+                  onToggleColumn={(key) =>
+                    setVisibleColumns((prev) => ({
+                      ...prev,
+                      [key]: !prev[key as keyof typeof visibleColumns],
+                    }))
+                  }
+                  rowDensity={rowDensity}
+                  onChangeDensity={setRowDensity}
+                  totalItems={filteredCategories.length}
+                  pageSize={pageSize}
+                  onChangePageSize={(size) => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                />
+              </div>
+
+              {activeColSpan === 0 ? (
+                <NoColumnsEmptyState />
+              ) : (
+                <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <table className="w-full table-fixed border-collapse font-sans text-xs">
+                    <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
+                      <tr>
+                        {visibleColumns.name && (
+                          <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-auto min-w-[200px]`}>
+                            Category Name
+                          </th>
+                        )}
+                        {visibleColumns.parent && (
+                          <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-36 min-w-[110px]`}>
+                            Parent ID
+                          </th>
+                        )}
+                        {visibleColumns.products && (
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-32 min-w-[100px]`}>
+                            Linked Products
+                          </th>
+                        )}
+                        {visibleColumns.status && (
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-28 min-w-[90px]`}>
+                            Status
+                          </th>
+                        )}
+                        {visibleColumns.actions && (
+                          <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] ${densityPadding} w-28 min-w-[90px]`}>
+                            Actions
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
+                      {isLoading ? (
+                        <tr>
+                          <td colSpan={activeColSpan} className={`text-center text-secondary font-sans bg-white py-12 px-6`}>
+                            <span className="material-symbols-outlined animate-spin text-[#ae001a] text-4xl block mb-2 mx-auto select-none">
+                              sync
+                            </span>
+                            <p className="text-secondary text-body-md mt-2 font-sans">Loading category hierarchy...</p>
+                          </td>
+                        </tr>
+                      ) : error ? (
+                        <tr>
+                          <td colSpan={activeColSpan} className={`text-center text-[#ba1a1a] font-sans bg-white py-12 px-6`}>
+                            <span className="material-symbols-outlined text-[#ba1a1a] text-4xl block mb-2 mx-auto select-none">
+                              error
+                            </span>
+                            <p className="font-bold">{error}</p>
+                            <button
+                              onClick={() => void fetchCategories(false)}
+                              className="mt-4 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-all font-sans cursor-pointer"
+                            >
+                              Retry Connection
+                            </button>
+                          </td>
+                        </tr>
+                      ) : categories.length === 0 ? (
+                        <TableEmptyState
+                          colSpan={activeColSpan}
+                          icon="category"
+                          title="No categories found"
+                          description="Click 'Add Category' to start building your hierarchy."
+                        />
+                      ) : filteredCategories.length === 0 ? (
+                        <TableEmptyState
+                          colSpan={activeColSpan}
+                          icon="category"
+                          title="No categories found"
+                          description="No categories match the selected filter criteria."
+                        />
+                      ) : (
+                        paginatedCategories.map((cat) => {
+                          const isSub = cat.type === 'Sub-Category';
+                          const isInactive = cat.status === 'Inactive';
+                          return (
+                            <tr
+                              key={cat.id}
+                              className={`category-row group transition-colors ${
+                                isInactive ? 'bg-[#f8f3eb]/40 opacity-75' : 'hover:bg-[#f8f3eb]'
+                              }`}
+                            >
+                              {visibleColumns.name && (
+                                <td className={`truncate ${densityPadding} ${isSub ? 'pl-12' : ''}`}>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {isSub && (
+                                      <span className="material-symbols-outlined text-[#5f5e5e]/40 shrink-0">
+                                        subdirectory_arrow_right
+                                      </span>
+                                    )}
+                                    <div className="min-w-0 flex flex-col justify-center">
+                                      <p className={`font-bold text-[#1d1c17] font-sans text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`}>{cat.name}</p>
+                                      <p className={`text-[11px] font-mono font-normal text-[#5f5e5e] truncate mt-0.5 ${isInactive ? 'line-through' : ''}`}>
+                                        {cat.type}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.parent && (
+                                <td className={`font-mono font-normal text-xs text-[#5f5e5e] truncate ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
+                                  {cat.parentId}
+                                </td>
+                              )}
+                              {visibleColumns.products && (
+                                <td className={`text-center ${densityPadding}`}>
+                                  <span className={`bg-[#ece8e0] px-2.5 py-0.5 rounded text-xs font-mono font-normal text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>
+                                    {cat.linkedProducts}
+                                  </span>
+                                </td>
+                              )}
+                              {visibleColumns.status && (
+                                <td className={`text-center whitespace-nowrap ${densityPadding}`}>
+                                  <span
+                                    className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
+                                      cat.status === 'Active'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-zinc-200 text-[#5f5e5e]'
+                                    }`}
+                                  >
+                                    {cat.status}
+                                  </span>
+                                </td>
+                              )}
+                              {visibleColumns.actions && (
+                                <td className={`text-center ${densityPadding}`}>
+                                  <div className="flex justify-center gap-3">
+                                    {cat.status === 'Active' ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleOpenEditModal(cat)}
+                                          className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                          title="Edit category"
+                                        >
+                                          <span className="material-symbols-outlined text-[20px]">edit</span>
+                                        </button>
+                                        <button
+                                          onClick={() => void handleToggleActive(cat)}
+                                          className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                          title="Deactivate category"
+                                        >
+                                          <span className="material-symbols-outlined text-[20px]">block</span>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button
+                                        onClick={() => void handleToggleActive(cat)}
+                                        className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                        title="Activate category"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+        <TablePaginationFooter
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={filteredCategories.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
+      </div>
+
+      {/* Interactive Add / Edit Category Modal */}
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-start overflow-y-auto p-2 md:pt-4 md:pb-12 backdrop-blur-sm">
+          <div className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-md overflow-hidden animate-fade-in max-h-[90vh] flex flex-col">
+            <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
+              <span className="font-bold text-label-caps uppercase tracking-wider">
+                {modalMode === 'add' ? 'Add Product Category' : 'Edit Product Category'}
+              </span>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-white/70 hover:text-white transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleSaveCategory} className="flex-1 flex flex-col min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                  Category Name
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-body-md focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+                  placeholder="e.g., Soft Drinks, Desserts"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="category-parent-select" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                  Parent Category
+                </label>
+                <select
+                  id="category-parent-select"
+                  value={formParent}
+                  onChange={(e) => setFormParent(e.target.value)}
+                  className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-body-md focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+                >
+                  <option value="NULL">None (Root Category)</option>
+                  {categories
+                    .filter((cat) => cat.parentId === 'NULL' && cat.id !== editingCategoryId)
+                    .map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {modalMode === 'edit' && (
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="category-linked-products" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                    Linked Products Count
+                  </label>
+                  <input
+                    id="category-linked-products"
+                    type="number"
+                    value={formLinkedProducts}
+                    onChange={(e) => setFormLinkedProducts(Number(e.target.value))}
+                    className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-body-md focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+                    min="0"
+                  />
+                </div>
+              )}
+
+              </div>
+              <div className="p-6 pt-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0 bg-[#fefbf6]">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-[#222222] text-[#222222] font-bold text-label-caps hover:bg-zinc-100 transition-colors font-sans cursor-pointer"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#d2272f] transition-colors font-sans cursor-pointer"
+                >
+                  SAVE CATEGORY
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <EmergencySupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+      />
+
+      {/* Activation/deactivation confirmation modal */}
+      {isConfirmModalOpen && confirmTargetCategory && (
+        <div className="fixed inset-0 z-[10000] overflow-y-auto flex items-center justify-center p-4 font-sans">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setIsConfirmModalOpen(false)}
+          />
+
+          {/* Modal Box */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 animate-scale-in">
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                confirmTargetCategory.status === 'Active' 
+                  ? 'bg-red-50 border border-red-100 text-[#ae001a]'
+                  : 'bg-emerald-50 border border-emerald-100 text-emerald-600'
+              }`}>
+                <span className="material-symbols-outlined text-2xl block">
+                  {confirmTargetCategory.status === 'Active' ? 'power_settings_new' : 'check_circle'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-body-md font-bold text-zinc-900 font-sans">
+                  {confirmTargetCategory.status === 'Active' ? 'Confirm Deactivation' : 'Confirm Activation'}
+                </h3>
+                <p className="text-body-xs text-zinc-500 leading-relaxed font-sans">
+                  Are you sure you want to {confirmTargetCategory.status === 'Active' ? 'deactivate' : 'activate'} this category? This action will set the status to {confirmTargetCategory.status === 'Active' ? 'inactive' : 'active'}.
+                </p>
+              </div>
+            </div>
+
+            {toggleError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-body-xs font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm block">error</span>
+                <span>{toggleError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="px-4 py-2 text-body-xs font-bold border border-zinc-200 rounded-lg text-zinc-700 hover:bg-zinc-50 transition-all duration-200 cursor-pointer font-sans"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeToggleActive}
+                disabled={isToggling}
+                className={`px-4 py-2 text-white text-body-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 font-sans ${
+                  confirmTargetCategory.status === 'Active'
+                    ? 'bg-red-600 hover:bg-[#ae001a]'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {isToggling ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin block">sync</span>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{confirmTargetCategory.status === 'Active' ? 'Deactivate' : 'Activate'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent Quick Links Hub */}
+      <CatalogQuickLinks current="categories" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="categories" onNavigate={onNavigate} />
+    </div>
+  );
+};
+
+export default CategoriesView;

@@ -1,0 +1,3523 @@
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { NavHubBar } from '@/shared/components/NavHubBar';
+import { HeaderQuickTabs } from '@/shared/components/HeaderQuickTabs';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
+import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
+import { AppModal } from '@/shared/components/AppModal';
+import type { KitchenStationType } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenStationsView';
+import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenQuickLinks';
+import { useKdsCriticalSla } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-sla-config';
+import { KitchenSlaConfigModal } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenSlaConfigModal';
+import { KitchenAllergyModifierPicker } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenAllergyModifierPicker';
+
+const devToolModules = import.meta.glob<{
+  KitchenDevResetButton?: React.ComponentType<{ onResetComplete?: () => void }>;
+}>('./KitchenDevResetButton.tsx', { eager: true });
+const KitchenDevResetButton = devToolModules['./KitchenDevResetButton.tsx']?.KitchenDevResetButton;
+import {
+  enqueueOfflineAction,
+  flushOfflineQueue,
+  isRetryableKdsError,
+  getQueuedActions,
+} from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-offline-sync';
+import { sendStationKeepaliveHeartbeat } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-keepalive';
+import { API_BASE, apiRequest, authHeaders, unwrapList, type MaybeEnvelopedList } from '@/shared/api/http';
+import { ApiError } from '@/shared/lib/api-error';
+
+
+export type KitchenOrderBusinessStatus = 'pending' | 'started' | 'completed' | 'cancelled';
+
+export type KitchenCancellationReason =
+  | 'data_entry_error'
+  | 'customer_complaint'
+  | 'out_of_stock'
+  | 'preparation_delay'
+  | 'other';
+
+export interface KitchenOrderItemLine {
+  id: number;
+  kitchenOrderId: number;
+  orderItemId?: number | null;
+  productId: number;
+  productName: string;
+  variantName?: string | null;
+  quantity: number;
+  preparedQuantity: number;
+  preparationStatus: 'held' | 'pending' | 'in_preparation' | 'ready';
+  course?: 'appetizer' | 'main_course' | 'dessert' | 'beverage';
+  holdUntil?: string | null;
+  firedAt?: string | null;
+  notes?: string | null;
+}
+
+export interface KitchenOrderTicket {
+  id: number;
+  merchantId: number;
+  orderId?: number | null;
+  onlineOrderId?: number | null;
+  stationId?: number | null;
+  stationName?: string | null;
+  priority: number;
+  businessStatus: KitchenOrderBusinessStatus;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: KitchenCancellationReason | null;
+  cancelledByUserId?: number | null;
+  notes?: string | null;
+  status: 'active' | 'deleted';
+  createdAt: string;
+  updatedAt: string;
+  items: KitchenOrderItemLine[];
+}
+
+interface KitchenStationOption {
+  id: number;
+  name: string;
+  stationType?: string;
+  stationNumber?: number;
+  station_number?: number;
+  display_order?: number;
+}
+
+interface KitchenOrdersViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+const CANCELLATION_REASONS: Array<{ value: KitchenCancellationReason; label: string; description: string }> = [
+  {
+    value: 'data_entry_error',
+    label: 'Data Entry Error / Duplicate',
+    description: 'Ticket was registered erroneously or entered multiple times.',
+  },
+  {
+    value: 'customer_complaint',
+    label: 'Customer Request / Changed Order',
+    description: 'Diner requested order cancellation or changed course.',
+  },
+  {
+    value: 'out_of_stock',
+    label: 'Ingredient Out of Stock',
+    description: 'Kitchen ran out of key ingredients needed for this dish.',
+  },
+  {
+    value: 'preparation_delay',
+    label: 'Excessive Kitchen Delay',
+    description: 'Table waited beyond acceptable threshold or station queue overloaded.',
+  },
+  {
+    value: 'other',
+    label: 'Other Operational Incident',
+    description: 'Unspecified kitchen or hardware reason logged in shift report.',
+  },
+];
+
+
+
+const DEFAULT_MENU_PRODUCTS = [
+  'Double Smash Burger',
+  'Caesar Salad with Grilled Chicken',
+  'Pizza Margherita',
+  'Tacos al Pastor (3 pcs)',
+  'California Sushi Roll',
+  'Italian Cappuccino 12oz',
+  'Iced Latte',
+  'Butter Croissant',
+];
+
+const DEFAULT_PRODUCT_VARIANTS: Record<string, string[]> = {
+  'Double Smash Burger': [
+    'With Cheddar Cheese',
+    'Double Meat & Cheese',
+    'With French Fries',
+    'No Onions',
+  ],
+  'Caesar Salad with Grilled Chicken': [
+    'With Grilled Chicken',
+    'With Crispy Chicken',
+    'No Croutons (Gluten Free)',
+  ],
+  'Pizza Margherita': [
+    'Medium 12"',
+    'Large 16"',
+    'Extra Cheese',
+  ],
+  'Tacos al Pastor (3 pcs)': [
+    'Traditional',
+    'With Cheese (Gringas)',
+    'No Pineapple',
+  ],
+  'Al Pastor Tacos (3 pcs)': [
+    'Traditional',
+    'With Cheese (Gringas)',
+    'No Pineapple',
+  ],
+  'California Sushi Roll': [
+    '8-Piece Roll',
+    '12-Piece Roll',
+    'Spicy (Sriracha)',
+  ],
+  'Italian Cappuccino 12oz': [
+    'Medium 12oz',
+    'Large 16oz',
+    'Almond Milk',
+    'Whole Milk',
+  ],
+  'Iced Latte': [
+    'Regular Iced Latte',
+    'Premium Almond Iced Latte',
+  ],
+  'Butter Croissant': [
+    'Plain',
+    'Ham & Cheese Filling',
+    'Chocolate Filled',
+  ],
+};
+
+const suggestCourseForProduct = (productName: string): 'beverage' | 'appetizer' | 'main_course' | 'dessert' => {
+  const p = (productName || '').toLowerCase().trim();
+  if (
+    p.includes('cappuccino') || p.includes('latte') || p.includes('cafe') || p.includes('café') || p.includes('coffee') ||
+    p.includes('espresso') || p.includes('tea') || p.includes('té') || p.includes('chai') || p.includes('beer') ||
+    p.includes('cerveza') || p.includes('vino') || p.includes('wine') || p.includes('soda') ||
+    p.includes('juice') || p.includes('jugo') || p.includes('water') || p.includes('agua') ||
+    p.includes('cocktail') || p.includes('drink') || p.includes('beverage') || p.includes('limonada') ||
+    p.includes('americano') || p.includes('mocha') || p.includes('macchiato') || p.includes('matcha') ||
+    p.includes('frappe') || p.includes('smoothie') || p.includes('licuado') || p.includes('infusion')
+  ) {
+    return 'beverage';
+  }
+  if (
+    p.includes('cake') || p.includes('torta') || p.includes('pastel') || p.includes('helado') ||
+    p.includes('ice cream') || p.includes('dessert') || p.includes('postre') || p.includes('pie') ||
+    p.includes('brownie') || p.includes('cheesecake') || p.includes('croissant') || p.includes('crossaint') ||
+    p.includes('croisant') || p.includes('medialuna') || p.includes('dona') || p.includes('donut') ||
+    p.includes('pastry') || p.includes('cookie') || p.includes('galleta') || p.includes('muffin') ||
+    p.includes('crepe') || p.includes('waffle') || p.includes('tart') || p.includes('tarta') ||
+    p.includes('pan dulce') || p.includes('flan') || p.includes('churro')
+  ) {
+    return 'dessert';
+  }
+  if (
+    p.includes('salad') || p.includes('ensalada') || p.includes('bruschetta') || p.includes('nacho') ||
+    p.includes('soup') || p.includes('sopa') || p.includes('wings') || p.includes('alitas') ||
+    p.includes('calamari') || p.includes('fries') || p.includes('papas') || p.includes('carpaccio') ||
+    p.includes('sushi') || p.includes('roll') || p.includes('appetizer') || p.includes('entrada')
+  ) {
+    return 'appetizer';
+  }
+  if (
+    p.includes('taco') || p.includes('pastor') || p.includes('burger') ||
+    p.includes('pizza') || p.includes('steak') || p.includes('ribeye') ||
+    p.includes('sandwich') || p.includes('pasta') || p.includes('pollo') ||
+    p.includes('chicken') || p.includes('carne') || p.includes('beef') ||
+    p.includes('pescado') || p.includes('fish') || p.includes('asado')
+  ) {
+    return 'main_course';
+  }
+  return 'main_course';
+};
+
+const getItemPrepAction = (course?: string, productName?: string) => {
+  const effectiveCourse = (course && course !== 'main_course')
+    ? course
+    : (productName ? suggestCourseForProduct(productName) : (course || 'main_course'));
+  const isBeverage = effectiveCourse === 'beverage' || (productName && suggestCourseForProduct(productName) === 'beverage');
+
+  if (isBeverage) {
+    return {
+      verb: 'POUR',
+      icon: 'local_bar',
+      title: 'Start pouring (Move to IN PREP)',
+    };
+  }
+
+  return {
+    verb: 'PREP',
+    icon: 'restaurant',
+    title: 'Start preparing (Move to IN PREP)',
+  };
+};
+
+export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate }) => {
+  const [orders, setOrders] = useState<KitchenOrderTicket[]>([]);
+  const [stations, setStations] = useState<KitchenStationOption[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<string[]>(DEFAULT_MENU_PRODUCTS);
+  const [productVariantsMap, setProductVariantsMap] = useState<Record<string, string[]>>(DEFAULT_PRODUCT_VARIANTS);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // Workspace Mode (Live Bump Screen vs Historical Audit Table)
+  const [workspaceMode, setWorkspaceMode] = useState<'bump' | 'audit'>('bump');
+
+  // Multi-Filter Matrix
+  const [selectedStationId, setSelectedStationId] = useState<number | 'ALL'>(() => {
+    const saved = sessionStorage.getItem('kds_selected_station_filter');
+    if (saved) {
+      sessionStorage.removeItem('kds_selected_station_filter');
+      return saved === 'ALL' ? 'ALL' : Number(saved) || 'ALL';
+    }
+    return 'ALL';
+  });
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    const saved = sessionStorage.getItem('kds_orders_search_query');
+    if (saved) {
+      sessionStorage.removeItem('kds_orders_search_query');
+      return saved;
+    }
+    return '';
+  });
+  const [datePreset, setDatePreset] = useState<'all' | 'today' | 'last24h' | 'last7d' | 'custom'>('all');
+  const [startTime, setStartTime] = useState<string>('');
+  const [endTime, setEndTime] = useState<string>('');
+
+  const handlePresetChange = (preset: 'all' | 'today' | 'last24h' | 'last7d' | 'custom') => {
+    setDatePreset(preset);
+    setCurrentPage(1);
+    const now = new Date();
+    const toDateInputString = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    if (preset === 'all') {
+      setStartTime('');
+      setEndTime('');
+    } else if (preset === 'today') {
+      const todayStr = toDateInputString(now);
+      setStartTime(todayStr);
+      setEndTime(todayStr);
+    } else if (preset === 'last24h') {
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      setStartTime(toDateInputString(yesterday));
+      setEndTime(toDateInputString(now));
+    } else if (preset === 'last7d') {
+      const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      setStartTime(toDateInputString(last7Days));
+      setEndTime(toDateInputString(now));
+    }
+  };
+  const [cancellationFilter, setCancellationFilter] = useState<'ALL' | KitchenCancellationReason>('ALL');
+
+  // Table options
+  const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    orderRef: true,
+    stationPriority: true,
+    items: true,
+    lifecycleStatus: true,
+    createdTimestamp: true,
+    startedDelay: false,
+    completedPrepTime: false,
+    cancellationAudit: false,
+    actions: true,
+  });
+
+  // Cancellation Modal
+  const [cancellingTicket, setCancellingTicket] = useState<KitchenOrderTicket | null>(null);
+  const [selectedReason, setSelectedReason] = useState<KitchenCancellationReason>('data_entry_error');
+  const [cancellationNotes, setCancellationNotes] = useState<string>('');
+  const [cancelSubmitting, setCancelSubmitting] = useState<boolean>(false);
+
+  const handleToggleStatus = (statusKey: string) => {
+    if (statusKey === 'ALL') {
+      setSelectedStatuses([]);
+      setCancellationFilter('ALL');
+    } else {
+      setSelectedStatuses(prev => {
+        const next = prev.includes(statusKey)
+          ? prev.filter(s => s !== statusKey)
+          : [...prev, statusKey];
+        if (!next.includes('cancelled')) {
+          setCancellationFilter('ALL');
+        }
+        return next;
+      });
+    }
+    setCurrentPage(1);
+  };
+
+  // Detail Inspection Modal (Audit Trail & Line-Items)
+  const [inspectingTicket, setInspectingTicket] = useState<KitchenOrderTicket | null>(null);
+
+  // Create Order Modal State
+  const [criticalSlaMinutes] = useKdsCriticalSla();
+  const [isSlaModalOpen, setIsSlaModalOpen] = useState<boolean>(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [formStationId, setFormStationId] = useState<string>('');
+  const [formPriority, setFormPriority] = useState<number>(0);
+  const [formOrderId, setFormOrderId] = useState<string>('');
+  const [formNotes, setFormNotes] = useState<string>('');
+  const [formItems, setFormItems] = useState<
+    Array<{
+      productName: string;
+      variantName: string;
+      quantity: number;
+      course: 'beverage' | 'appetizer' | 'main_course' | 'dessert';
+      notes: string;
+      isCustomProduct?: boolean;
+      isCustomVariant?: boolean;
+    }>
+  >([
+    { productName: '', variantName: '', quantity: 1, course: 'main_course', notes: '' }
+  ]);
+  const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Recall last bumped order
+  const [lastBumpedOrder, setLastBumpedOrder] = useState<KitchenOrderTicket | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'warning' } | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+
+  // Offline Resilience
+  const [isOffline, setIsOffline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? !navigator.onLine : false,
+  );
+  const [, setQueuedActionsCount] = useState<number>(0);
+  const [, setIsSyncing] = useState<boolean>(false);
+
+  // Real-time clock for elapsed second counters
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Toast auto-hide
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 4500);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
+  const showToast = (text: string, type: 'success' | 'info' | 'warning' = 'success') => {
+    setToastMessage({ text, type });
+  };
+
+  // The server judged and refused the action (4xx): show why instead of queueing it offline.
+  const reportRejectedAction = (err: unknown) => {
+    if (err instanceof ApiError && err.status === 401) return; // already redirecting to login
+    showToast(err instanceof Error ? err.message : 'Action rejected by the server', 'warning');
+  };
+
+  // 1. Fetch stations & products catalog
+  useEffect(() => {
+    const fetchStations = async () => {
+      try {
+        const data = await apiRequest<MaybeEnvelopedList<Record<string, unknown>>>(
+          '/kitchen-station?status=active&limit=100',
+          { method: 'GET' },
+          'Failed to load kitchen stations.',
+        );
+        const rawList = unwrapList(data);
+        setStations(
+          rawList.map((s) => ({
+            id: Number(s.id),
+            name: String(s.name || ''),
+            stationType: (s.stationType || s.station_type) as KitchenStationType | undefined,
+            stationNumber: Number(s.stationNumber ?? s.station_number ?? s.displayOrder ?? s.display_order ?? s.id),
+            station_number: Number(s.station_number ?? s.stationNumber ?? s.display_order ?? s.displayOrder ?? s.id),
+          }))
+        );
+      } catch {
+        // ignore error
+      }
+    };
+
+    const fetchProducts = async () => {
+      try {
+        type Row = Record<string, unknown>;
+        const optionalList = (path: string) =>
+          apiRequest<MaybeEnvelopedList<Row>>(path, { method: 'GET' }, '')
+            .then((json) => unwrapList(json))
+            .catch(() => null);
+        const [prodList, varList] = await Promise.all([
+          optionalList('/products?limit=150'),
+          optionalList('/variants?limit=200'),
+        ]);
+
+        const newMap: Record<string, string[]> = { ...DEFAULT_PRODUCT_VARIANTS };
+        const productNames: string[] = [];
+
+        if (prodList) {
+          prodList.forEach((p) => {
+            if (p?.name && typeof p.name === 'string' && p.name.trim().length > 0) {
+              productNames.push(p.name);
+              if (Array.isArray(p.variants) && p.variants.length > 0) {
+                const varNames = (p.variants as Record<string, unknown>[])
+                  .map((v) => v.name)
+                  .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
+                if (varNames.length > 0) {
+                  newMap[p.name] = Array.from(new Set([...(newMap[p.name] || []), ...varNames]));
+                }
+              }
+            }
+          });
+        }
+
+        if (varList) {
+          varList.forEach((v) => {
+            const pName = (v.product as Record<string, unknown> | undefined)?.name;
+            if (typeof pName === 'string' && typeof v.name === 'string') {
+              if (!newMap[pName]) {
+                newMap[pName] = [];
+              }
+              if (!newMap[pName].includes(v.name)) {
+                newMap[pName].push(v.name);
+              }
+            }
+          });
+        }
+
+        if (productNames.length > 0) {
+          setCatalogProducts(Array.from(new Set([...productNames, ...DEFAULT_MENU_PRODUCTS])));
+        }
+        setProductVariantsMap(newMap);
+      } catch {
+        // keep default catalog products
+      }
+    };
+
+    fetchStations();
+    fetchProducts();
+  }, []);
+
+  // 2. Fetch all orders
+  const loadOrders = useCallback(async (isBackground = false, isSilent = false) => {
+    if (!isBackground && !isSilent) setLoading(true);
+    setIsRefreshing(true);
+    setLoadError(null);
+    try {
+      const params = new URLSearchParams({
+        limit: '100',
+        page: '1',
+        sortBy: 'createdAt',
+        sortOrder: 'ASC',
+      });
+
+      const resData = await apiRequest<MaybeEnvelopedList<Record<string, unknown>>>(
+        `/kitchen-orders?${params.toString()}`,
+        { method: 'GET' },
+        'Failed to load orders',
+      );
+      const rawOrders = unwrapList(resData);
+
+      const parsedOrders: KitchenOrderTicket[] = rawOrders.map((o) => ({
+        id: Number(o.id),
+        merchantId: Number(o.merchantId || o.merchant_id),
+        orderId: (o.orderId || o.order_id || null) as number | null,
+        onlineOrderId: (o.onlineOrderId || o.online_order_id || null) as number | null,
+        stationId: (o.stationId || o.station_id || (o.station as Record<string, unknown> | undefined)?.id || null) as number | null,
+        stationName: (o.stationName || (o.station as Record<string, unknown> | undefined)?.name || null) as string | null,
+        priority: Number(o.priority ?? 0),
+        businessStatus: (o.businessStatus || o.business_status || 'pending') as KitchenOrderBusinessStatus,
+        startedAt: (o.startedAt || o.started_at || null) as string | null,
+        completedAt: (o.completedAt || o.completed_at || null) as string | null,
+        cancelledAt: (o.cancelledAt || o.cancelled_at || null) as string | null,
+        cancellationReason: (o.cancellationReason || o.cancellation_reason || null) as KitchenCancellationReason | null,
+        cancelledByUserId: (o.cancelledByUserId || o.cancelled_by_user_id || null) as number | null,
+        notes: (o.notes || null) as string | null,
+        status: (o.status || 'active') as 'active' | 'deleted',
+        createdAt: String(o.createdAt || o.created_at || new Date().toISOString()),
+        updatedAt: String(o.updatedAt || o.updated_at || new Date().toISOString()),
+        items: ((o.kitchenOrderItems as Record<string, unknown>[]) || []).map((it) => ({
+          id: Number(it.id),
+          kitchenOrderId: Number(it.kitchenOrderId || it.kitchen_order_id || o.id),
+          orderItemId: (it.orderItemId || it.order_item_id || null) as number | null,
+          productId: Number(it.productId || it.product_id || (it.product as Record<string, unknown> | undefined)?.id),
+          productName: String((it.product as Record<string, unknown> | undefined)?.name || it.productName || 'Dish Item'),
+          variantName: ((it.variant as Record<string, unknown> | undefined)?.name || it.variantName || null) as string | null,
+          quantity: Number(it.quantity ?? 1),
+          preparedQuantity: Number(it.preparedQuantity ?? it.prepared_quantity ?? 0),
+          preparationStatus: (it.preparationStatus || it.preparation_status || 'pending') as KitchenOrderItemLine['preparationStatus'],
+          course: (it.course || undefined) as KitchenOrderItemLine['course'],
+          holdUntil: (it.holdUntil || it.hold_until || null) as string | null,
+          firedAt: (it.firedAt || it.fired_at || null) as string | null,
+          notes: (it.notes || null) as string | null,
+        })),
+      }));
+
+      setOrders(parsedOrders);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Error syncing kitchen orders';
+      setLoadError(message);
+      showToast(message, 'warning');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      loadOrders(false, true);
+    });
+  }, [loadOrders]);
+
+  // Polling interval
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const timer = setInterval(() => loadOrders(true), autoRefreshInterval * 1000);
+    return () => clearInterval(timer);
+  }, [autoRefreshInterval, loadOrders]);
+
+  // Listen to global KDS reset event
+  useEffect(() => {
+    const handleReset = () => {
+      loadOrders(true);
+    };
+    window.addEventListener('x7_kds_data_reset', handleReset);
+    return () => window.removeEventListener('x7_kds_data_reset', handleReset);
+  }, [loadOrders]);
+
+  // Flush offline queue upon reconnection
+  const triggerAutoSync = useCallback(async () => {
+    try {
+      const queued = await getQueuedActions();
+      if (queued.length === 0) {
+        setQueuedActionsCount(0);
+        return;
+      }
+      setIsSyncing(true);
+      const res = await flushOfflineQueue();
+      setIsSyncing(false);
+      if (res.success && res.syncedCount > 0) {
+        showToast(`Synchronized ${res.syncedCount} offline actions with server`, 'success');
+      }
+      if (res.ignored.length > 0) {
+        // The screen applied these optimistically: tell the cook and reload the real state.
+        showToast(
+          `${res.ignored.length} offline action(s) were rejected by the server and have been reverted`,
+          'warning',
+        );
+      }
+      if (res.success && (res.syncedCount > 0 || res.ignored.length > 0)) {
+        loadOrders(true);
+      }
+      const remaining = await getQueuedActions();
+      setQueuedActionsCount(remaining.length);
+    } catch (err) {
+      console.warn('Auto re-sync error in KitchenOrdersView:', err);
+      setIsSyncing(false);
+    }
+  }, [loadOrders]);
+
+  // Online/offline network monitor and heartbeat ping
+  useEffect(() => {
+    getQueuedActions()
+      .then((q) => setQueuedActionsCount(q.length))
+      .catch(() => {});
+
+    const handleOnline = () => {
+      setIsOffline(false);
+      void triggerAutoSync();
+    };
+
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const pingTimer = setInterval(async () => {
+      if (!navigator.onLine) {
+        setIsOffline(true);
+        return;
+      }
+      try {
+        // Raw fetch on purpose: a connectivity probe with its own 2s timeout, not a business call.
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${API_BASE}/kitchen-event-logs/ping`, {
+          signal: controller.signal,
+          headers: authHeaders(),
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+          setIsOffline((wasOffline) => {
+            if (wasOffline) void triggerAutoSync();
+            return false;
+          });
+        }
+      } catch {
+        setIsOffline(true);
+      }
+    }, 3000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(pingTimer);
+    };
+  }, [triggerAutoSync]);
+
+  // Station keepalive: immediate heartbeat on mount and every 15 seconds
+  useEffect(() => {
+    void sendStationKeepaliveHeartbeat('ALL');
+    const keepaliveTimer = setInterval(() => {
+      void sendStationKeepaliveHeartbeat('ALL');
+    }, 15000);
+    return () => clearInterval(keepaliveTimer);
+  }, []);
+
+  // Station Filtered pool for KPI metrics
+  const stationOrders = useMemo(() => {
+    if (selectedStationId === 'ALL') return orders;
+    return orders.filter(o => o.stationId === selectedStationId);
+  }, [orders, selectedStationId]);
+
+  // Real-time calculation: Average Preparation Time (completed_at - created_at)
+  const avgPreparationTime = useMemo(() => {
+    const completedList = stationOrders.filter(
+      o => o.businessStatus === 'completed' && o.completedAt && o.createdAt
+    );
+    if (completedList.length === 0) {
+      return { formatted: '--', rawSeconds: 0, isBottleneck: false };
+    }
+
+    let totalDurationSeconds = 0;
+    completedList.forEach(o => {
+      const startMs = new Date(o.createdAt).getTime();
+      const endMs = new Date(o.completedAt!).getTime();
+      const durationSec = Math.max(0, Math.floor((endMs - startMs) / 1000));
+      totalDurationSeconds += durationSec;
+    });
+
+    const avgSec = Math.round(totalDurationSeconds / completedList.length);
+    const mins = Math.floor(avgSec / 60);
+    const secs = avgSec % 60;
+    const formatted = `${mins}m ${secs.toString().padStart(2, '0')}s`;
+    const isBottleneck = avgSec > 15 * 60; // > 15 minutes bottleneck
+    return { formatted, rawSeconds: avgSec, isBottleneck, count: completedList.length };
+  }, [stationOrders]);
+
+  // Counts for KPI Strip
+  const activeOrdersCount = useMemo(
+    () => stationOrders.filter(o => o.businessStatus === 'pending' || o.businessStatus === 'started').length,
+    [stationOrders]
+  );
+  const completedOrdersCount = useMemo(
+    () => stationOrders.filter(o => o.businessStatus === 'completed').length,
+    [stationOrders]
+  );
+  const cancelledOrdersCount = useMemo(
+    () => stationOrders.filter(o => o.businessStatus === 'cancelled').length,
+    [stationOrders]
+  );
+
+  // Real-time status counts for filter pills (Event Log Image 1 style)
+  const statusCounts = useMemo(() => {
+    return {
+      all: stationOrders.length,
+      pending: stationOrders.filter(o => o.businessStatus === 'pending').length,
+      started: stationOrders.filter(o => o.businessStatus === 'started').length,
+      completed: stationOrders.filter(o => o.businessStatus === 'completed').length,
+      cancelled: stationOrders.filter(o => o.businessStatus === 'cancelled').length,
+    };
+  }, [stationOrders]);
+
+  // Multi-Filter Matrix Evaluation
+  const filteredOrders = useMemo(() => {
+    let result = stationOrders;
+
+    // 1. Status Filter (Multi-select)
+    if (selectedStatuses.length > 0) {
+      result = result.filter(o => selectedStatuses.includes(o.businessStatus));
+    }
+
+    // 2. Cancellation Reason Filter (Audit)
+    if (cancellationFilter !== 'ALL') {
+      result = result.filter(
+        o => o.businessStatus === 'cancelled' && o.cancellationReason === cancellationFilter
+      );
+    }
+
+    // 3. Date Range Filter
+    if (startTime) {
+      const s = startTime.includes('T')
+        ? new Date(startTime).getTime()
+        : new Date(`${startTime}T00:00:00`).getTime();
+      if (!isNaN(s)) {
+        result = result.filter(o => new Date(o.createdAt).getTime() >= s);
+      }
+    }
+    if (endTime) {
+      const e = endTime.includes('T')
+        ? new Date(endTime).getTime()
+        : new Date(`${endTime}T23:59:59.999`).getTime();
+      if (!isNaN(e)) {
+        result = result.filter(o => new Date(o.createdAt).getTime() <= e);
+      }
+    }
+
+    // 4. Universal Search Input
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(o => {
+        const idMatch = `#ko-${o.id}`.toLowerCase().includes(q) || String(o.id).includes(q);
+        const ordMatch = o.orderId ? `#ord-${o.orderId}`.toLowerCase().includes(q) : false;
+        const onlMatch = o.onlineOrderId ? `#onl-${o.onlineOrderId}`.toLowerCase().includes(q) : false;
+        const notesMatch = o.notes ? o.notes.toLowerCase().includes(q) : false;
+        const stationMatch = o.stationName ? o.stationName.toLowerCase().includes(q) : false;
+        const itemsMatch = o.items.some(
+          it =>
+            it.productName.toLowerCase().includes(q) ||
+            (it.variantName && it.variantName.toLowerCase().includes(q)) ||
+            (it.notes && it.notes.toLowerCase().includes(q))
+        );
+        return idMatch || ordMatch || onlMatch || notesMatch || stationMatch || itemsMatch;
+      });
+    }
+
+    // 5. Dynamic Sorting:
+    // Tier 1: Active Orders (started / pending) -> Prioridad más alta por delante, y a igual prioridad orden de llegada (FIFO)
+    // Tier 2: Completed Orders (completed / ready) -> Después de las órdenes activas
+    // Tier 3: Cancelled Orders (cancelled) -> DE ÚLTIMO al final de la tabla
+    const getStatusTier = (status: KitchenOrderBusinessStatus | string): number => {
+      switch (status) {
+        case 'started':
+        case 'pending':
+          return 1;
+        case 'completed':
+        case 'ready':
+          return 2;
+        case 'cancelled':
+          return 3;
+        default:
+          return 4;
+      }
+    };
+
+    const activeOrders: KitchenOrderTicket[] = [];
+    const completedOrders: KitchenOrderTicket[] = [];
+    const cancelledOrders: KitchenOrderTicket[] = [];
+
+    result.forEach((o) => {
+      const tier = getStatusTier(o.businessStatus);
+      if (tier === 1) activeOrders.push(o);
+      else if (tier === 2) completedOrders.push(o);
+      else cancelledOrders.push(o);
+    });
+
+    // 1. Órdenes activas: mayor prioridad por delante (priority DESC), luego más antiguas (FIFO)
+    activeOrders.sort((a, b) => {
+      const pDiff = (b.priority ?? 0) - (a.priority ?? 0);
+      if (pDiff !== 0) return pDiff;
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return a.id - b.id;
+    });
+
+    // 2. Órdenes completadas: después de activas
+    completedOrders.sort((a, b) => {
+      const timeA = new Date(a.completedAt || a.createdAt).getTime();
+      const timeB = new Date(b.completedAt || b.createdAt).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return b.id - a.id;
+    });
+
+    // 3. Órdenes canceladas: AL FINAL DE TODO (de último)
+    cancelledOrders.sort((a, b) => {
+      const timeA = new Date(a.cancelledAt || a.createdAt).getTime();
+      const timeB = new Date(b.cancelledAt || b.createdAt).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return b.id - a.id;
+    });
+
+    return [...activeOrders, ...completedOrders, ...cancelledOrders];
+  }, [stationOrders, selectedStatuses, cancellationFilter, startTime, endTime, searchQuery]);
+
+  // Paginated records for table view
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
+  const activeColSpan = Object.values(visibleColumns).filter(Boolean).length;
+  const densityPadding = `${getDensityPadding(rowDensity)} !px-3`;
+
+  // Actions with full Offline Queue support
+  const handleStartPrep = async (order: KitchenOrderTicket) => {
+    const nowIso = new Date().toISOString();
+    const applyOptimisticStart = () => {
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === order.id
+            ? {
+                ...o,
+                businessStatus: 'started',
+                startedAt: nowIso,
+                items: o.items.map(it => ({
+                  ...it,
+                  preparationStatus:
+                    it.preparationStatus === 'held' || it.preparationStatus === 'pending'
+                      ? 'in_preparation'
+                      : it.preparationStatus,
+                })),
+              }
+            : o
+        )
+      );
+    };
+
+    if (isOffline || !navigator.onLine) {
+      applyOptimisticStart();
+      for (const it of order.items) {
+        if (it.preparationStatus === 'held' || it.preparationStatus === 'pending') {
+          await enqueueOfflineAction({
+            actionType: 'UPDATE_ITEM_STATUS',
+            kitchenOrderId: order.id,
+            kitchenOrderItemId: it.id,
+            status: 'in_preparation',
+            clientTimestamp: nowIso,
+          });
+        }
+      }
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${order.id} started`, 'info');
+      return;
+    }
+
+    try {
+      await apiRequest<void>(
+        `/kitchen-orders/${order.id}`,
+        { method: 'PUT', body: JSON.stringify({ businessStatus: 'started' }) },
+        'Failed to start order',
+      );
+      applyOptimisticStart();
+      showToast(`Order #KO-${order.id} started`, 'info');
+    } catch (err) {
+      if (!isRetryableKdsError(err)) {
+        reportRejectedAction(err);
+        return;
+      }
+      console.warn('Network start failed, enqueuing offline:', err);
+      setIsOffline(true);
+      applyOptimisticStart();
+      for (const it of order.items) {
+        if (it.preparationStatus === 'held' || it.preparationStatus === 'pending') {
+          await enqueueOfflineAction({
+            actionType: 'UPDATE_ITEM_STATUS',
+            kitchenOrderId: order.id,
+            kitchenOrderItemId: it.id,
+            status: 'in_preparation',
+            clientTimestamp: nowIso,
+          });
+        }
+      }
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${order.id} started`, 'info');
+    }
+  };
+
+  // Handle Undo on the overall order (revert to PENDING after START)
+  const handleUndoOrder = async (order: KitchenOrderTicket) => {
+    const applyOptimisticUndo = () => {
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === order.id
+            ? {
+                ...o,
+                businessStatus: 'pending',
+                startedAt: null,
+                items: o.items.map(it => {
+                  const isStagedCourse = it.course === 'dessert' || it.course === 'main_course';
+                  return {
+                    ...it,
+                    preparationStatus: isStagedCourse ? 'held' : 'pending',
+                    preparedQuantity: 0,
+                  };
+                }),
+              }
+            : o
+        )
+      );
+    };
+
+    if (isOffline || !navigator.onLine) {
+      applyOptimisticUndo();
+      for (const it of order.items) {
+        const isStagedCourse = it.course === 'dessert' || it.course === 'main_course';
+        await enqueueOfflineAction({
+          actionType: 'UPDATE_ITEM_STATUS',
+          kitchenOrderId: order.id,
+          kitchenOrderItemId: it.id,
+          status: isStagedCourse ? 'held' : 'pending',
+          preparedQuantity: 0,
+          clientTimestamp: new Date().toISOString(),
+        });
+      }
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${order.id} reverted to pending`, 'info');
+      return;
+    }
+
+    try {
+      await apiRequest<void>(
+        `/kitchen-orders/${order.id}`,
+        { method: 'PUT', body: JSON.stringify({ businessStatus: 'pending' }) },
+        'Failed to revert order to pending',
+      );
+      showToast(`Order #KO-${order.id} reverted to pending`, 'info');
+      loadOrders(true);
+    } catch (err) {
+      if (!isRetryableKdsError(err)) {
+        reportRejectedAction(err);
+        return;
+      }
+      console.warn('Network undo failed, enqueuing offline:', err);
+      setIsOffline(true);
+      applyOptimisticUndo();
+      for (const it of order.items) {
+        const isStagedCourse = it.course === 'dessert' || it.course === 'main_course';
+        await enqueueOfflineAction({
+          actionType: 'UPDATE_ITEM_STATUS',
+          kitchenOrderId: order.id,
+          kitchenOrderItemId: it.id,
+          status: isStagedCourse ? 'held' : 'pending',
+          preparedQuantity: 0,
+          clientTimestamp: new Date().toISOString(),
+        });
+      }
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${order.id} reverted to pending`, 'info');
+    }
+  };
+
+  // Handle START on an individual item (when order has > 1 items)
+  const handleStartItem = async (orderId: number, itemId: number, currentPrepStatus: string) => {
+    const applyOptimisticStartItem = () => {
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === orderId
+            ? {
+                ...o,
+                businessStatus: o.businessStatus === 'pending' ? 'started' : o.businessStatus,
+                items: o.items.map(it =>
+                  it.id === itemId
+                    ? { ...it, preparationStatus: 'in_preparation' }
+                    : it
+                ),
+              }
+            : o
+        )
+      );
+    };
+
+    if (isOffline || !navigator.onLine) {
+      applyOptimisticStartItem();
+      await enqueueOfflineAction({
+        actionType: currentPrepStatus === 'held' ? 'FIRE_ITEM' : 'UPDATE_ITEM_STATUS',
+        kitchenOrderId: orderId,
+        kitchenOrderItemId: itemId,
+        status: 'in_preparation',
+        clientTimestamp: new Date().toISOString(),
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Dish started`, 'info');
+      return;
+    }
+
+    try {
+      if (currentPrepStatus === 'held') {
+        await apiRequest<void>(
+          `/kitchen-order-items/${itemId}/fire`,
+          { method: 'POST' },
+          'Failed to fire item',
+        );
+      } else {
+        await apiRequest<void>(
+          `/kitchen-order-items/${itemId}`,
+          { method: 'PUT', body: JSON.stringify({ preparationStatus: 'in_preparation' }) },
+          'Failed to start item',
+        );
+      }
+
+      showToast(`Dish started`, 'info');
+      loadOrders(true);
+    } catch (err) {
+      if (!isRetryableKdsError(err)) {
+        reportRejectedAction(err);
+        return;
+      }
+      console.warn('Network item start failed, enqueuing offline:', err);
+      setIsOffline(true);
+      applyOptimisticStartItem();
+      await enqueueOfflineAction({
+        actionType: currentPrepStatus === 'held' ? 'FIRE_ITEM' : 'UPDATE_ITEM_STATUS',
+        kitchenOrderId: orderId,
+        kitchenOrderItemId: itemId,
+        status: 'in_preparation',
+        clientTimestamp: new Date().toISOString(),
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Dish started`, 'info');
+    }
+  };
+
+  // Handle READY on an individual item
+  const handleReadyItem = async (orderId: number, itemId: number, quantity: number) => {
+    const targetOrder = orders.find(o => o.id === orderId);
+    const willAllBeReady = targetOrder
+      ? targetOrder.items.length > 0 && targetOrder.items.every(it => it.id === itemId || it.preparationStatus === 'ready')
+      : false;
+
+    const applyOptimisticReadyItem = () => {
+      setOrders(prev =>
+        prev.map(o => {
+          if (o.id !== orderId) return o;
+          const updatedItems = o.items.map(it =>
+            it.id === itemId
+              ? { ...it, preparationStatus: 'ready' as const, preparedQuantity: quantity }
+              : it
+          );
+          const allItemsReady = updatedItems.length > 0 && updatedItems.every(it => it.preparationStatus === 'ready');
+          return {
+            ...o,
+            businessStatus: allItemsReady ? ('completed' as const) : o.businessStatus,
+            completedAt: allItemsReady ? new Date().toISOString() : o.completedAt,
+            items: updatedItems,
+          };
+        })
+      );
+    };
+
+    if (isOffline || !navigator.onLine) {
+      applyOptimisticReadyItem();
+      await enqueueOfflineAction({
+        actionType: 'UPDATE_ITEM_STATUS',
+        kitchenOrderId: orderId,
+        kitchenOrderItemId: itemId,
+        status: 'ready',
+        preparedQuantity: quantity,
+        clientTimestamp: new Date().toISOString(),
+      });
+      if (willAllBeReady) {
+        await enqueueOfflineAction({
+          actionType: 'BUMP_ORDER',
+          kitchenOrderId: orderId,
+          stationId: targetOrder?.stationId ?? undefined,
+          clientTimestamp: new Date().toISOString(),
+        });
+      }
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(willAllBeReady ? `Order #KO-${orderId} bumped` : `Dish ready`, 'success');
+      return;
+    }
+
+    try {
+      await apiRequest<void>(
+        `/kitchen-order-items/${itemId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            preparationStatus: 'ready',
+            preparedQuantity: quantity,
+          }),
+        },
+        'Failed to mark item ready',
+      );
+      showToast(willAllBeReady ? `Order #KO-${orderId} bumped` : `Dish ready`, 'success');
+      loadOrders(true);
+    } catch (err) {
+      if (!isRetryableKdsError(err)) {
+        reportRejectedAction(err);
+        return;
+      }
+      console.warn('Network ready item failed, enqueuing offline:', err);
+      setIsOffline(true);
+      applyOptimisticReadyItem();
+      await enqueueOfflineAction({
+        actionType: 'UPDATE_ITEM_STATUS',
+        kitchenOrderId: orderId,
+        kitchenOrderItemId: itemId,
+        status: 'ready',
+        preparedQuantity: quantity,
+        clientTimestamp: new Date().toISOString(),
+      });
+      if (willAllBeReady) {
+        await enqueueOfflineAction({
+          actionType: 'BUMP_ORDER',
+          kitchenOrderId: orderId,
+          stationId: targetOrder?.stationId ?? undefined,
+          clientTimestamp: new Date().toISOString(),
+        });
+      }
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(willAllBeReady ? `Order #KO-${orderId} bumped` : `Dish ready`, 'success');
+    }
+  };
+
+  // Handle UNDO on an individual item (after start)
+  const handleUndoItem = async (
+    orderId: number,
+    itemId: number,
+    currentPrepStatus: string,
+    course?: string
+  ) => {
+    const isStagedCourse = course === 'dessert' || course === 'main_course';
+    const targetStatus = currentPrepStatus === 'ready' ? 'in_preparation' : isStagedCourse ? 'held' : 'pending';
+    const targetQty = currentPrepStatus === 'ready' ? undefined : 0;
+
+    const applyOptimisticUndoItem = () => {
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === orderId
+            ? {
+                ...o,
+                items: o.items.map(it =>
+                  it.id === itemId
+                    ? {
+                        ...it,
+                        preparationStatus: targetStatus as KitchenOrderItemLine['preparationStatus'],
+                        preparedQuantity: targetQty ?? it.preparedQuantity,
+                      }
+                    : it
+                ),
+              }
+            : o
+        )
+      );
+    };
+
+    if (isOffline || !navigator.onLine) {
+      applyOptimisticUndoItem();
+      await enqueueOfflineAction({
+        actionType: 'UPDATE_ITEM_STATUS',
+        kitchenOrderId: orderId,
+        kitchenOrderItemId: itemId,
+        status: targetStatus,
+        preparedQuantity: targetQty,
+        clientTimestamp: new Date().toISOString(),
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Dish reverted`, 'info');
+      return;
+    }
+
+    try {
+      if (currentPrepStatus === 'ready') {
+        // Ready -> in_preparation
+        await apiRequest<void>(
+          `/kitchen-order-items/${itemId}`,
+          { method: 'PUT', body: JSON.stringify({ preparationStatus: 'in_preparation' }) },
+          'Failed to undo ready',
+        );
+      } else {
+        // in_preparation -> held or pending
+        if (isStagedCourse) {
+          await apiRequest<void>(
+            `/kitchen-order-items/${itemId}/hold?holdMinutes=10`,
+            { method: 'POST' },
+            'Failed to hold item',
+          );
+        } else {
+          await apiRequest<void>(
+            `/kitchen-order-items/${itemId}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({
+                preparationStatus: 'pending',
+                preparedQuantity: 0,
+              }),
+            },
+            'Failed to revert item',
+          );
+        }
+      }
+
+      showToast(`Dish reverted`, 'info');
+      loadOrders(true);
+    } catch (err) {
+      if (!isRetryableKdsError(err)) {
+        reportRejectedAction(err);
+        return;
+      }
+      console.warn('Network item undo failed, enqueuing offline:', err);
+      setIsOffline(true);
+      applyOptimisticUndoItem();
+      await enqueueOfflineAction({
+        actionType: 'UPDATE_ITEM_STATUS',
+        kitchenOrderId: orderId,
+        kitchenOrderItemId: itemId,
+        status: targetStatus,
+        preparedQuantity: targetQty,
+        clientTimestamp: new Date().toISOString(),
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Dish reverted`, 'info');
+    }
+  };
+
+  const handleBumpOrder = async (order: KitchenOrderTicket) => {
+    const nowIso = new Date().toISOString();
+    const updatedItems = (order.items || []).map(it => ({
+      ...it,
+      preparationStatus: 'ready' as const,
+      preparedQuantity: it.quantity,
+    }));
+
+    const applyOptimisticBump = () => {
+      setLastBumpedOrder({
+        ...order,
+        businessStatus: 'completed',
+        completedAt: nowIso,
+        items: updatedItems,
+      });
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === order.id
+            ? {
+                ...o,
+                businessStatus: 'completed',
+                completedAt: nowIso,
+                items: updatedItems,
+              }
+            : o
+        )
+      );
+    };
+
+    if (isOffline || !navigator.onLine) {
+      applyOptimisticBump();
+      await enqueueOfflineAction({
+        actionType: 'BUMP_ORDER',
+        kitchenOrderId: order.id,
+        stationId: order.stationId ?? undefined,
+        clientTimestamp: nowIso,
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${order.id} bumped`, 'success');
+      return;
+    }
+
+    try {
+      await apiRequest<void>(
+        `/kitchen-orders/${order.id}`,
+        { method: 'PUT', body: JSON.stringify({ businessStatus: 'completed' }) },
+        'Failed to bump order',
+      );
+      applyOptimisticBump();
+      showToast(`Order #KO-${order.id} bumped`, 'success');
+    } catch (err) {
+      if (!isRetryableKdsError(err)) {
+        reportRejectedAction(err);
+        return;
+      }
+      console.warn('Network bump failed, enqueuing offline:', err);
+      setIsOffline(true);
+      applyOptimisticBump();
+      await enqueueOfflineAction({
+        actionType: 'BUMP_ORDER',
+        kitchenOrderId: order.id,
+        stationId: order.stationId ?? undefined,
+        clientTimestamp: nowIso,
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${order.id} bumped`, 'success');
+    }
+  };
+
+  const handleRecallOrder = async (targetOrderId?: number) => {
+    const idToRecall = targetOrderId ?? lastBumpedOrder?.id;
+    if (!idToRecall) return;
+
+    const applyOptimisticRecall = () => {
+      if (lastBumpedOrder?.id === idToRecall) {
+        setLastBumpedOrder(null);
+      }
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === idToRecall
+            ? {
+                ...o,
+                businessStatus: 'pending',
+                startedAt: null,
+                completedAt: null,
+                items: (o.items || []).map(it => {
+                  const effectiveCourse = (it.course && it.course !== 'main_course')
+                    ? it.course
+                    : suggestCourseForProduct(it.productName);
+                  const isHeld = effectiveCourse === 'main_course' || effectiveCourse === 'dessert';
+                  return {
+                    ...it,
+                    course: effectiveCourse,
+                    preparationStatus: isHeld ? ('held' as const) : ('pending' as const),
+                    preparedQuantity: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    firedAt: isHeld ? null : new Date().toISOString(),
+                  };
+                }),
+              }
+            : o
+        )
+      );
+    };
+
+    if (isOffline || !navigator.onLine) {
+      applyOptimisticRecall();
+      await enqueueOfflineAction({
+        actionType: 'RECALL_ORDER',
+        kitchenOrderId: idToRecall,
+        clientTimestamp: new Date().toISOString(),
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${idToRecall} recalled`, 'info');
+      return;
+    }
+
+    try {
+      await apiRequest<void>(
+        `/kitchen-orders/${idToRecall}/recall`,
+        { method: 'POST' },
+        'Failed to recall order',
+      );
+      applyOptimisticRecall();
+      showToast(`Order #KO-${idToRecall} recalled`, 'info');
+      window.dispatchEvent(
+        new CustomEvent('x7_kds_data_reset', {
+          detail: { action: 'recall', orderId: idToRecall },
+        }),
+      );
+      window.dispatchEvent(new CustomEvent('online_orders_refresh'));
+      loadOrders(true);
+    } catch (err) {
+      if (!isRetryableKdsError(err)) {
+        reportRejectedAction(err);
+        return;
+      }
+      console.warn('Network recall failed, enqueuing offline:', err);
+      setIsOffline(true);
+      applyOptimisticRecall();
+      await enqueueOfflineAction({
+        actionType: 'RECALL_ORDER',
+        kitchenOrderId: idToRecall,
+        clientTimestamp: new Date().toISOString(),
+      });
+      const q = await getQueuedActions();
+      setQueuedActionsCount(q.length);
+      showToast(`Order #KO-${idToRecall} recalled`, 'info');
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancellingTicket) return;
+    try {
+      setCancelSubmitting(true);
+      await apiRequest<void>(
+        `/kitchen-orders/${cancellingTicket.id}/cancel`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            reason: selectedReason,
+            notes: cancellationNotes || undefined,
+          }),
+        },
+        'Failed to cancel order',
+      );
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === cancellingTicket.id
+            ? {
+                ...o,
+                businessStatus: 'cancelled',
+                cancellationReason: selectedReason,
+                cancelledAt: new Date().toISOString(),
+              }
+            : o
+        )
+      );
+      showToast(`Order #KO-${cancellingTicket.id} CANCELLED (${selectedReason})`, 'warning');
+      setCancellingTicket(null);
+      setCancellationNotes('');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error cancelling order';
+      showToast(message, 'warning');
+    } finally {
+      setCancelSubmitting(false);
+    }
+  };
+
+  // Format Elapsed Time
+  const formatDuration = (startIso?: string | null, endIso?: string | null): string => {
+    if (!startIso) return '--';
+    const start = new Date(startIso).getTime();
+    const end = endIso ? new Date(endIso).getTime() : currentTime;
+    const sec = Math.max(0, Math.floor((end - start) / 1000));
+    const mins = Math.floor(sec / 60);
+    const remSec = sec % 60;
+    return `${mins}m ${remSec.toString().padStart(2, '0')}s`;
+  };
+
+  const formatDateClock = (isoStr?: string | null): string => {
+    if (!isoStr) return '--';
+    const d = new Date(isoStr);
+    return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  };
+
+  return (
+    <div className="flex flex-col gap-6 animate-fade-in text-left font-sans pb-20">
+      <div ref={topRef} />
+
+      {/* FLOATING TOAST ALERT */}
+      {toastMessage && (
+        <div className="fixed top-20 right-6 z-50 animate-fade-in transition-all duration-300">
+          <div
+            className={`flex items-center gap-3 px-5 py-3 rounded-lg shadow-xl text-white text-sm font-semibold tracking-wide border ${
+              toastMessage.type === 'success'
+                ? 'bg-[#059669] border-emerald-400'
+                : toastMessage.type === 'warning'
+                ? 'bg-[#b91c1c] border-red-400'
+                : 'bg-[#1e293b] border-slate-600'
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">
+              {toastMessage.type === 'success' ? 'check_circle' : toastMessage.type === 'warning' ? 'block' : 'info'}
+            </span>
+            <span>{toastMessage.text}</span>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="ml-3 text-white/70 hover:text-white transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Header Card Workspace */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#ae001a] text-2xl font-normal select-none">
+              receipt_long
+            </span>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              KITCHEN ORDERS &amp; HISTORICAL AUDIT WORKSPACE
+            </h2>
+          </div>
+          <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
+            Multi-filter inspection matrix, preparation bottleneck analysis &amp; complete timestamp audit trail.
+          </p>
+        </div>
+      </div>
+
+      {/* 1.5 Real-Time Summary KPI Banner (4 identical cards to Kitchen Stations without text clipping) */}
+      <div className="grid grid-cols-4 gap-4 w-full">
+        {/* KPI 1: Active Kitchen Orders */}
+        <div className="relative bg-white border border-[#e8e2d8] p-3.5 sm:p-4 rounded-xl shadow-xs min-w-0 cursor-default">
+          <span className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase bg-red-100 text-[#ae001a] border border-red-200 shrink-0 whitespace-nowrap">
+            ACTIVE
+          </span>
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-red-50 text-[#ae001a] flex items-center justify-center border border-red-200 shrink-0">
+              <span className="material-symbols-outlined text-xl">receipt_long</span>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider whitespace-nowrap pr-14 sm:pr-16">
+                Active Orders
+              </div>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#1d1c17] whitespace-nowrap leading-none mt-1">
+                {loading ? '...' : activeOrdersCount}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 2: Avg Preparation Time */}
+        <div className="relative bg-white border border-[#e8e2d8] p-3.5 sm:p-4 rounded-xl shadow-xs min-w-0 cursor-default">
+          <span className={`absolute top-2.5 right-2.5 sm:top-3 sm:right-3 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase border shrink-0 whitespace-nowrap ${
+            avgPreparationTime.isBottleneck ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-200'
+          }`}>
+            {avgPreparationTime.isBottleneck ? '> 15M DELAY' : 'ON TIME'}
+          </span>
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center border shrink-0 ${
+              avgPreparationTime.isBottleneck ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'
+            }`}>
+              <span className="material-symbols-outlined text-xl">alarm</span>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider whitespace-nowrap pr-20 sm:pr-24">
+                Avg Prep Time
+              </div>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#1d1c17] whitespace-nowrap leading-none mt-1">
+                {avgPreparationTime.formatted}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 3: Cancellation Count */}
+        <div className="relative bg-white border border-[#e8e2d8] p-3.5 sm:p-4 rounded-xl shadow-xs min-w-0 cursor-default">
+          <span className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase bg-amber-100 text-amber-900 border border-amber-200 shrink-0 whitespace-nowrap">
+            {cancelledOrdersCount > 0 ? 'VOID/WASTE' : 'ZERO VOIDS'}
+          </span>
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
+              <span className="material-symbols-outlined text-xl">block</span>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider whitespace-nowrap pr-20 sm:pr-24">
+                Cancellations
+              </div>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#1d1c17] whitespace-nowrap leading-none mt-1">
+                {loading ? '...' : cancelledOrdersCount}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 4: Dispatched Orders */}
+        <div className="relative bg-white border border-[#e8e2d8] p-3.5 sm:p-4 rounded-xl shadow-xs min-w-0 cursor-default">
+          <span className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0 whitespace-nowrap">
+            DISPATCHED
+          </span>
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 shrink-0">
+              <span className="material-symbols-outlined text-xl">done_all</span>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider whitespace-nowrap pr-20 sm:pr-22">
+                Dispatched
+              </div>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#1d1c17] whitespace-nowrap leading-none mt-1">
+                {loading ? '...' : completedOrdersCount}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Multi-criteria Toolbar identical to Kitchen Devices */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4 mb-6">
+        {/* Row 1: Search + Station Selector on left, and View Switcher + Auto-Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search #KO-{id}, POS #ORD, #ONL, dish..."
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search kitchen orders"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">soup_kitchen</span>
+              <select
+                value={selectedStationId}
+                onChange={e => {
+                  setSelectedStationId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer max-w-[180px] transition-colors duration-200"
+                aria-label="Filter by kitchen station"
+              >
+                <option value="ALL">All Stations ({stations.length})</option>
+                {stations.map(st => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Right Toolbar: View Switcher Toggle & Auto-Refresh */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* View Switcher Toggle */}
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
+              <button
+                type="button"
+                onClick={() => setWorkspaceMode('bump')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  workspaceMode === 'bump'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Interactive Real-Time Kitchen Bump Screen"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${workspaceMode === 'bump' ? 'text-[#ae001a]' : ''}`}>receipt_long</span>
+                Live Bump Screen
+              </button>
+              <button
+                type="button"
+                onClick={() => setWorkspaceMode('audit')}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  workspaceMode === 'audit'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Historical Inspection & Bottleneck Table"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${workspaceMode === 'audit' ? 'text-[#ae001a]' : ''}`}>table_rows</span>
+                Audit Table
+              </button>
+            </div>
+
+            {/* Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => loadOrders(false)}
+                disabled={loading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh orders now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={e => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* ROW 2: Date & Time Range Controls + Presets (Single Row Layout) */}
+        <div className="flex items-center gap-3 pt-3 border-t border-[#f0ede6] overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="material-symbols-outlined text-sm text-[#5f5e5e]">calendar_today</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e]">
+              Date Range:
+            </span>
+          </div>
+
+          {/* Compact Segmented Switcher for Date Presets */}
+          <div className="inline-flex items-center bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
+            {([
+              { id: 'all', label: 'All Time' },
+              { id: 'today', label: 'Today' },
+              { id: 'last24h', label: 'Last 24h' },
+              { id: 'last7d', label: 'Last 7 Days' },
+              { id: 'custom', label: 'Custom' },
+            ] as const).map((p) => {
+              const isActive = datePreset === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handlePresetChange(p.id)}
+                  className={`h-[28px] px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer font-sans ${
+                    isActive
+                      ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                      : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Divider */}
+          <div className="h-4 w-px bg-[#e8e2d8] shrink-0" />
+
+          {/* Inline Custom Date Inputs (Date only) */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="text-[11px] font-semibold text-[#5f5e5e]">From:</span>
+              <input
+                type="date"
+                value={startTime}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  setDatePreset('custom');
+                  setCurrentPage(1);
+                }}
+                className={`h-[30px] px-2 rounded-lg border bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer font-sans transition-colors ${
+                  datePreset === 'custom' || startTime ? 'border-[#ae001a]' : 'border-[#d5cfc4]'
+                }`}
+              />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+              <span className="text-[11px] font-semibold text-[#5f5e5e]">To:</span>
+              <input
+                type="date"
+                value={endTime}
+                onChange={(e) => {
+                  setEndTime(e.target.value);
+                  setDatePreset('custom');
+                  setCurrentPage(1);
+                }}
+                className={`h-[30px] px-2 rounded-lg border bg-[#fcfcfb] text-[#1d1c17] text-xs focus:outline-none focus:border-[#ae001a] cursor-pointer font-sans transition-colors ${
+                  datePreset === 'custom' || endTime ? 'border-[#ae001a]' : 'border-[#d5cfc4]'
+                }`}
+              />
+            </div>
+            {(startTime || endTime) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartTime('');
+                  setEndTime('');
+                  setDatePreset('all');
+                  setCurrentPage(1);
+                }}
+                className="h-[30px] px-2 text-[11px] text-[#ae001a] hover:bg-red-50 rounded-lg font-bold cursor-pointer flex items-center gap-0.5 transition-colors"
+                title="Clear date filter"
+              >
+                <span className="material-symbols-outlined text-[14px]">close</span>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ROW 3: Status Multi-Select Pills (Left) & Action Buttons (Right) */}
+        <div className="flex items-center justify-between gap-4 pt-3 border-t border-[#f0ede6] overflow-x-auto scrollbar-none py-0.5">
+          {/* Left: Status Filter Pills */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Status:
+            </span>
+
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => handleToggleStatus('ALL')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                selectedStatuses.length === 0
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
+            >
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  selectedStatuses.length === 0 ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {statusCounts.all}
+              </span>
+            </button>
+
+            {/* PENDING Pill */}
+            <button
+              type="button"
+              onClick={() => handleToggleStatus('pending')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                selectedStatuses.includes('pending')
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">schedule</span>
+              <span>PENDING</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  selectedStatuses.includes('pending') ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {statusCounts.pending}
+              </span>
+            </button>
+
+            {/* STARTED Pill */}
+            <button
+              type="button"
+              onClick={() => handleToggleStatus('started')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                selectedStatuses.includes('started')
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-white text-blue-800 border-blue-200 hover:bg-blue-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">play_circle</span>
+              <span>STARTED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  selectedStatuses.includes('started') ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                }`}
+              >
+                {statusCounts.started}
+              </span>
+            </button>
+
+            {/* COMPLETED Pill */}
+            <button
+              type="button"
+              onClick={() => handleToggleStatus('completed')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                selectedStatuses.includes('completed')
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>COMPLETED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  selectedStatuses.includes('completed') ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {statusCounts.completed}
+              </span>
+            </button>
+
+            {/* CANCELLED Pill */}
+            <button
+              type="button"
+              onClick={() => handleToggleStatus('cancelled')}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                selectedStatuses.includes('cancelled')
+                  ? 'bg-[#ae001a] text-white border-[#ae001a] shadow-xs'
+                  : 'bg-white text-[#ae001a] border-red-200 hover:bg-red-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">cancel</span>
+              <span>CANCELLED</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  selectedStatuses.includes('cancelled') ? 'bg-white/20 text-white' : 'bg-red-100 text-[#ae001a]'
+                }`}
+              >
+                {statusCounts.cancelled}
+              </span>
+            </button>
+
+            {/* Cancellation Reasons Filter ONLY when Cancelled filter is active */}
+            {selectedStatuses.includes('cancelled') && (
+              <select
+                value={cancellationFilter}
+                onChange={e => setCancellationFilter(e.target.value as KitchenCancellationReason | 'ALL')}
+                className="h-[28px] px-2 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#1d1c17] focus:outline-none focus:border-[#ae001a] text-xs cursor-pointer font-medium max-w-[170px] shrink-0 ml-1"
+                aria-label="Filter by cancellation reason"
+              >
+                <option value="ALL">All Reasons</option>
+                {CANCELLATION_REASONS.map(r => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Right: Action Buttons (Always pinned right on the same line) */}
+          <div className="flex items-center gap-2 shrink-0 ml-auto pl-4">
+            {/* Recall Button */}
+            {lastBumpedOrder && (
+              <button
+                type="button"
+                onClick={() => void handleRecallOrder()}
+                className="h-[32px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#5f5e5e] text-xs font-bold uppercase tracking-wider hover:bg-[#f2ede5] hover:text-[#1d1c17] transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                title="Undo last bumped ticket"
+              >
+                <span className="material-symbols-outlined text-sm text-amber-700">undo</span>
+                RECALL #KO-{lastBumpedOrder.id}
+              </button>
+            )}
+
+            {/* SLA Configuration Button */}
+            <button
+              type="button"
+              onClick={() => setIsSlaModalOpen(true)}
+              className="h-[32px] px-2.5 bg-[#fcfcfb] border border-[#d5cfc4] hover:border-[#ae001a] text-[#1d1c17] rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs group"
+              title="Configure Kitchen SLA Threshold"
+            >
+              <span className="material-symbols-outlined text-[16px] text-red-600 group-hover:scale-110 transition-transform">
+                shield
+              </span>
+              <span className="text-[#5f5e5e] font-medium">SLA:</span>
+              <span className="font-mono font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded text-[11px]">
+                {criticalSlaMinutes}m
+              </span>
+            </button>
+
+            {/* Create Order Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setFormStationId(stations[0]?.id ? String(stations[0].id) : '');
+                setFormOrderId('');
+                setFormNotes('');
+                setFormPriority(0);
+                setFormItems([{ productName: '', variantName: '', quantity: 1, course: 'main_course', notes: '' }]);
+                setCreateError(null);
+                setIsCreateModalOpen(true);
+              }}
+              className="h-[32px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs"
+              title="Create new kitchen ticket"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              CREATE ORDER
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Core Workspace Grid (Historical Audit Table vs Live Bump Screen) */}
+      {workspaceMode === 'audit' ? (
+        <div className="bg-white border border-[#e8e2d8] rounded-xl shadow-sm relative overflow-hidden">
+          <HeaderQuickTabs
+            title="HISTORICAL AUDIT TRAIL"
+            badgeCount={
+              filteredOrders.length <= pageSize
+                ? `${filteredOrders.length} ticket${filteredOrders.length === 1 ? '' : 's'}`
+                : `${Math.min(filteredOrders.length, pageSize)} / ${filteredOrders.length} tickets`
+            }
+            tabs={[]}
+            rightElement={
+              <TableOptionsMenu
+                columns={[
+                  { key: 'orderRef', label: 'Order Reference' },
+                  { key: 'stationPriority', label: 'Station & Priority' },
+                  { key: 'items', label: 'Items & Dishes' },
+                  { key: 'lifecycleStatus', label: 'Lifecycle Status' },
+                  { key: 'createdTimestamp', label: 'Created Timestamp' },
+                  { key: 'startedDelay', label: 'Started / Delay' },
+                  { key: 'completedPrepTime', label: 'Completed / Prep Time' },
+                  { key: 'cancellationAudit', label: 'Cancellation Audit' },
+                  { key: 'actions', label: 'Actions' },
+                ]}
+                visibleColumns={visibleColumns}
+                onToggleColumn={(key) =>
+                  setVisibleColumns((prev) => ({
+                    ...prev,
+                    [key]: !prev[key as keyof typeof visibleColumns],
+                  }))
+                }
+                rowDensity={rowDensity}
+                onChangeDensity={setRowDensity}
+                totalItems={filteredOrders.length}
+                pageSize={pageSize}
+                onChangePageSize={(size) => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                onReload={() => loadOrders(false)}
+                onExportCSV={() => {
+                  const headers = 'Ticket_ID,POS_Order_ID,Station,Priority,Status,Created_At,Started_At,Completed_At,Cancelled_At,Cancelled_By,Cancellation_Reason,Notes\n';
+                  const rows = filteredOrders
+                    .map(
+                      o =>
+                        `"#KO-${o.id}","${o.orderId ? `#ORD-${o.orderId}` : ''}","${o.stationName || ''}",${o.priority},"${o.businessStatus}","${o.createdAt}","${o.startedAt || ''}","${o.completedAt || ''}","${o.cancelledAt || ''}","${o.cancelledByUserId || ''}","${o.cancellationReason || ''}","${(o.notes || '').replace(/"/g, '""')}"`
+                    )
+                    .join('\n');
+                  const blob = new Blob([headers + rows], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `kds_orders_audit_${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click();
+                  showToast('Exported historical audit table to CSV', 'success');
+                }}
+                onPrint={() => window.print()}
+                printLabel="Print Kitchen Orders Audit"
+                onCopySummary={() => {
+                  const summaryText = `Kitchen Orders Audit Summary:\n- Total Tickets: ${filteredOrders.length}\n- Completed: ${filteredOrders.filter(o => o.businessStatus === 'completed').length}\n- Cancelled: ${filteredOrders.filter(o => o.businessStatus === 'cancelled').length}\n- In Progress/Pending: ${filteredOrders.filter(o => o.businessStatus === 'started' || o.businessStatus === 'pending').length}`;
+                  navigator.clipboard.writeText(summaryText);
+                }}
+              />
+            }
+          />
+
+          {activeColSpan === 0 ? (
+            <NoColumnsEmptyState />
+          ) : (
+            <>
+              <div className="overflow-x-auto border-t border-[#e8e2d8]">
+                <table className="w-full text-left text-xs border-collapse font-sans">
+                  <thead>
+                    <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
+                      {visibleColumns.orderRef && <th className={`${densityPadding} min-w-[96px]`}>Order Reference</th>}
+                      {visibleColumns.stationPriority && <th className={`${densityPadding} min-w-[116px]`}>Station &amp; Priority</th>}
+                      {visibleColumns.items && <th className={`${densityPadding} min-w-[150px]`}>Items &amp; Dishes</th>}
+                      {visibleColumns.lifecycleStatus && <th className={`${densityPadding} !px-2 text-center min-w-[82px]`}>Status</th>}
+                      {visibleColumns.createdTimestamp && <th className={`${densityPadding} min-w-[96px]`}>Created</th>}
+                      {visibleColumns.startedDelay && <th className={`${densityPadding} min-w-[92px]`}>Started / Delay</th>}
+                      {visibleColumns.completedPrepTime && <th className={`${densityPadding} min-w-[96px]`}>Completed / Prep Time</th>}
+                      {visibleColumns.cancellationAudit && <th className={`${densityPadding} min-w-[92px]`}>Cancellation Audit</th>}
+                      {visibleColumns.actions && <th className={`${densityPadding} text-right min-w-[68px]`}>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
+                          <span className="material-symbols-outlined animate-spin text-[#ae001a] text-4xl block mb-2 mx-auto select-none">
+                            sync
+                          </span>
+                          <p className="text-secondary text-body-md mt-2 font-sans">Loading kitchen orders...</p>
+                        </td>
+                      </tr>
+                    ) : loadError ? (
+                      <tr>
+                        <td colSpan={activeColSpan} className="px-6 py-12 text-center text-[#ba1a1a] font-sans bg-white">
+                          <span className="material-symbols-outlined text-[#ba1a1a] text-4xl block mb-2 mx-auto select-none">
+                            error
+                          </span>
+                          <p className="font-bold">{loadError}</p>
+                          <button
+                            type="button"
+                            onClick={() => loadOrders(false)}
+                            className="mt-4 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-all font-sans cursor-pointer"
+                          >
+                            Retry Connection
+                          </button>
+                        </td>
+                      </tr>
+                    ) : orders.length === 0 ? (
+                      <TableEmptyState
+                        colSpan={activeColSpan}
+                        icon="receipt_long"
+                        title="No kitchen tickets found"
+                        description="No kitchen orders have been registered in the system yet."
+                      />
+                    ) : filteredOrders.length === 0 ? (
+                      <TableEmptyState
+                        colSpan={activeColSpan}
+                        icon="receipt_long"
+                        title="No kitchen tickets found"
+                        description="No orders matched your current date, station, status, or cancellation audit criteria."
+                      />
+                    ) : (
+                      paginatedOrders.map(order => {
+                    const isCancelled = order.businessStatus === 'cancelled';
+                    const isCompleted = order.businessStatus === 'completed';
+                    const isStarted = order.businessStatus === 'started';
+                    const isTableAllHeld = order.items.length > 0 && order.items.every(it => it.preparationStatus === 'held');
+                    const elapsedMinutes = Math.floor(Math.max(0, (currentTime - new Date(order.createdAt).getTime()) / 1000) / 60);
+
+                    const totalPieces = order.items?.reduce((acc, curr) => acc + curr.quantity, 0) || 0;
+
+                    return (
+                      <tr
+                        key={order.id}
+                        className="bg-white hover:bg-[#f8f3eb] transition-colors duration-150 group"
+                      >
+                        {/* Order Reference */}
+                        {visibleColumns.orderRef && (
+                          <td className={`${densityPadding} font-sans`}>
+                            <div className="flex items-center gap-1.5 font-bold text-[#1d1c17] text-sm">
+                              <span className="group-hover:text-[#ae001a] transition-colors">
+                                #KO-{order.id}
+                              </span>
+                              {order.priority > 0 && (
+                                <span className="material-symbols-outlined text-xs text-[#ae001a]" title={`Priority Rush +${order.priority}`}>
+                                  flag
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-[#5f5e5e] font-mono mt-0.5">
+                              {order.orderId ? (
+                                <span>#ORD-{order.orderId}</span>
+                              ) : order.onlineOrderId ? (
+                                <span>#ONL-{order.onlineOrderId}</span>
+                              ) : (
+                                <span>Direct KDS</span>
+                              )}
+                            </div>
+                            {order.notes && (
+                              <div className="text-[11px] text-[#854d0e] font-semibold mt-0.5 truncate max-w-[150px]" title={order.notes}>
+                                {order.notes.split('•')[0].trim()}
+                              </div>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Station & Priority */}
+                        {visibleColumns.stationPriority && (
+                          <td className={densityPadding}>
+                            <span className="font-medium text-[#1d1c17] text-xs block leading-tight">
+                              {order.stationName || 'Unassigned Station'}
+                            </span>
+                            <div className="flex items-center gap-1 mt-1">
+                              {order.priority >= 3 ? (
+                                <span className="text-[10px] font-bold uppercase px-1.5 py-0.2 rounded border bg-purple-50 text-purple-700 border-purple-200">
+                                  VIP Rush (+3)
+                                </span>
+                              ) : order.priority === 2 ? (
+                                <span className="text-[10px] font-bold uppercase px-1.5 py-0.2 rounded border bg-red-50 text-red-700 border-red-200">
+                                  Urgent (+2)
+                                </span>
+                              ) : order.priority === 1 ? (
+                                <span className="text-[10px] font-bold uppercase px-1.5 py-0.2 rounded border bg-amber-50 text-amber-700 border-amber-200">
+                                  High (+1)
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.2 rounded border bg-zinc-100 text-zinc-600 border-zinc-200">
+                                  Normal (0)
+                                </span>
+                              )}
+                              {elapsedMinutes >= criticalSlaMinutes && !isCompleted && !isCancelled && (
+                                <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.2 rounded font-bold flex items-center gap-0.5 animate-pulse">
+                                  <span className="material-symbols-outlined text-[10px]">shield</span>
+                                  SLA {elapsedMinutes}m
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        )}
+
+                        {/* Items & Dishes breakdown */}
+                        {visibleColumns.items && (
+                          <td className={densityPadding}>
+                            {order.items && order.items.length > 0 ? (
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-xs text-[#1d1c17]">
+                                  {totalPieces} pc{totalPieces === 1 ? '' : 's'} • {order.items.length} dish{order.items.length === 1 ? '' : 'es'}
+                                </span>
+                                <span
+                                  className="text-[11px] text-[#5f5e5e] truncate max-w-[280px]"
+                                  title={order.items.map(i => `${i.quantity}x ${i.productName}${i.variantName ? ` (${i.variantName})` : ''}`).join(', ')}
+                                >
+                                  {order.items.map(i => `${i.quantity}x ${i.productName}`).join(' • ')}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[#8a857a] italic text-xs">—</span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Lifecycle Status (Standardized Flat Badge) */}
+                        {visibleColumns.lifecycleStatus && (
+                          <td className={`${densityPadding} text-center`}>
+                            {isCompleted ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Completed
+                              </span>
+                            ) : isStarted ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                Started
+                              </span>
+                            ) : isCancelled ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
+                                Cancelled
+                              </span>
+                            ) : isTableAllHeld ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                                Held
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-600 border border-zinc-200">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Created At */}
+                        {visibleColumns.createdTimestamp && (
+                          <td className={`${densityPadding} font-mono text-[11px] text-[#1d1c17]`}>
+                            <div>{formatDateClock(order.createdAt)}</div>
+                            <span className="text-[10px] text-[#5f5e5e] font-sans">
+                              ({elapsedMinutes}m ago)
+                            </span>
+                          </td>
+                        )}
+
+                        {/* Started At / Delay (Optional) */}
+                        {visibleColumns.startedDelay && (
+                          <td className={`${densityPadding} font-mono text-[11px]`}>
+                            {order.startedAt ? formatDateClock(order.startedAt) : <span className="text-[#8a857a]">—</span>}
+                          </td>
+                        )}
+
+                        {/* Completed At / Prep Time (Optional) */}
+                        {visibleColumns.completedPrepTime && (
+                          <td className={`${densityPadding} font-mono text-[11px]`}>
+                            {order.completedAt ? formatDateClock(order.completedAt) : <span className="text-[#8a857a]">—</span>}
+                          </td>
+                        )}
+
+                        {/* Cancellation Audit (Optional) */}
+                        {visibleColumns.cancellationAudit && (
+                          <td className={densityPadding}>
+                            {isCancelled && order.cancellationReason ? (
+                              <span className="inline-block bg-red-50 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-red-200">
+                                {order.cancellationReason.replace(/_/g, ' ')}
+                              </span>
+                            ) : (
+                              <span className="text-[#8a857a] text-xs">—</span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Actions (Inspect and Cancel Icon Buttons) */}
+                        {visibleColumns.actions && (
+                          <td className={`${densityPadding} text-right whitespace-nowrap`}>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setInspectingTicket(order)}
+                                className="p-1.5 text-zinc-600 hover:text-[#ae001a] hover:bg-[#fef9f1] rounded transition-colors cursor-pointer"
+                                title="Inspect ticket details"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">manage_search</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCancellingTicket(order)}
+                                disabled={isCompleted || isCancelled}
+                                className="p-1.5 text-zinc-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                title={isCancelled ? 'Order already cancelled' : isCompleted ? 'Completed order cannot be cancelled' : 'Cancel Kitchen Order'}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">cancel</span>
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <TablePaginationFooter
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredOrders.length}
+            onPageChange={setCurrentPage}
+          />
+            </>
+          )}
+        </div>
+      ) : (
+        /* VIEW MODE 2: LIVE BUMP SCREEN (Ticket Cards with clean and clear layout) */
+        loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-[#5f5e5e] gap-3">
+            <div className="w-10 h-10 border-4 border-[#e8e2d8] border-t-[#ae001a] rounded-full animate-spin" />
+            <span className="text-sm font-medium">Synchronizing kitchen orders...</span>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <TableEmptyState
+            asTableRow={false}
+            icon="receipt_long"
+            title="No Kitchen Tickets Found"
+            description="No orders matched your current date, station, status, or cancellation audit criteria."
+          />
+        ) : (
+          <div className="flex flex-col gap-4">
+          {filteredOrders.map(order => {
+            const isAllHeld = order.items.length > 0 && order.items.every(it => it.preparationStatus === 'held');
+            const isAllPending = order.items.length > 0 && order.items.every(it => it.preparationStatus === 'pending');
+            const isAllReady = order.items.length > 0 && order.items.every(it => it.preparationStatus === 'ready');
+            const hasActivePrep = order.items.some(it => it.preparationStatus === 'in_preparation');
+            const isCompleted = order.businessStatus === 'completed' || isAllReady;
+            const isCancelled = order.businessStatus === 'cancelled';
+            const isStarted = (order.businessStatus === 'started' || hasActivePrep) && !isAllHeld && !isAllPending && !isCompleted && !isCancelled;
+            const isPending = !isAllHeld && !isStarted && !isCompleted && !isCancelled;
+
+            const startReference = new Date(order.createdAt).getTime();
+            const elapsedSeconds = Math.max(0, Math.floor((currentTime - startReference) / 1000));
+            const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+            const remainingSec = elapsedSeconds % 60;
+            const timerDisplay = `${elapsedMinutes}m ${remainingSec.toString().padStart(2, '0')}s`;
+
+            let timerColorClass = 'bg-stone-700 text-white';
+            if (elapsedMinutes >= criticalSlaMinutes) {
+              timerColorClass = 'bg-red-600 text-white animate-pulse font-black';
+            } else if (isAllHeld) {
+              timerColorClass = 'bg-amber-700 text-white font-bold';
+            } else if (elapsedMinutes >= 8) {
+              timerColorClass = 'bg-amber-600 text-white font-bold';
+            } else if (isStarted) {
+              timerColorClass = 'bg-blue-600 text-white font-bold';
+            }
+
+            return (
+              <div
+                key={order.id}
+                className={`w-full bg-white hover:bg-[#fef9f1] border rounded-xl flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 ${
+                  isCompleted
+                    ? 'border-emerald-400 ring-1 ring-emerald-200 bg-emerald-50/10'
+                    : isCancelled
+                    ? 'border-red-200 bg-stone-50/70 opacity-65 hover:opacity-100'
+                    : isAllHeld
+                    ? 'border-amber-300 ring-2 ring-amber-100 shadow-sm'
+                    : isStarted
+                    ? 'border-blue-400 ring-2 ring-blue-100 shadow-sm'
+                    : 'border-[#e8e2d8]'
+                }`}
+              >
+                {/* Card Header */}
+                <div
+                  className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-3 transition-colors ${
+                    isCompleted
+                      ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+                      : isCancelled
+                      ? 'bg-red-50 border-red-200 text-red-950'
+                      : isAllHeld
+                      ? 'bg-amber-50/90 border-amber-200 text-amber-950'
+                      : isStarted
+                      ? 'bg-blue-50/90 border-blue-200 text-blue-950'
+                      : 'bg-[#fcfbf9] border-[#e8e2d8] text-[#1d1c17]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="font-mono font-extrabold text-sm text-[#1d1c17] whitespace-nowrap">
+                      #KO-{order.id}
+                    </span>
+                    {order.orderId ? (
+                      <span className="font-mono text-[11px] font-semibold text-[#5f5e5e] bg-white/80 border border-[#e8e2d8] px-2 py-0.5 rounded whitespace-nowrap">
+                        #ORD-{order.orderId}
+                      </span>
+                    ) : order.onlineOrderId ? (
+                      <span className="font-mono text-[11px] font-semibold text-[#5f5e5e] bg-white/80 border border-[#e8e2d8] px-2 py-0.5 rounded whitespace-nowrap">
+                        #ONL-{order.onlineOrderId}
+                      </span>
+                    ) : null}
+                    {isCompleted && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        READY
+                      </span>
+                    )}
+                    {isAllHeld && (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        HELD
+                      </span>
+                    )}
+                    {isStarted && (
+                      <span className="text-[10px] bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        IN PREP
+                      </span>
+                    )}
+                    {isPending && (
+                      <span className="text-[10px] bg-stone-100 text-stone-600 border border-stone-300 px-2 py-0.5 rounded font-bold tracking-wide whitespace-nowrap">
+                        PENDING
+                      </span>
+                    )}
+                    {isCancelled && (
+                      <span className="text-[10px] bg-red-100 text-red-800 border border-red-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        CANCELLED
+                      </span>
+                    )}
+                    {order.priority >= 3 ? (
+                      <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded font-black whitespace-nowrap">
+                        VIP (+3)
+                      </span>
+                    ) : order.priority === 2 ? (
+                      <span className="text-[10px] bg-red-100 text-red-800 border border-red-300 px-2 py-0.5 rounded font-black whitespace-nowrap">
+                        URGENT (+2)
+                      </span>
+                    ) : order.priority === 1 ? (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded font-black whitespace-nowrap">
+                        HIGH (+1)
+                      </span>
+                    ) : null}
+                    {elapsedMinutes >= criticalSlaMinutes && !isCompleted && !isCancelled && (
+                      <span className="text-[10px] bg-red-600 text-white border border-red-700 px-2 py-0.5 rounded font-black tracking-wide inline-flex items-center gap-1 shadow-xs animate-pulse whitespace-nowrap">
+                        <span className="material-symbols-outlined text-[12px]">shield</span>
+                        SLA SHIELD
+                      </span>
+                    )}
+                    <span className="text-xs text-[#5f5e5e] font-medium bg-white/80 border border-[#e8e2d8] px-2.5 py-0.5 rounded-md whitespace-nowrap">
+                      {order.stationName || 'Unassigned'}
+                    </span>
+                  </div>
+
+                  {/* Timer */}
+                  {!isCompleted && !isCancelled && (
+                    <span className={`px-2.5 py-1 rounded-md text-xs font-mono font-bold whitespace-nowrap shrink-0 ${timerColorClass}`}>
+                      {timerDisplay}
+                    </span>
+                  )}
+                </div>
+
+                {/* Body & Items */}
+                <div className="px-4 py-3 flex-1 flex flex-col gap-2.5">
+                  {/* Notes Callout - Culinary instructions only */}
+                  {(() => {
+                    const cleanNotes = order.notes
+                      ?.replace(/\|\s*\[(?:Auto-)?Rerouted[^\]]*\]/gi, '')
+                      ?.replace(/\[(?:Auto-)?Rerouted[^\]]*\]/gi, '')
+                      ?.replace(/^Table\s+\d+\s*•\s*Station\s*#[^|]*/i, '')
+                      ?.trim();
+                    if (!cleanNotes) return null;
+                    return (
+                      <div className="bg-amber-50 border-l-2 border-amber-400 px-2.5 py-1.5 rounded-r text-[11px] text-amber-900 font-medium italic">
+                        {cleanNotes}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Dishes List */}
+                  <div className="flex flex-col gap-2 flex-1">
+                    {[...order.items].sort((a, b) => {
+                      const rank = (st: string) => {
+                        if (st === 'in_preparation' || st === 'pending') return 1;
+                        if (st === 'ready') return 2;
+                        if (st === 'held') return 3;
+                        return 4;
+                      };
+                      return rank(a.preparationStatus) - rank(b.preparationStatus);
+                    }).map(it => {
+                      const itemAction = getItemPrepAction(it.course, it.productName);
+
+                      return (
+                        <div
+                          key={it.id}
+                          className="px-3 py-2.5 rounded-lg bg-[#fcfbf9] border border-[#ebe5da] flex flex-wrap items-center justify-between gap-3 text-xs text-[#1d1c17] transition-colors hover:border-[#ded5c5]"
+                        >
+                          <div className="flex items-center gap-2.5 flex-1 min-w-[200px]">
+                            {/* Qty pill */}
+                            <span className="w-6 h-6 rounded bg-[#eee8dc] text-[#1d1c17] font-mono font-extrabold text-xs flex items-center justify-center shrink-0">
+                              {it.quantity}
+                            </span>
+
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <span className="font-extrabold text-[13px] text-[#1d1c17] leading-snug">
+                                {it.productName}
+                              </span>
+                              {it.variantName && (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#ede7dc] text-[#554d42] whitespace-nowrap">
+                                  {it.variantName}
+                                </span>
+                              )}
+
+                              {/* Course chip */}
+                              {(() => {
+                                const effectiveCourse = (it.course && it.course !== 'main_course')
+                                  ? it.course
+                                  : suggestCourseForProduct(it.productName);
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[10px] uppercase font-black px-2 py-0.5 rounded bg-white text-[#5f5e5e] border border-[#e2dcce] whitespace-nowrap">
+                                    <span>
+                                      {effectiveCourse === 'beverage'
+                                        ? '🍹'
+                                        : effectiveCourse === 'appetizer'
+                                        ? '🥗'
+                                        : effectiveCourse === 'dessert'
+                                        ? '🍰'
+                                        : '🍔'}
+                                    </span>
+                                    <span>{effectiveCourse.replace('_', ' ')}</span>
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* Status badge & Item actions */}
+                          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                            {/* Individual POUR / PREP (or FIRE) button on item */}
+                            {!isCompleted && !isCancelled && (
+                              <>
+                                {it.preparationStatus === 'held' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartItem(order.id, it.id, it.preparationStatus);
+                                    }}
+                                    className="h-6 px-2 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white rounded text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                                    title={`Fire directly to ${itemAction.verb.toLowerCase()} (In Prep)`}
+                                  >
+                                    <span className="material-symbols-outlined text-[10px]">local_fire_department</span>
+                                    <span>FIRE</span>
+                                  </button>
+                                )}
+
+                                {it.preparationStatus === 'pending' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartItem(order.id, it.id, it.preparationStatus);
+                                    }}
+                                    className="h-6 px-2 rounded text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50"
+                                    title={itemAction.title}
+                                  >
+                                    <span className="material-symbols-outlined text-[10px]">{itemAction.icon}</span>
+                                    <span>{itemAction.verb}</span>
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {/* Individual READY button to mark item ready if in preparation */}
+                            {!isCompleted && !isCancelled && it.preparationStatus === 'in_preparation' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReadyItem(order.id, it.id, it.quantity);
+                                }}
+                                className="h-6 px-2 rounded text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/50"
+                                title="Mark as READY"
+                              >
+                                <span className="material-symbols-outlined text-[10px]">check_circle</span>
+                                <span>READY</span>
+                              </button>
+                            )}
+
+                            {/* Item UNDO button (after started: in_preparation or ready) */}
+                            {!isCompleted && !isCancelled && (it.preparationStatus === 'in_preparation' || it.preparationStatus === 'ready') && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUndoItem(order.id, it.id, it.preparationStatus, it.course);
+                                }}
+                                className="h-6 px-2 rounded text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 border border-stone-300 hover:border-amber-400"
+                                title={it.preparationStatus === 'ready' ? 'Undo: Return to In Preparation' : 'Undo: Return to Queue'}
+                              >
+                                <span className="material-symbols-outlined text-[10px]">undo</span>
+                                <span>UNDO</span>
+                              </button>
+                            )}
+
+                            {/* Status badge */}
+                            <span
+                              className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                                it.preparationStatus === 'ready'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : it.preparationStatus === 'held'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : it.preparationStatus === 'in_preparation'
+                                  ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                  : 'bg-zinc-100 text-[#5f5e5e] border-zinc-200'
+                              }`}
+                            >
+                              {it.preparationStatus === 'ready'
+                                ? 'Ready'
+                                : it.preparationStatus === 'held'
+                                ? 'Held'
+                                : it.preparationStatus === 'in_preparation'
+                                ? 'Prep'
+                                : 'Pending'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Card Actions Footer */}
+                <div className="px-3.5 py-2.5 bg-[#fcfbf9] border-t border-[#e8e2d8] flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setInspectingTicket(order)}
+                    className="text-xs text-[#5f5e5e] hover:text-[#ae001a] flex items-center gap-1 font-semibold cursor-pointer transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-sm">manage_search</span>
+                    <span>Audit</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {(isPending || isAllHeld) && (
+                      (() => {
+                        if (order.items.length === 1) {
+                          const singleItem = order.items[0];
+                          if (singleItem.preparationStatus === 'held') {
+                            return (
+                              <button
+                                onClick={() => handleStartItem(order.id, singleItem.id, singleItem.preparationStatus)}
+                                className="px-2.5 py-1 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white rounded text-xs font-bold cursor-pointer transition-all shadow-xs flex items-center gap-1 active:scale-95"
+                                title="Fire directly to preparation"
+                              >
+                                <span className="material-symbols-outlined text-[13px]">local_fire_department</span>
+                                <span>Fire</span>
+                              </button>
+                            );
+                          }
+                          const action = getItemPrepAction(singleItem.course, singleItem.productName);
+                          return (
+                            <button
+                              onClick={() => handleStartPrep(order)}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold cursor-pointer transition-colors shadow-xs flex items-center gap-1 active:scale-95"
+                              title={action.title}
+                            >
+                              <span className="material-symbols-outlined text-[13px]">{action.icon}</span>
+                              <span>{action.verb === 'POUR' ? 'Pour' : 'Prep'}</span>
+                            </button>
+                          );
+                        }
+
+                        if (isAllHeld) {
+                          return (
+                            <button
+                              onClick={() => handleStartPrep(order)}
+                              className="px-2.5 py-1 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white rounded text-xs font-bold cursor-pointer transition-all shadow-xs flex items-center gap-1 active:scale-95"
+                              title="Fire all items to preparation"
+                            >
+                              <span className="material-symbols-outlined text-[13px]">local_fire_department</span>
+                              <span>Fire All</span>
+                            </button>
+                          );
+                        }
+
+                        const allBeverages = order.items.length > 0 && order.items.every(it => getItemPrepAction(it.course, it.productName).verb === 'POUR');
+                        if (allBeverages) {
+                          return (
+                            <button
+                              onClick={() => handleStartPrep(order)}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold cursor-pointer transition-colors shadow-xs flex items-center gap-1 active:scale-95"
+                              title="Pour all beverages (Move to IN PREP)"
+                            >
+                              <span className="material-symbols-outlined text-[13px]">local_bar</span>
+                              <span>Pour All</span>
+                            </button>
+                          );
+                        }
+
+                        const allFood = order.items.length > 0 && order.items.every(it => getItemPrepAction(it.course, it.productName).verb === 'PREP');
+                        if (allFood) {
+                          return (
+                            <button
+                              onClick={() => handleStartPrep(order)}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold cursor-pointer transition-colors shadow-xs flex items-center gap-1 active:scale-95"
+                              title="Start preparing all items (Move to IN PREP)"
+                            >
+                              <span className="material-symbols-outlined text-[13px]">restaurant</span>
+                              <span>Prep All</span>
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <button
+                            onClick={() => handleStartPrep(order)}
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold cursor-pointer transition-colors shadow-xs"
+                            title="Start order preparation"
+                          >
+                            Start
+                          </button>
+                        );
+                      })()
+                    )}
+
+                    {/* General Undo button on order (after giving Start) */}
+                    {(isStarted || hasActivePrep) && !isCompleted && !isCancelled && (
+                      <button
+                        onClick={() => handleUndoOrder(order)}
+                        className="px-2.5 py-1 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 border border-stone-300 hover:border-amber-400 rounded text-xs font-bold cursor-pointer transition-colors shadow-xs flex items-center gap-1"
+                        title="Undo Start: Return entire order to PENDING and reset items"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">undo</span>
+                        <span>Undo</span>
+                      </button>
+                    )}
+
+                    {isCompleted && (
+                      <button
+                        onClick={() => handleRecallOrder(order.id)}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold cursor-pointer transition-colors shadow-xs flex items-center gap-1"
+                        title="Recall order back to active kitchen board"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">replay</span>
+                        <span>Recall</span>
+                      </button>
+                    )}
+
+                    {!isCompleted && !isCancelled && (
+                      <button
+                        onClick={() => handleBumpOrder(order)}
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold cursor-pointer transition-colors shadow-xs"
+                      >
+                        Bump
+                      </button>
+                    )}
+
+                    {!isCancelled && !isCompleted && (
+                      <button
+                        onClick={() => setCancellingTicket(order)}
+                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                        title="Cancel Order"
+                      >
+                        <span className="material-symbols-outlined text-sm">cancel</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        )
+      )}
+
+      {/* DETAIL INSPECTION MODAL (HISTORICAL AUDIT PANEL) */}
+      {inspectingTicket && (
+        <AppModal
+          onClose={() => setInspectingTicket(null)}
+          title={`Audit Details: Ticket #KO-${inspectingTicket.id}`}
+        >
+          <div className="space-y-4 text-xs font-sans">
+            {/* Top Status & Context Strip */}
+            <div className="bg-[#fcfbf9] border border-[#e8e2d8] p-3 rounded-lg flex items-center justify-between">
+              <div>
+                <span className="font-bold text-[#1d1c17] text-sm">
+                  #KO-{inspectingTicket.id}
+                </span>
+                {inspectingTicket.orderId && (
+                  <span className="text-[#5f5e5e] ml-2 font-mono">#ORD-{inspectingTicket.orderId}</span>
+                )}
+                <span className="block text-[11px] text-[#5f5e5e] mt-0.5">
+                  Station: {inspectingTicket.stationName || 'Unassigned'} • Priority:{' '}
+                  {inspectingTicket.priority >= 3
+                    ? 'VIP Rush (+3)'
+                    : inspectingTicket.priority === 2
+                    ? 'Urgent (+2)'
+                    : inspectingTicket.priority === 1
+                    ? 'High (+1)'
+                    : 'Normal (0)'}
+                </span>
+              </div>
+
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                  inspectingTicket.businessStatus === 'completed'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : inspectingTicket.businessStatus === 'started'
+                    ? 'bg-blue-100 text-blue-800 border-blue-200'
+                    : inspectingTicket.businessStatus === 'cancelled'
+                    ? 'bg-red-100 text-red-800 border-red-200'
+                    : 'bg-zinc-100 text-zinc-800 border-zinc-200'
+                }`}
+              >
+                {inspectingTicket.businessStatus}
+              </span>
+            </div>
+
+            {/* Timestamps Timeline */}
+            <div className="border border-[#e8e2d8] rounded-lg p-3 space-y-2 bg-white">
+              <span className="text-xs font-bold text-[#1d1c17] uppercase tracking-wider block border-b border-[#e8e2d8] pb-1">
+                Timestamp Audit Trail
+              </span>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <span className="text-[#5f5e5e] block">Created Timestamp:</span>
+                  <span className="font-mono font-semibold text-[#1d1c17]">{formatDateClock(inspectingTicket.createdAt)}</span>
+                </div>
+                <div>
+                  <span className="text-[#5f5e5e] block">Started Timestamp:</span>
+                  <span className="font-mono font-semibold text-[#1d1c17]">{formatDateClock(inspectingTicket.startedAt)}</span>
+                </div>
+                <div>
+                  <span className="text-[#5f5e5e] block">Completed Timestamp:</span>
+                  <span className="font-mono font-semibold text-emerald-700">{formatDateClock(inspectingTicket.completedAt)}</span>
+                </div>
+                <div>
+                  <span className="text-[#5f5e5e] block">Cancelled Timestamp:</span>
+                  <span className="font-mono font-semibold text-red-700">{formatDateClock(inspectingTicket.cancelledAt)}</span>
+                </div>
+              </div>
+
+              {inspectingTicket.completedAt && inspectingTicket.createdAt && (
+                <div className="mt-2 pt-2 border-t border-[#e8e2d8] text-[11px] flex items-center justify-between text-emerald-700 font-semibold">
+                  <span>Total Preparation Duration:</span>
+                  <span className="font-mono font-bold text-sm">
+                    {formatDuration(inspectingTicket.createdAt, inspectingTicket.completedAt)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Cancellation Details (if cancelled) */}
+            {inspectingTicket.businessStatus === 'cancelled' && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-900 space-y-1">
+                <span className="font-bold uppercase tracking-wider text-[11px] flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm text-red-600">block</span>
+                  Cancellation Reason:
+                </span>
+                <p className="font-semibold">
+                  {inspectingTicket.cancellationReason
+                    ? inspectingTicket.cancellationReason.replace(/_/g, ' ')
+                    : 'Unspecified'}
+                </p>
+                {inspectingTicket.cancelledByUserId && (
+                  <p className="text-[11px] text-red-700">
+                    Cancelled by User ID: #{inspectingTicket.cancelledByUserId}
+                  </p>
+                )}
+                {inspectingTicket.notes && (
+                  <p className="text-[11px] italic mt-1 text-red-800 border-t border-red-200 pt-1">
+                    Notes: {inspectingTicket.notes}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Line Items Breakdown */}
+            <div className="border border-[#e8e2d8] rounded-lg p-3 bg-white">
+              <span className="text-xs font-bold text-[#1d1c17] uppercase tracking-wider block mb-2">
+                Order Items Breakdown ({inspectingTicket.items.length})
+              </span>
+              <div className="divide-y divide-[#f0ede6]">
+                {inspectingTicket.items.map(it => (
+                  <div key={it.id} className="py-2 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-[#1d1c17]">
+                        {it.quantity}x {it.productName}
+                        {it.variantName && <span className="text-[#5f5e5e] font-normal ml-1">({it.variantName})</span>}
+                      </p>
+                      {it.notes && <p className="text-[11px] text-amber-700 italic">Notes: {it.notes}</p>}
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                          it.preparationStatus === 'ready'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : it.preparationStatus === 'held'
+                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                            : it.preparationStatus === 'in_preparation'
+                            ? 'bg-blue-100 text-blue-800 border-blue-200'
+                            : 'bg-zinc-100 text-[#5f5e5e] border-zinc-200'
+                        }`}
+                      >
+                        {it.preparedQuantity}/{it.quantity} {it.preparationStatus}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setInspectingTicket(null)}
+                className="px-4 py-2 bg-[#1d1c17] hover:bg-[#333] text-white rounded-lg font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Close Audit View
+              </button>
+            </div>
+          </div>
+        </AppModal>
+      )}
+
+      {/* CANCELLATION REASON MODAL */}
+      {cancellingTicket && (
+        <AppModal
+          onClose={() => setCancellingTicket(null)}
+          title={`Cancel Kitchen Ticket #KO-${cancellingTicket.id}`}
+        >
+          <div className="space-y-4 text-xs font-sans">
+            <p className="text-[#5f5e5e]">
+              Please select the operational reason for voiding this kitchen ticket. This cancellation will be logged in the audit trail.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-[#1d1c17] uppercase tracking-wider mb-1.5">
+                Cancellation Reason (Required)
+              </label>
+              <select
+                value={selectedReason}
+                onChange={e => setSelectedReason(e.target.value as KitchenCancellationReason)}
+                className="w-full bg-[#fef9f1] border border-[#e8e2d8] rounded-lg p-2.5 text-xs text-[#1d1c17] focus:outline-none focus:border-[#ae001a]"
+              >
+                {CANCELLATION_REASONS.map(r => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#1d1c17] uppercase tracking-wider mb-1.5">
+                Kitchen Operational Notes
+              </label>
+              <textarea
+                value={cancellationNotes}
+                onChange={e => setCancellationNotes(e.target.value)}
+                placeholder="Optional explanation for shift audit..."
+                rows={3}
+                className="w-full bg-[#fef9f1] border border-[#e8e2d8] rounded-lg p-2.5 text-xs text-[#1d1c17] focus:outline-none focus:border-[#ae001a]"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#e8e2d8]">
+              <button
+                type="button"
+                onClick={() => setCancellingTicket(null)}
+                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-[#1d1c17] font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+              >
+                Keep Order
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={cancelSubmitting}
+                className="px-4 py-2 bg-[#ae001a] hover:bg-[#800010] text-white font-bold rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {cancelSubmitting ? 'Cancelling...' : 'Confirm Cancellation'}
+              </button>
+            </div>
+          </div>
+        </AppModal>
+      )}
+
+      {/* Slide-over Right Drawer to Create New Kitchen Order */}
+      {isCreateModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-end items-stretch backdrop-blur-xs font-sans">
+            <div className="bg-white border-l border-[#e8e2d8] shadow-2xl w-full max-w-lg overflow-hidden animate-slide-in-right flex flex-col h-full">
+              {/* Drawer Header */}
+              <div className="p-4 bg-[#222222] text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#ae001a] text-xl">
+                    receipt_long
+                  </span>
+                  <div>
+                    <div
+                      className="font-bold text-sm tracking-wider uppercase text-white !text-white font-sans"
+                      style={{ color: '#ffffff' }}
+                    >
+                      Create New Kitchen Ticket
+                    </div>
+                    <p className="text-[10px] text-zinc-400 font-sans">
+                      Dispatch ticket to kitchen station with line items
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="text-zinc-400 hover:text-white transition-colors cursor-pointer p-1"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              </div>
+
+              {/* Drawer Form Body */}
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const validItems = formItems.filter(it => it.productName.trim().length > 0);
+                if (validItems.length === 0) {
+                  setCreateError('Please specify at least one dish / item name.');
+                  return;
+                }
+                setIsCreating(true);
+                setCreateError(null);
+                try {
+                  const ticketRef = formOrderId.trim();
+                  const instructions = formNotes.trim();
+                  let combinedNotes = '';
+                  if (ticketRef && instructions) {
+                    combinedNotes = `${ticketRef} • ${instructions}`;
+                  } else if (ticketRef) {
+                    combinedNotes = ticketRef;
+                  } else if (instructions) {
+                    combinedNotes = instructions;
+                  }
+
+                  const isNumericOrderId = /^\d+$/.test(ticketRef);
+
+                  const payload = {
+                    stationId: formStationId ? Number(formStationId) : (stations[0]?.id || null),
+                    priority: Number(formPriority),
+                    orderId: isNumericOrderId ? Number(ticketRef) : null,
+                    notes: combinedNotes || null,
+                    businessStatus: 'pending',
+                    startedAt: null,
+                    kitchenOrderItems: validItems.map((it) => ({
+                      productName: it.productName.trim(),
+                      variantName: it.variantName.trim() || null,
+                      quantity: Number(it.quantity) || 1,
+                      course: it.course || 'main_course',
+                      notes: it.notes.trim() || null,
+                    })),
+                  };
+
+                  // Send keepalive heartbeat to ensure station is fresh and online
+                  await sendStationKeepaliveHeartbeat('ALL');
+
+                  await apiRequest<void>(
+                    '/kitchen-orders',
+                    { method: 'POST', body: JSON.stringify(payload) },
+                    'Failed to create order',
+                  );
+                  setIsCreateModalOpen(false);
+                  setFormOrderId('');
+                  setFormNotes('');
+                  setFormPriority(0);
+                  setFormItems([{ productName: '', variantName: '', quantity: 1, course: 'main_course', notes: '' }]);
+                  showToast('New kitchen order created successfully!', 'success');
+                  loadOrders(true);
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Network error creating order';
+                  setCreateError(message);
+                } finally {
+                  setIsCreating(false);
+                }
+              }} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs flex flex-col justify-between">
+                <div className="space-y-4">
+                  {createError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs font-bold">
+                      {createError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider mb-1">
+                        Kitchen Station *
+                      </label>
+                      <select
+                        value={formStationId}
+                        onChange={e => setFormStationId(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs font-semibold focus:border-[#ae001a] outline-none cursor-pointer text-[#1d1c17]"
+                      >
+                        {stations.map(s => (
+                          <option key={s.id} value={String(s.id)}>
+                            {s.name} (#KST-{s.stationNumber ?? s.station_number ?? s.display_order ?? s.id})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider mb-1">
+                        Priority Level
+                      </label>
+                      <select
+                        value={formPriority}
+                        onChange={e => setFormPriority(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs font-semibold focus:border-[#ae001a] outline-none cursor-pointer text-[#1d1c17]"
+                      >
+                        <option value={0}>Normal (0)</option>
+                        <option value={1}>High (+1)</option>
+                        <option value={2}>Urgent (+2)</option>
+                        <option value={3}>VIP Rush (+3)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider mb-1">
+                        Table / Ticket (Name or #)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Table 6, Bar 2, 101..."
+                        value={formOrderId}
+                        onChange={e => setFormOrderId(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs font-semibold focus:border-[#ae001a] outline-none text-[#1d1c17]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider mb-1">
+                        Kitchen Instructions / Notes
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Extra sauce, Allergy..."
+                        value={formNotes}
+                        onChange={e => setFormNotes(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs font-semibold focus:border-[#ae001a] outline-none text-[#1d1c17]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Line Items List */}
+                  <div className="border-t border-[#e8e2d8] pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-[#1d1c17] uppercase tracking-wider">
+                        Order Dishes / Line Items
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFormItems(prev => [...prev, { productName: '', variantName: '', quantity: 1, course: 'main_course', notes: '' }])}
+                        className="text-[11px] font-bold text-[#ae001a] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">add</span> Add Another Dish
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-[34rem] overflow-y-auto pr-1">
+                      {formItems.map((item, index) => {
+                        const availableVariants = productVariantsMap[item.productName] || [];
+
+                        return (
+                          <div
+                            key={index}
+                            className="bg-white p-3.5 rounded-xl border border-[#e5dfd5] shadow-2xs hover:border-[#ae001a]/40 transition-all space-y-2.5"
+                          >
+                            {/* Top row: Item Index & Remove button */}
+                            <div className="flex items-center justify-between border-b border-[#f0ece3] pb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-[#1d1c17] text-white font-mono font-black text-[10px] flex items-center justify-center">
+                                  {index + 1}
+                                </span>
+                                <span className="text-[11px] font-bold text-[#1d1c17] tracking-wider">
+                                  {item.productName ? item.productName : `Dish #${index + 1}`}
+                                </span>
+                              </div>
+
+                              {formItems.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFormItems(prev => prev.filter((_, i) => i !== index))}
+                                  className="text-zinc-400 hover:text-red-600 p-0.5 rounded transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                                  title="Remove dish"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">delete</span>
+                                  <span>Remove</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Inputs Grid */}
+                            <div className="grid grid-cols-12 gap-2">
+                              {/* Product / Dish Select */}
+                              <div className="col-span-12 sm:col-span-5">
+                                <label className="block text-[10px] font-bold text-[#6f6e6e] uppercase tracking-wider mb-1">
+                                  Dish / Product <span className="text-[#ae001a]">*</span>
+                                </label>
+                                <select
+                                  value={
+                                    item.isCustomProduct
+                                      ? '__custom__'
+                                      : (() => {
+                                          const norm = (item.productName === 'Al Pastor Tacos (3 pcs)' || item.productName === 'Al Pastor Tacos')
+                                            ? 'Tacos al Pastor (3 pcs)'
+                                            : item.productName;
+                                          const catalog = Array.from(new Set(catalogProducts.map(p => 
+                                            (p === 'Al Pastor Tacos (3 pcs)' || p === 'Al Pastor Tacos') ? 'Tacos al Pastor (3 pcs)' : p
+                                          )));
+                                          return catalog.includes(norm) ? norm : norm === '' ? '' : '__custom__';
+                                        })()
+                                  }
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '__custom__') {
+                                      setFormItems(prev =>
+                                        prev.map((it, i) =>
+                                          i === index
+                                            ? {
+                                                ...it,
+                                                productName: '',
+                                                isCustomProduct: true,
+                                                variantName: '',
+                                                isCustomVariant: false,
+                                              }
+                                            : it
+                                        )
+                                      );
+                                    } else {
+                                      const available = productVariantsMap[val] || productVariantsMap['Tacos al Pastor (3 pcs)'] || [];
+                                      const suggested = suggestCourseForProduct(val);
+                                      setFormItems(prev =>
+                                        prev.map((it, i) => {
+                                          if (i !== index) return it;
+                                          const currentValid = available.includes(it.variantName || '');
+                                          return {
+                                            ...it,
+                                            productName: val,
+                                            isCustomProduct: false,
+                                            course: suggested,
+                                            variantName: currentValid ? it.variantName : (available[0] || ''),
+                                            isCustomVariant: false,
+                                          };
+                                        })
+                                      );
+                                    }
+                                  }}
+                                  className="w-full px-2.5 py-1.5 bg-[#faf9f6] border border-[#d8d2c7] rounded-lg text-xs font-semibold focus:border-[#ae001a] focus:bg-white outline-none text-[#1d1c17] transition-all"
+                                >
+                                  <option value="">-- Select Dish / Product --</option>
+                                  <optgroup label="Store Catalog / Menu">
+                                    {Array.from(new Set(catalogProducts.map(p => 
+                                      (p === 'Al Pastor Tacos (3 pcs)' || p === 'Al Pastor Tacos') ? 'Tacos al Pastor (3 pcs)' : p
+                                    ))).map(p => (
+                                      <option key={p} value={p}>{p}</option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label="Other / Custom">
+                                    <option value="__custom__">✍️ Custom Product Name...</option>
+                                  </optgroup>
+                                </select>
+
+                                {(item.isCustomProduct || (!catalogProducts.includes(item.productName) && item.productName !== '')) && (
+                                  <input
+                                    type="text"
+                                    placeholder="Write custom product name..."
+                                    value={item.productName}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      const inferred = suggestCourseForProduct(val);
+                                      setFormItems(prev => prev.map((it, i) => i === index ? { ...it, productName: val, course: inferred } : it));
+                                    }}
+                                    className="mt-1.5 w-full px-2.5 py-1 bg-white border border-[#ae001a] rounded-md text-xs outline-none text-[#1d1c17]"
+                                    required
+                                  />
+                                )}
+                              </div>
+
+                              {/* Variant Select */}
+                              <div className="col-span-12 sm:col-span-3">
+                                <label className="block text-[10px] font-bold text-[#6f6e6e] uppercase tracking-wider mb-1">
+                                  Variant
+                                </label>
+                                <select
+                                  disabled={!item.productName && !item.isCustomProduct}
+                                  value={
+                                    item.isCustomVariant
+                                      ? '__custom__'
+                                      : availableVariants.includes(item.variantName || '')
+                                      ? (item.variantName || '')
+                                      : item.variantName === ''
+                                      ? ''
+                                      : '__custom__'
+                                  }
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '__custom__') {
+                                      setFormItems(prev =>
+                                        prev.map((it, i) =>
+                                          i === index ? { ...it, isCustomVariant: true } : it
+                                        )
+                                      );
+                                    } else {
+                                      setFormItems(prev =>
+                                        prev.map((it, i) =>
+                                          i === index
+                                            ? {
+                                                ...it,
+                                                variantName: val === 'Standard' ? '' : val,
+                                                isCustomVariant: false,
+                                              }
+                                            : it
+                                        )
+                                      );
+                                    }
+                                  }}
+                                  className={`w-full px-2.5 py-1.5 bg-[#faf9f6] border border-[#d8d2c7] rounded-lg text-xs font-semibold focus:border-[#ae001a] focus:bg-white outline-none text-[#1d1c17] transition-all ${
+                                    !item.productName && !item.isCustomProduct
+                                      ? 'opacity-60 cursor-not-allowed bg-zinc-50'
+                                      : 'cursor-pointer'
+                                  }`}
+                                >
+                                  {!item.productName && !item.isCustomProduct ? (
+                                    <option value="">-- Select dish first --</option>
+                                  ) : (
+                                    <option value="">Standard (No variant)</option>
+                                  )}
+                                  {availableVariants.length > 0 && (
+                                    <optgroup label={`${item.productName} Variants`}>
+                                      {availableVariants.map(v => (
+                                        <option key={v} value={v}>{v}</option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                  <optgroup label="Other / Custom">
+                                    <option value="__custom__">✍️ Custom Variant...</option>
+                                  </optgroup>
+                                </select>
+
+                                {(item.isCustomVariant ||
+                                  (item.variantName &&
+                                    !availableVariants.includes(item.variantName) &&
+                                    item.variantName !== '')) && (
+                                  <input
+                                    type="text"
+                                    placeholder="Write custom variant..."
+                                    value={item.variantName}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setFormItems(prev =>
+                                        prev.map((it, i) =>
+                                          i === index ? { ...it, variantName: val } : it
+                                        )
+                                      );
+                                    }}
+                                    className="mt-1.5 w-full px-2.5 py-1 bg-white border border-[#ae001a] rounded-md text-xs outline-none text-[#1d1c17]"
+                                  />
+                                )}
+                              </div>
+
+                              {/* Course Select */}
+                              <div className="col-span-8 sm:col-span-3">
+                                <label className="block text-[10px] font-bold text-[#6f6e6e] uppercase tracking-wider mb-1">
+                                  Course
+                                </label>
+                                <select
+                                  value={item.course || 'main_course'}
+                                  onChange={e => {
+                                    const val = e.target.value as 'beverage' | 'appetizer' | 'main_course' | 'dessert';
+                                    setFormItems(prev => prev.map((it, i) => i === index ? { ...it, course: val } : it));
+                                  }}
+                                  className="w-full px-2 py-1.5 bg-[#faf9f6] border border-[#d8d2c7] rounded-lg text-xs font-semibold outline-none text-[#1d1c17] focus:border-[#ae001a] focus:bg-white cursor-pointer transition-all"
+                                >
+                                  <option value="beverage">🍹 Beverage</option>
+                                  <option value="appetizer">🥗 Appetizer</option>
+                                  <option value="main_course">🍔 Main Course</option>
+                                  <option value="dessert">🍰 Dessert</option>
+                                </select>
+                              </div>
+
+                              {/* Qty Input */}
+                              <div className="col-span-4 sm:col-span-1">
+                                <label className="block text-[10px] font-bold text-[#6f6e6e] uppercase tracking-wider mb-1 text-center">
+                                  Qty
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={e => {
+                                    const val = Number(e.target.value) || 1;
+                                    setFormItems(prev => prev.map((it, i) => i === index ? { ...it, quantity: val } : it));
+                                  }}
+                                  className="w-full px-1 py-1.5 bg-[#faf9f6] border border-[#d8d2c7] rounded-lg text-xs text-center font-black outline-none text-[#1d1c17] focus:border-[#ae001a] focus:bg-white transition-all"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Item Preparation Notes with 1-Click Allergy & Modifier Picker */}
+                            <div className="pt-1">
+                              <label className="block text-[10px] font-bold text-[#6f6e6e] uppercase tracking-wider mb-1">
+                                Allergies, Modifiers & Kitchen Notes
+                              </label>
+                              <KitchenAllergyModifierPicker
+                                notes={item.notes || ''}
+                                onChange={val => {
+                                  setFormItems(prev => prev.map((it, i) => i === index ? { ...it, notes: val } : it));
+                                }}
+                                placeholder="Additional prep notes (e.g. cut in half, extra crispy)..."
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Drawer Footer Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#e8e2d8]">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-xs font-bold uppercase rounded hover:bg-zinc-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreating}
+                    className="px-6 py-2 bg-[#ae001a] hover:bg-[#c4001d] text-white text-xs font-bold uppercase rounded transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {isCreating ? 'Dispatching...' : 'DISPATCH TO KITCHEN'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* 4. Quick Links Banner */}
+      <KitchenQuickLinks activeTab="kitchen-orders" onNavigate={onNavigate} />
+
+      {/* 5. Persistent KDS Navigation Hub Bar */}
+      <NavHubBar
+        title="KDS ORDERS &amp; AUDIT WORKSPACE"
+        subtitle="Historical Audit Table &amp; Persistent Sub-Module Routing"
+        activeModuleId="kitchen-orders"
+        onBackToDashboard={() => onNavigate?.('kitchen-kds-hub')}
+        backToDashboardLabel="KDS COMMAND HUB"
+        items={[
+          {
+            id: 'kitchen-stations',
+            label: 'KITCHEN STATIONS',
+            icon: 'soup_kitchen',
+            onClick: () => onNavigate?.('kitchen-stations'),
+          },
+          {
+            id: 'kitchen-display-devices',
+            label: 'KDS DEVICES',
+            icon: 'desktop_windows',
+            onClick: () => onNavigate?.('kitchen-display-devices'),
+          },
+          {
+            id: 'kitchen-orders',
+            label: 'KITCHEN ORDERS',
+            icon: 'receipt_long',
+            active: true,
+            onClick: () => onNavigate?.('kitchen-orders'),
+          },
+          {
+            id: 'kitchen-order-items',
+            label: 'ORDER ITEMS',
+            icon: 'lunch_dining',
+            onClick: () => onNavigate?.('kitchen-order-items'),
+          },
+          {
+            id: 'kitchen-event-log',
+            label: 'KDS EVENT LOG',
+            icon: 'history',
+            onClick: () => onNavigate?.('kitchen-event-log'),
+          },
+          {
+            id: 'kitchen-analytics',
+            label: 'KDS ANALYTICS',
+            icon: 'bar_chart',
+            onClick: () => onNavigate?.('kitchen-analytics'),
+          },
+        ]}
+      />
+      <KitchenSlaConfigModal
+        isOpen={isSlaModalOpen}
+        onClose={() => setIsSlaModalOpen(false)}
+        onSavedToast={(msg) => showToast(msg, 'success')}
+      />
+      {KitchenDevResetButton && <KitchenDevResetButton onResetComplete={() => loadOrders(true)} />}
+    </div>
+  );
+};
+export default KitchenOrdersView;
