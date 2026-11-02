@@ -46,7 +46,7 @@ export default function App() {
           }
         >
           {MERCHANT_ROUTE_PATHS.map((path) => (
-            <Route key={path} path={path} />
+            <Route key={path} path={path} element={<></>} />
           ))}
         </Route>
         <Route path="/saas-admin" element={<SaaSFrame />} />

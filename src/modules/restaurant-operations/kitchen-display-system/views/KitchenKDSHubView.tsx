@@ -154,14 +154,14 @@ export const KitchenKDSHubView: React.FC<KitchenKDSHubViewProps> = ({
       actionText: 'View Event Log',
     },
     {
-      id: 'kitchen-analytics',
+      id: 'kitchen-performance',
       title: 'Kitchen Performance',
       subtitle: 'Metrics & Prep KPIs',
       description: 'Analyze preparation times, bottleneck charts, and throughput metrics.',
-      icon: 'monitoring',
+      icon: 'speed',
       badge: 'KPI Metrics',
       badgeVariant: 'rose',
-      actionText: 'View Analytics',
+      actionText: 'View Performance',
     },
   ];
 

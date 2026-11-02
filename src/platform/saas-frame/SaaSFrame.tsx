@@ -272,10 +272,10 @@ export const SaaSFrame: React.FC = () => {
                   {/* Category Header */}
                   <div
                     onClick={() => {
-                      setExpandedCategories((prev) => ({
-                        ...prev,
-                        [cat.id]: !isCatExpanded,
-                      }));
+                      setExpandedCategories((prev) => {
+                        const isCurrentlyExpanded = !!prev[cat.id];
+                        return isCurrentlyExpanded ? {} : { [cat.id]: true };
+                      });
                     }}
                     className={`border-l-2 pl-3 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
                       isCatActive

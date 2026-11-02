@@ -21,6 +21,78 @@ export interface NavHubBarProps {
   backToDashboardLabel?: string;
 }
 
+const SPECIFIC_SHORTCUTS: Record<string, string> = {
+  'PROCUREMENT & PURCHASE ORDERS': 'PURCHASE ORDERS',
+  'STOCK LOCATIONS & BALANCE WORKSPACE': 'STOCK & BALANCE',
+  'STOCK MOVEMENTS LOG': 'MOVEMENTS',
+  'STORAGE LOCATIONS': 'LOCATIONS',
+  'COMPANY MERCHANTS DIRECTORY': 'MERCHANTS',
+  'COMPANY USERS DIRECTORY': 'USERS',
+  'RM CATEGORIES': 'CATEGORIES',
+  'RAW MATERIALS CATEGORIES': 'CATEGORIES',
+  'RAW MATERIALS WORKSPACE': 'RAW MATERIALS',
+  'QR CODE MENU SECTIONS': 'MENU SECTIONS',
+  'QR CODE MENU ITEMS': 'MENU ITEMS',
+  'QR ORDER ITEMS': 'ORDER ITEMS',
+  'SUPPLIER INVOICE ITEMS': 'INVOICE ITEMS',
+  'SUPPLIER PAYMENT ITEMS': 'PAYMENT ITEMS',
+  'SUPPLIER PAYMENTS ALLOCATION': 'ALLOCATIONS',
+  'AUTOMATION ACTION': 'ACTIONS',
+  'AUTOMATION ACTIONS': 'ACTIONS',
+  'MARKETING AUTOMATION': 'AUTOMATION',
+  'MARKETING AUTOMATION ACTION': 'ACTIONS',
+  'MARKETING AUTOMATION ACTIONS': 'ACTIONS',
+  'MARKETING CAMPAIGN': 'CAMPAIGNS',
+  'MARKETING CAMPAIGN AUDIENCE': 'AUDIENCE',
+  'CAMPAIGN AUDIENCE': 'AUDIENCE',
+  'CAMPAIGN AUDIENCES': 'AUDIENCE',
+  'MARKETING COUPON': 'COUPONS',
+  'MARKETING COUPON REDEMPTION': 'REDEMPTIONS',
+  'COUPON REDEMPTION': 'REDEMPTIONS',
+  'COUPON REDEMPTIONS': 'REDEMPTIONS',
+  'REWARDS REDEMPTIONS': 'REDEMPTIONS',
+  'MARKETING MESSAGE LOG': 'LOGS',
+  'MESSAGE LOG': 'LOGS',
+  'MARKETING SEGMENT': 'SEGMENTS',
+  'MARKETING SEGMENT RULE': 'RULES',
+  'MARKETING SEGMENT RULES': 'RULES',
+  'SEGMENT RULE': 'RULES',
+  'SEGMENT RULES': 'RULES',
+  'POINT TRANSACTIONS': 'POINTS',
+  'LOYALTY POINT TRANSACTIONS': 'POINTS',
+  'CATEGORY MANAGEMENT': 'CATEGORIES',
+  'PRODUCT MANAGMENT': 'PRODUCTS',
+  'MODIFIERS MANAGEMENT': 'MODIFIERS',
+  'VARIANTS MANAGEMENT': 'VARIANTS',
+};
+
+function formatNavHubLabel(rawLabel: string): string {
+  if (!rawLabel) return '';
+  const trimmed = rawLabel.trim();
+  const uppercase = trimmed.toUpperCase();
+
+  if (SPECIFIC_SHORTCUTS[uppercase]) {
+    return SPECIFIC_SHORTCUTS[uppercase];
+  }
+
+  return (
+    trimmed
+      .replace(/^QR(\s*CODE|-CODE)?\s+/i, '')
+      .replace(/^QR\s+/i, '')
+      .replace(/^RAW\s+MATERIALS?\s+/i, '')
+      .replace(/^ACCOUNTS?\s+PAYABLE\s+/i, '')
+      .replace(/^SUPPLIER\s+/i, '')
+      .replace(/^MERCHANT\s+/i, '')
+      .replace(/^COMPANY\s+/i, '')
+      .replace(/^KITCHEN\s+/i, '')
+      .replace(/^ONLINE\s+(ORDERING\s+)?/i, '')
+      .replace(/^LOYALTY\s+/i, '')
+      .replace(/^MARKETING\s+/i, '')
+      .replace(/\s+(MANAGEMENT|MANAGMENT)$/i, '')
+      .trim() || trimmed
+  );
+}
+
 export const NavHubBar: React.FC<NavHubBarProps> = ({
   title,
   titleIcon,
@@ -116,11 +188,11 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
 
   return (
     <div
-      className={`fixed bottom-0 ${leftOffsetClass} right-0 z-40 bg-[#222222] border-t-2 border-[#ae001a] text-white py-2 px-4 shadow-2xl font-sans transition-all duration-300 ease-in-out ${className}`}
+      className={`fixed bottom-0 ${leftOffsetClass} right-0 z-40 bg-[#222222] border-t-2 border-[#ae001a] text-white py-1.5 px-2 sm:px-3 shadow-2xl font-sans transition-all duration-300 ease-in-out ${className}`}
     >
-      <div className="w-full flex items-center justify-between relative min-h-[36px] gap-2 sm:gap-4">
+      <div className="w-full flex items-center justify-between relative min-h-[34px] gap-1 sm:gap-2">
         {/* Left Slot: Back Button (or Module Title) with Distinct Separation */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 z-10">
+        <div className="flex items-center gap-1.5 shrink-0 z-10">
           {handleBack ? (
             <>
               <button
@@ -129,31 +201,32 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   scrollToPageTop();
                   handleBack();
                 }}
-                className="flex items-center justify-center w-8 h-8 bg-[#ae001a] hover:bg-[#900015] text-white rounded transition-all shadow-xs cursor-pointer select-none shrink-0"
+                className="flex items-center justify-center w-7 h-7 bg-[#ae001a] hover:bg-[#900015] text-white rounded transition-all shadow-xs cursor-pointer select-none shrink-0"
                 title={backToDashboardLabel || 'Return to Main Dashboard'}
                 aria-label={backToDashboardLabel || 'Return to Main Dashboard'}
               >
-                <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_back</span>
               </button>
-              <div className="h-5 w-px bg-zinc-700/80 ml-1 mr-2 hidden sm:block" aria-hidden="true" />
+              <div className="h-4 w-px bg-zinc-700/80 ml-0.5 mr-1 hidden sm:block" aria-hidden="true" />
             </>
           ) : title ? (
-            <div className="hidden lg:flex items-center gap-2 text-xs font-bold tracking-wider text-[#e8e2d8] uppercase mr-2">
+            <div className="hidden xl:flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold tracking-wider text-[#e8e2d8] uppercase mr-2 shrink-0">
               {titleIcon && (
-                <span className="material-symbols-outlined text-[#ae001a] text-[24px]" aria-hidden="true">
+                <span className="material-symbols-outlined text-[#ae001a] text-[18px]" aria-hidden="true">
                   {titleIcon}
                 </span>
               )}
               <span>{title}</span>
-              <div className="h-5 w-px bg-zinc-700/80 ml-2" aria-hidden="true" />
+              <div className="h-4 w-px bg-zinc-700/80 ml-2" aria-hidden="true" />
             </div>
           ) : null}
         </div>
 
-        {/* Center Slot: Navigation Buttons Array (Spaced & Centered) */}
-        <div className="flex items-center justify-center gap-1.5 flex-wrap flex-1 min-w-0">
+        {/* Center Slot: Navigation Buttons Array (Spaced & Centered in 1 Single Line) */}
+        <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-hidden flex-1 min-w-0 py-0.5">
           {items.map((item) => {
             const isActive = item.active || (activeModuleId ? item.id === activeModuleId : false);
+            const displayLabel = formatNavHubLabel(item.label);
             return (
               <button
                 key={item.id}
@@ -163,25 +236,20 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   item.onClick();
                 }}
                 aria-current={isActive ? 'page' : undefined}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors duration-200 flex items-center gap-1.5 cursor-pointer font-sans select-none whitespace-nowrap ${
+                className={`px-1.5 sm:px-2 py-1 rounded text-[10px] sm:text-[11px] font-semibold sm:font-bold transition-colors duration-200 flex items-center gap-1 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
                   isActive
                     ? 'bg-[#ae001a] text-white shadow-xs'
                     : 'text-zinc-300 hover:text-[#ae001a] hover:bg-zinc-800'
                 }`}
               >
                 {item.icon && (
-                  <span className="material-symbols-outlined text-[24px]" aria-hidden="true">{item.icon}</span>
+                  <span className="material-symbols-outlined text-[15px] sm:text-[16px] shrink-0" aria-hidden="true">{item.icon}</span>
                 )}
-                <span>{item.label}</span>
+                <span>{displayLabel}</span>
               </button>
             );
           })}
         </div>
-
-        {/* Right Slot: Optical Balance Spacer */}
-        {handleBack ? (
-          <div className="hidden lg:flex items-center shrink-0 w-8 mr-1" aria-hidden="true" />
-        ) : null}
       </div>
     </div>
   );

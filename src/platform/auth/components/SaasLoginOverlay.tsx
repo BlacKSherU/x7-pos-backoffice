@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { login } from '@/platform/auth/api/auth';
 import { saveSaasToken } from '@/platform/auth/lib/saas-auth-storage';
+import { saveAuthSession } from '@/platform/auth/lib/auth-storage';
 
 interface Props {
   onSuccess: () => void;
@@ -18,10 +19,11 @@ export const SaasLoginOverlay: React.FC<Props> = ({ onSuccess }) => {
     setLoading(true);
     try {
       const data = await login(email, password);
-      if (data.user?.role !== 'portal_admin') {
+      if (data.user?.role !== 'portal_admin' && data.user?.role !== 'super_admin') {
         throw new Error('Access restricted to Platform Administrators');
       }
       saveSaasToken(data.access_token);
+      saveAuthSession(data.access_token, data.refreshToken, data.user, true);
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

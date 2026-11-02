@@ -20,7 +20,10 @@ import type {
 import { GlobalHeader } from '@/platform/merchant-frame/layout/GlobalHeader';
 import { GlobalFooter } from '@/platform/merchant-frame/layout/GlobalFooter';
 import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenMonitorView';
-import { sendStationKeepaliveHeartbeat } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-keepalive';
+import {
+  sendStationKeepaliveHeartbeat,
+  resetHeartbeatSuspension,
+} from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-keepalive';
 import {
   NewReservationModal,
   VoidTransactionModal,
@@ -164,22 +167,32 @@ export const MerchantFrame: React.FC = () => {
   }, [navCategories, sidebarSearchQuery]);
 
   const [isNavLoading, setIsNavLoading] = useState<boolean>(true);
+  const [navError, setNavError] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
     setIsNavLoading(true);
+    setNavError(null);
 
     navigationService
       .loadDynamicNavigation('merchant_web')
       .then((menu) => {
         if (!ignore) {
           setNavCategories(menu);
+          setNavError(null);
           setIsNavLoading(false);
         }
       })
       .catch((err: unknown) => {
         console.error('Error loading dynamic navigation menu', err);
         if (!ignore) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : typeof err === 'object' && err !== null && 'message' in err
+                ? String((err as { message: unknown }).message)
+                : 'Failed to load navigation menu';
+          setNavError(message);
           setIsNavLoading(false);
         }
       });
@@ -302,6 +315,7 @@ export const MerchantFrame: React.FC = () => {
 
   // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa
   useEffect(() => {
+    resetHeartbeatSuspension();
     void sendStationKeepaliveHeartbeat('ALL');
 
     const keepaliveTimer = setInterval(() => {
@@ -470,27 +484,45 @@ export const MerchantFrame: React.FC = () => {
         isSidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
       }`}>
         <nav className="flex-1 overflow-y-auto custom-scrollbar sidebar-scroll py-4 space-y-1 text-left">
-          {navCategories.length === 0 ? (
-            isNavLoading ? (
-              <div className="px-5 py-8 text-center text-xs text-white/50 space-y-2">
-                <span className="material-symbols-outlined text-2xl text-white/30 animate-spin">
-                  sync
-                </span>
-                <p className="text-[11px] text-white/40">Loading navigation menu...</p>
+          {isNavLoading ? (
+            <div className="px-5 py-8 text-center text-xs text-white/50 space-y-2">
+              <span className="material-symbols-outlined text-2xl text-white/30 animate-spin">
+                sync
+              </span>
+              <p className="text-[11px] text-white/40">Loading navigation menu...</p>
+            </div>
+          ) : navError ? (
+            <div className="px-5 py-8 text-center text-xs text-white/60 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-400">
+                <span className="material-symbols-outlined text-2xl">error</span>
               </div>
-            ) : (
-              <div className="px-5 py-10 text-center text-xs text-white/60 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-amber-500">
-                  <span className="material-symbols-outlined text-2xl">assignment_late</span>
-                </div>
-                <div>
-                  <p className="font-semibold text-white/90 text-sm">No Active Assignments</p>
-                  <p className="text-[11px] text-white/50 mt-1 leading-relaxed">
-                    No shift position or active modules have been assigned to your account. Please contact your restaurant branch manager.
-                  </p>
-                </div>
+              <div>
+                <p className="font-semibold text-white/90 text-sm">Failed to Load Menu</p>
+                <p className="text-[11px] text-white/50 mt-1 leading-relaxed">
+                  {navError}. Please check your backend connection, migrations, or permissions.
+                </p>
               </div>
-            )
+              <button
+                type="button"
+                onClick={() => setRefreshTrigger((prev) => prev + 1)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-white bg-white/10 hover:bg-white/20 rounded cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">refresh</span>
+                Retry
+              </button>
+            </div>
+          ) : navCategories.length === 0 ? (
+            <div className="px-5 py-10 text-center text-xs text-white/60 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-amber-500">
+                <span className="material-symbols-outlined text-2xl">assignment_late</span>
+              </div>
+              <div>
+                <p className="font-semibold text-white/90 text-sm">No Active Assignments</p>
+                <p className="text-[11px] text-white/50 mt-1 leading-relaxed">
+                  No shift position or active modules have been assigned to your account. Please contact your restaurant branch manager.
+                </p>
+              </div>
+            </div>
           ) : filteredNavCategories.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-white/50 space-y-1">
               <span className="material-symbols-outlined text-2xl text-white/30">search_off</span>
@@ -513,19 +545,8 @@ export const MerchantFrame: React.FC = () => {
                   <div
                     onClick={() => {
                       const isCurrentlyExpanded = !!expandedCategories[cat.id];
-                      setExpandedCategories((prev) => ({
-                        ...prev,
-                        [cat.id]: !prev[cat.id],
-                      }));
-                      if (isCurrentlyExpanded) {
-                        setExpandedApps((prevApps) => {
-                          const nextApps = { ...prevApps };
-                          cat.applications.forEach((app) => {
-                            delete nextApps[app.id];
-                          });
-                          return nextApps;
-                        });
-                      }
+                      setExpandedCategories(isCurrentlyExpanded ? {} : { [cat.id]: true });
+                      setExpandedApps({});
                       setActiveCategory(cat.id);
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
@@ -613,10 +634,8 @@ export const MerchantFrame: React.FC = () => {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setExpandedApps((prev) => ({
-                                      ...prev,
-                                      [app.id]: !prev[app.id],
-                                    }));
+                                    const isCurrentlyExpanded = !!expandedApps[app.id];
+                                    setExpandedApps(isCurrentlyExpanded ? {} : { [app.id]: true });
                                   }}
                                   className="p-1 text-white/40 hover:text-white transition-colors"
                                   title={isAppExpanded ? 'Collapse submenus' : 'Expand submenus'}
