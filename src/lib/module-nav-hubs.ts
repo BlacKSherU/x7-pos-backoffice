@@ -265,7 +265,7 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     icon: 'handshake',
     description: 'Customer and supplier master data.',
     items: [
-      { featureId: 'customers', label: 'CUSTOMERS', icon: 'person', live: false, description: 'Customer profiles and billing identity.' },
+      { featureId: 'customers', label: 'CUSTOMERS', icon: 'person', live: true, description: 'Customer profiles and billing identity.' },
       { featureId: 'suppliers', label: 'SUPPLIERS', icon: 'local_shipping', live: true, description: 'Supplier directory and terms.' },
     ],
   },

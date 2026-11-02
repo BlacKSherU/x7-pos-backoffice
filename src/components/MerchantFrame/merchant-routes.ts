@@ -34,6 +34,8 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('platformsaas', 'company-profile', '/dashboard/company-profile'),
   ...routes('platformsaas', 'company-configurations', '/dashboard/company-configurations'),
 
+  ...routes('core', 'customers', '/customers', '/core/customers', '/dashboard/customers', '/business-partners/customers'),
+  ...routes('core', 'suppliers', '/suppliers', '/core/suppliers', '/dashboard/suppliers', '/business-partners/suppliers'),
   ...routes('core', 'journal-entries', '/inventory/journal-entries'),
 
   // Personal: turnos y asistencia

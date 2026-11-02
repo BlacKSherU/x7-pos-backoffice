@@ -4,7 +4,6 @@ import type { SubscriptionPlan } from '../../../types/subscription';
 import type { JournalEntry } from '../../../types/accounting';
 import type { SupplierCreditNote, SupplierPayment } from '../../../types/accounts-payable';
 import { getCurrentMerchantId } from '../../../api/users';
-
 import { SubscriptionPlansView } from '../../SaaSFrame/views/SubscriptionPlansView';
 import { PlatformApplicationsView } from '../../SaaSFrame/views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from '../../SaaSFrame/views/PlatformFeatureCatalogView';
@@ -63,6 +62,7 @@ import { JournalEntriesView } from './financial-engine/JournalEntriesView';
 import { JournalEntryLinesView } from './financial-engine/JournalEntryLinesView';
 
 import { SuppliersView } from './accounts-payable/SuppliersView';
+import { CustomersView } from './business-partners/CustomersView';
 import { SupplierInvoicesView } from './accounts-payable/SupplierInvoicesView';
 import { SupplierInvoiceItemsView } from './accounts-payable/SupplierInvoiceItemsView';
 import { SupplierCreditNotesView } from './accounts-payable/SupplierCreditNotesView';
@@ -286,6 +286,15 @@ view('journal-entries-lines', (ctx) => (
       ctx.setLinesEntryFilter(null);
       ctx.setActiveTab(next);
     }}
+  />
+));
+
+// ---- Business Partners / Clientes ----
+view('customers', (ctx) => (
+  <CustomersView
+    onNavigate={ctx.onNavigate}
+    companyId={ctx.profile?.company_id}
+    merchantId={getCurrentMerchantId() ?? undefined}
   />
 ));
 
