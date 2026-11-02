@@ -541,19 +541,8 @@ export const MerchantFrame: React.FC = () => {
                   <div
                     onClick={() => {
                       const isCurrentlyExpanded = !!expandedCategories[cat.id];
-                      setExpandedCategories((prev) => ({
-                        ...prev,
-                        [cat.id]: !prev[cat.id],
-                      }));
-                      if (isCurrentlyExpanded) {
-                        setExpandedApps((prevApps) => {
-                          const nextApps = { ...prevApps };
-                          cat.applications.forEach((app) => {
-                            delete nextApps[app.id];
-                          });
-                          return nextApps;
-                        });
-                      }
+                      setExpandedCategories(isCurrentlyExpanded ? {} : { [cat.id]: true });
+                      setExpandedApps({});
                       setActiveCategory(cat.id);
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
@@ -641,10 +630,8 @@ export const MerchantFrame: React.FC = () => {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setExpandedApps((prev) => ({
-                                      ...prev,
-                                      [app.id]: !prev[app.id],
-                                    }));
+                                    const isCurrentlyExpanded = !!expandedApps[app.id];
+                                    setExpandedApps(isCurrentlyExpanded ? {} : { [app.id]: true });
                                   }}
                                   className="p-1 text-white/40 hover:text-white transition-colors"
                                   title={isAppExpanded ? 'Collapse submenus' : 'Expand submenus'}
