@@ -186,8 +186,6 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
     }, 30);
   };
 
-  const isDense = items.length >= 7;
-
   return (
     <div
       className={`fixed bottom-0 ${leftOffsetClass} right-0 z-40 bg-[#222222] border-t-2 border-[#ae001a] text-white py-1.5 px-2 sm:px-3 shadow-2xl font-sans transition-all duration-300 ease-in-out ${className}`}
@@ -203,16 +201,16 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   scrollToPageTop();
                   handleBack();
                 }}
-                className={`flex items-center justify-center ${isDense ? 'w-7 h-7' : 'w-8 h-8'} bg-[#ae001a] hover:bg-[#900015] text-white rounded transition-all shadow-xs cursor-pointer select-none shrink-0`}
+                className="flex items-center justify-center w-7 h-7 bg-[#ae001a] hover:bg-[#900015] text-white rounded transition-all shadow-xs cursor-pointer select-none shrink-0"
                 title={backToDashboardLabel || 'Return to Main Dashboard'}
                 aria-label={backToDashboardLabel || 'Return to Main Dashboard'}
               >
-                <span className={`material-symbols-outlined ${isDense ? 'text-[20px]' : 'text-[24px]'}`} aria-hidden="true">arrow_back</span>
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_back</span>
               </button>
               <div className="h-4 w-px bg-zinc-700/80 ml-0.5 mr-1 hidden sm:block" aria-hidden="true" />
             </>
-          ) : !isDense && title ? (
-            <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[#e8e2d8] uppercase mr-2 shrink-0">
+          ) : title ? (
+            <div className="hidden xl:flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold tracking-wider text-[#e8e2d8] uppercase mr-2 shrink-0">
               {titleIcon && (
                 <span className="material-symbols-outlined text-[#ae001a] text-[18px]" aria-hidden="true">
                   {titleIcon}
@@ -238,25 +236,20 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   item.onClick();
                 }}
                 aria-current={isActive ? 'page' : undefined}
-                className={`${isDense ? 'px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px]' : 'px-2 py-1 sm:px-2.5 sm:py-1.5 text-[11px] sm:text-xs'} rounded font-semibold sm:font-bold transition-colors duration-200 flex items-center gap-1 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
+                className={`px-1.5 sm:px-2 py-1 rounded text-[10px] sm:text-[11px] font-semibold sm:font-bold transition-colors duration-200 flex items-center gap-1 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
                   isActive
                     ? 'bg-[#ae001a] text-white shadow-xs'
                     : 'text-zinc-300 hover:text-[#ae001a] hover:bg-zinc-800'
                 }`}
               >
                 {item.icon && (
-                  <span className={`material-symbols-outlined ${isDense ? 'text-[15px] sm:text-[16px]' : 'text-[17px] sm:text-[18px]'} shrink-0`} aria-hidden="true">{item.icon}</span>
+                  <span className="material-symbols-outlined text-[15px] sm:text-[16px] shrink-0" aria-hidden="true">{item.icon}</span>
                 )}
                 <span>{displayLabel}</span>
               </button>
             );
           })}
         </div>
-
-        {/* Right Slot: Optical Balance Spacer */}
-        {handleBack && !isDense ? (
-          <div className="hidden lg:flex items-center shrink-0 w-8 mr-1" aria-hidden="true" />
-        ) : null}
       </div>
     </div>
   );
