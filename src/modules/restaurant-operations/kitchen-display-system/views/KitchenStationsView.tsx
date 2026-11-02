@@ -1260,20 +1260,20 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
         items={[
           {
             id: 'kitchen-stations',
-            label: 'KITCHEN STATIONS',
+            label: 'STATIONS',
             icon: 'soup_kitchen',
             active: true,
             onClick: () => onNavigate?.('kitchen-stations'),
           },
           {
             id: 'kitchen-display-devices',
-            label: 'KDS DEVICES',
+            label: 'DEVICES',
             icon: 'desktop_windows',
             onClick: () => onNavigate?.('kitchen-display-devices'),
           },
           {
             id: 'kitchen-orders',
-            label: 'KITCHEN ORDERS',
+            label: 'ORDERS',
             icon: 'receipt_long',
             onClick: () => onNavigate?.('kitchen-orders'),
           },
@@ -1285,13 +1285,13 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
           },
           {
             id: 'kitchen-event-log',
-            label: 'KDS EVENT LOG',
+            label: 'EVENT LOG',
             icon: 'history',
             onClick: () => onNavigate?.('kitchen-event-log'),
           },
           {
             id: 'kitchen-performance',
-            label: 'KITCHEN PERFORMANCE',
+            label: 'PERFORMANCE',
             icon: 'speed',
             onClick: () => onNavigate?.('kitchen-performance'),
           },

@@ -26,21 +26,21 @@ const KITCHEN_ANCHORS: Array<{
 }> = [
   {
     key: 'kitchen-stations',
-    label: 'KITCHEN STATIONS',
+    label: 'STATIONS',
     route: '/kds/stations',
     featureId: 'kitchen-stations',
     icon: 'soup_kitchen',
   },
   {
     key: 'kitchen-display-devices',
-    label: 'KDS DEVICES',
+    label: 'DEVICES',
     route: '/kds/devices',
     featureId: 'kitchen-display-devices',
     icon: 'desktop_windows',
   },
   {
     key: 'kitchen-orders',
-    label: 'KITCHEN ORDERS',
+    label: 'ORDERS',
     route: '/kds/orders',
     featureId: 'kitchen-orders',
     icon: 'receipt_long',
@@ -54,14 +54,14 @@ const KITCHEN_ANCHORS: Array<{
   },
   {
     key: 'kitchen-event-log',
-    label: 'KDS EVENT LOG',
+    label: 'EVENT LOG',
     route: '/kds/event-log',
     featureId: 'kitchen-event-log',
     icon: 'history',
   },
   {
     key: 'kitchen-performance',
-    label: 'KITCHEN PERFORMANCE',
+    label: 'PERFORMANCE',
     route: '/kitchen-analytics',
     featureId: 'kitchen-performance',
     icon: 'speed',

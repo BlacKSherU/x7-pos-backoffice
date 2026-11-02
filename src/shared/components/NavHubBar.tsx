@@ -21,6 +21,11 @@ export interface NavHubBarProps {
   backToDashboardLabel?: string;
 }
 
+function formatNavHubLabel(rawLabel: string): string {
+  if (!rawLabel) return '';
+  return rawLabel.replace(/^KITCHEN\s+/i, '').trim();
+}
+
 export const NavHubBar: React.FC<NavHubBarProps> = ({
   title,
   titleIcon,
@@ -150,10 +155,11 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
           ) : null}
         </div>
 
-        {/* Center Slot: Navigation Buttons Array (Spaced & Centered) */}
-        <div className="flex items-center justify-center gap-1.5 flex-wrap flex-1 min-w-0">
+        {/* Center Slot: Navigation Buttons Array (Spaced & Centered in 1 Single Line) */}
+        <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
           {items.map((item) => {
             const isActive = item.active || (activeModuleId ? item.id === activeModuleId : false);
+            const displayLabel = formatNavHubLabel(item.label);
             return (
               <button
                 key={item.id}
@@ -163,16 +169,16 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   item.onClick();
                 }}
                 aria-current={isActive ? 'page' : undefined}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors duration-200 flex items-center gap-1.5 cursor-pointer font-sans select-none whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded text-[11px] sm:text-xs font-bold transition-colors duration-200 flex items-center gap-1.5 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
                   isActive
                     ? 'bg-[#ae001a] text-white shadow-xs'
                     : 'text-zinc-300 hover:text-[#ae001a] hover:bg-zinc-800'
                 }`}
               >
                 {item.icon && (
-                  <span className="material-symbols-outlined text-[24px]" aria-hidden="true">{item.icon}</span>
+                  <span className="material-symbols-outlined text-[18px] sm:text-[20px] shrink-0" aria-hidden="true">{item.icon}</span>
                 )}
-                <span>{item.label}</span>
+                <span>{displayLabel}</span>
               </button>
             );
           })}
