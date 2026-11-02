@@ -1,0 +1,1071 @@
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { CatalogQuickLinks } from '@/modules/inventory/products-inventory/views/CatalogQuickLinks';
+import { InventoryNavHubBar } from '@/modules/inventory/shared/InventoryNavHubBar';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
+import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
+import { EmergencySupportModal } from '@/shared/components/QuickActionModals';
+import { apiRequest } from '@/shared/api/http';
+
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface Variant {
+  id: number;
+  name: string;
+  sku: string;
+  price: number | string;
+  isActive: boolean;
+}
+
+interface Modifier {
+  id: number;
+  name: string;
+  priceDelta: number | string;
+  isActive: boolean;
+}
+
+interface Product {
+  id: number;
+  name: string;
+  sku: string;
+  basePrice: number | string;
+  isActive: boolean;
+  category: Category | null;
+  variants?: Variant[];
+  modifiers?: Modifier[];
+}
+
+interface ProductsViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Control product rows expansion
+  const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
+
+  // Filtros locales
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All Categories');
+  const [statusFilter, setStatusFilter] = useState<string>('All Status');
+
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
+
+  // Modal Form Fields
+  const [formName, setFormName] = useState<string>('');
+  const [formSku, setFormSku] = useState<string>('');
+  const [formPrice, setFormPrice] = useState<string>('');
+  const [formCategory, setFormCategory] = useState<string>('NULL');
+  const [formIsActive, setFormIsActive] = useState<boolean>(true);
+  const [isSupportOpen, setIsSupportOpen] = useState<boolean>(false);
+
+  // State for activation/deactivation confirmation modal
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
+  const [confirmTargetProduct, setConfirmTargetProduct] = useState<Product | null>(null);
+  const [isToggling, setIsToggling] = useState<boolean>(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const topRef = useRef<HTMLDivElement | null>(null);
+
+  // Status to Customize Columns
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    product: true,
+    category: true,
+    basePrice: true,
+    status: true,
+    actions: true,
+  });
+
+  // Row density (padding) and visible records limit state
+  const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+
+  // Auto-scroll at startup when mounting view
+  useEffect(() => {
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'instant' });
+    }
+  }, []);
+
+  const fetchAllData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    setIsRefreshing(true);
+    setError(null);
+    try {
+      const [productsJson, categoriesJson] = await Promise.all([
+        apiRequest<{ data?: {
+        id: number;
+        name: string;
+        sku?: string;
+        basePrice: number | string;
+        isActive?: boolean;
+        category?: { id: number; name: string } | null;
+        variants?: Variant[];
+        modifiers?: Modifier[];
+      }[] }>('/products?limit=100', { method: 'GET' }, 'Error loading data from server'),
+        apiRequest<{ data?: Category[] }>('/category?limit=100', { method: 'GET' }, 'Error loading data from server'),
+      ]);
+
+      const productsData = productsJson.data || [];
+      const categoriesData = categoriesJson.data || [];
+
+      // Map and ensure that fields exist and have the correct type
+      const mappedProducts = productsData.map((p: {
+        id: number;
+        name: string;
+        sku?: string;
+        basePrice: number | string;
+        isActive?: boolean;
+        category?: { id: number; name: string } | null;
+        variants?: Variant[];
+        modifiers?: Modifier[];
+      }) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku || 'N/A',
+        basePrice: p.basePrice,
+        isActive: p.isActive !== undefined ? p.isActive : true,
+        category: p.category ? { id: p.category.id, name: p.category.name } : null,
+        variants: p.variants || [],
+        modifiers: p.modifiers || []
+      }));
+
+      setProducts(mappedProducts);
+      setCategories(categoriesData);
+    } catch (err: unknown) {
+      console.error('Error fetching data:', err);
+      if (!silent) {
+        setError('Failed to load products. Please check if the backend is running.');
+      }
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      fetchAllData(false);
+    });
+  }, [fetchAllData]);
+
+  // Periodic Auto Refresh Effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const timer = setInterval(() => {
+      void fetchAllData(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(timer);
+  }, [autoRefreshInterval, fetchAllData]);
+
+  // Product Status Counts for Pills Strip
+  const productStatusCounts = useMemo(() => {
+    const all = products.length;
+    const active = products.filter((p) => p.isActive !== false).length;
+    const inactive = products.filter((p) => p.isActive === false).length;
+    return { all, active, inactive };
+  }, [products]);
+
+  // Client-side reactive product filtering and ordering (Active first, Inactive last)
+  const filteredProducts = useMemo(() => {
+    return products
+      .filter((p) => {
+        const matchesSearch =
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.sku.toLowerCase().includes(searchQuery.toLowerCase());
+
+        const matchesCategory =
+          categoryFilter === 'All Categories' ||
+          p.category?.name === categoryFilter;
+
+        const matchesStatus =
+          statusFilter === 'All Status' ||
+          (statusFilter === 'Active' && p.isActive) ||
+          (statusFilter === 'Inactive' && !p.isActive);
+
+        return matchesSearch && matchesCategory && matchesStatus;
+      })
+      .sort((a, b) => {
+        const aActive = a.isActive !== false;
+        const bActive = b.isActive !== false;
+        if (aActive !== bActive) {
+          return aActive ? -1 : 1; // Active first, Inactive last
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [products, searchQuery, categoryFilter, statusFilter]);
+
+  const formatPrice = (price: number | string) => {
+    const num = typeof price === 'number' ? price : parseFloat(price);
+    if (isNaN(num)) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(num);
+  };
+
+  // Open modal to add
+  const handleOpenAddModal = () => {
+    setModalMode('add');
+    setEditingProductId(null);
+    setFormName('');
+    setFormSku('');
+    setFormPrice('');
+    setFormCategory('NULL');
+    setFormIsActive(true);
+    setIsModalOpen(true);
+  };
+
+  // Open modal to edit
+  const handleOpenEditModal = (p: Product) => {
+    setModalMode('edit');
+    setEditingProductId(p.id);
+    setFormName(p.name);
+    setFormSku(p.sku);
+    setFormPrice(String(p.basePrice));
+    setFormCategory(p.category ? String(p.category.id) : 'NULL');
+    setFormIsActive(p.isActive);
+    setIsModalOpen(true);
+  };
+
+  // Toggle product active/inactive quickly
+  const handleToggleActive = (p: Product) => {
+    setConfirmTargetProduct(p);
+    setToggleError(null);
+    setIsConfirmModalOpen(true);
+  };
+
+  const executeToggleActive = async () => {
+    if (!confirmTargetProduct) return;
+    setIsToggling(true);
+    setToggleError(null);
+    try {
+      await apiRequest<void>(
+        `/products/${confirmTargetProduct.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ isActive: !confirmTargetProduct.isActive })
+        },
+        'Error updating product status.',
+      );
+      setProducts((prevProducts) =>
+        prevProducts.map((prod) =>
+          prod.id === confirmTargetProduct.id ? { ...prod, isActive: !prod.isActive } : prod
+        )
+      );
+      setIsConfirmModalOpen(false);
+      setConfirmTargetProduct(null);
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Error updating product status';
+      setToggleError(msg);
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  // Save form (Add or Edit) to backend
+  const handleSaveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim() || !formSku.trim() || !formPrice.trim()) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+
+    const priceNum = parseFloat(formPrice);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      alert('Price must be a positive number.');
+      return;
+    }
+
+    try {
+      const categoryIdNum = formCategory === 'NULL' ? null : parseInt(formCategory);
+
+      const bodyData = {
+        name: formName,
+        sku: formSku,
+        basePrice: priceNum,
+        categoryId: categoryIdNum,
+        isActive: formIsActive
+      };
+
+      if (modalMode === 'add') {
+        await apiRequest<void>(
+          '/products',
+          { method: 'POST', body: JSON.stringify(bodyData) },
+          'Error creating product.',
+        );
+      } else if (modalMode === 'edit' && editingProductId) {
+        await apiRequest<void>(
+          `/products/${editingProductId}`,
+          { method: 'PATCH', body: JSON.stringify(bodyData) },
+          'Error updating product.',
+        );
+      }
+
+      setIsModalOpen(false);
+      fetchAllData();
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Error saving product';
+      alert(msg);
+    }
+  };
+
+  // Action menu handlers (more_vert)
+  const handleExportCSV = () => {
+    if (!filteredProducts || filteredProducts.length === 0) return;
+    const headers = ['ID', 'Name', 'Category', 'Base Price', 'SKU', 'Status'];
+    const rows = filteredProducts.map(p => [
+      p.id,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${(p.category?.name || 'Uncategorized').replace(/"/g, '""')}"`,
+      p.basePrice,
+      `"${(p.sku || '').replace(/"/g, '""')}"`,
+      p.isActive !== false ? 'Active' : 'Inactive'
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `products_directory_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintTable = () => {
+    window.print();
+  };
+
+  const handleCopySummary = () => {
+    const text = filteredProducts
+      .map(p => `#${p.id} ${p.name} (${p.category?.name || 'Uncategorized'}) - $${p.basePrice} [${p.isActive !== false ? 'ACTIVE' : 'INACTIVE'}]`)
+      .join('\n');
+    navigator.clipboard.writeText(text);
+    alert('Products directory list copied to clipboard!');
+  };
+
+  // Dynamic table helpers
+  const densityPadding = getDensityPadding(rowDensity);
+  const totalPages = Math.ceil(filteredProducts.length / pageSize) || 1;
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+  
+  const dataColumnsCount =
+    (visibleColumns.product ? 1 : 0) +
+    (visibleColumns.category ? 1 : 0) +
+    (visibleColumns.basePrice ? 1 : 0) +
+    (visibleColumns.status ? 1 : 0) +
+    (visibleColumns.actions ? 1 : 0);
+  const activeColSpan = 1 + dataColumnsCount;
+
+  return (
+    <div className="flex flex-col gap-6 animate-fade-in text-left font-sans">
+      <div ref={topRef} />
+
+      {/* Section Title */}
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-[#ae001a] text-2xl">
+            inventory_2
+          </span>
+          <div>
+            <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
+              Products & Catalog Master List
+            </h2>
+            <p className="text-[#5f5e5e] text-body-sm font-sans mt-1">
+              Manage your global catalog items, configure base prices, establish SKU references and assign item variants.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Category selector, View Switcher + Auto Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search products by name or SKU..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search products"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Category Dropdown Selector */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">category</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[180px] transition-colors duration-200"
+                aria-label="Filter by category"
+              >
+                <option value="All Categories">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchAllData(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh products now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: STATUS Pills Strip on left, Primary Add Button & Reload on right */}
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: STATUS Pills Strip */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Status:
+            </span>
+
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter('All Status')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'All Status'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
+            >
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'All Status' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {productStatusCounts.all}
+              </span>
+            </button>
+
+            {/* Active Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'Active' ? 'All Status' : 'Active')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Active'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>ACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {productStatusCounts.active}
+              </span>
+            </button>
+
+            {/* Inactive Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'Inactive' ? 'All Status' : 'Inactive')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Inactive'
+                  ? 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
+                  : 'bg-white text-zinc-700 border-zinc-300 hover:bg-zinc-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">block</span>
+              <span>INACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Inactive' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-700'
+                }`}
+              >
+                {productStatusCounts.inactive}
+              </span>
+            </button>
+          </div>
+
+          {/* Right: Primary Add Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD PRODUCT
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Products Directory Table */}
+      <div className="bg-white border border-[#e8e2d8] overflow-hidden rounded shadow-sm">
+        {/* Dark Header #222222 with Full Options Dropdown Menu */}
+        <div className="p-4 bg-[#222222] flex justify-between items-center relative">
+          <div className="flex items-center gap-3">
+            <span className="text-label-caps font-bold text-white uppercase tracking-wider font-sans">
+              PRODUCT DIRECTORY
+            </span>
+            <span className="text-[10px] font-mono font-bold bg-[#333333] text-zinc-300 px-2 py-0.5 rounded border border-[#444444]">
+              {paginatedProducts.length === filteredProducts.length
+                ? `${filteredProducts.length} product${filteredProducts.length === 1 ? '' : 's'}`
+                : `${paginatedProducts.length} / ${filteredProducts.length} products`}
+            </span>
+          </div>
+
+          <TableOptionsMenu
+            onExportCSV={handleExportCSV}
+            onPrint={handlePrintTable}
+            onCopySummary={handleCopySummary}
+            onReload={() => void fetchAllData(false)}
+            columns={[
+              { key: 'product', label: 'Product Name & SKU' },
+              { key: 'category', label: 'Category' },
+              { key: 'basePrice', label: 'Base Price' },
+              { key: 'status', label: 'Status' },
+              { key: 'actions', label: 'Actions' },
+            ]}
+            visibleColumns={visibleColumns}
+            onToggleColumn={(key) =>
+              setVisibleColumns((prev) => ({
+                ...prev,
+                [key]: !prev[key as keyof typeof visibleColumns],
+              }))
+            }
+            rowDensity={rowDensity}
+            onChangeDensity={setRowDensity}
+            totalItems={filteredProducts.length}
+            pageSize={pageSize}
+            onChangePageSize={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+
+        {dataColumnsCount === 0 ? (
+          <NoColumnsEmptyState />
+        ) : (
+          <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <table className="w-full table-fixed border-collapse">
+              <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
+                <tr>
+                  <th className={`w-10 text-left ${densityPadding}`}></th>
+                  {visibleColumns.product && (
+                    <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-auto min-w-[200px]`}>
+                      Product Name
+                    </th>
+                  )}
+                  {visibleColumns.category && (
+                    <th className={`text-left text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-44 min-w-[120px]`}>
+                      Category
+                    </th>
+                  )}
+                  {visibleColumns.basePrice && (
+                    <th className={`text-right text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-32 min-w-[100px]`}>
+                      Base Price
+                    </th>
+                  )}
+                  {visibleColumns.status && (
+                    <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
+                      Status
+                    </th>
+                  )}
+                  {visibleColumns.actions && (
+                    <th className={`text-center text-label-caps font-semibold text-[#5f5e5e] font-sans text-xs ${densityPadding} w-28 min-w-[90px]`}>
+                      Actions
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
+                      <span className="material-symbols-outlined animate-spin text-[#ae001a] text-4xl block mb-2 mx-auto select-none">
+                        sync
+                      </span>
+                      <p className="text-secondary text-body-md mt-2 font-sans">Loading product catalog...</p>
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={activeColSpan} className="px-6 py-12 text-center text-[#ba1a1a] font-sans bg-white">
+                      <span className="material-symbols-outlined text-[#ba1a1a] text-4xl block mb-2 mx-auto select-none">
+                        error
+                      </span>
+                      <p className="font-bold">{error}</p>
+                      <button
+                        onClick={() => void fetchAllData(false)}
+                        className="mt-4 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-all font-sans cursor-pointer"
+                      >
+                        Retry Connection
+                      </button>
+                    </td>
+                  </tr>
+                ) : products.length === 0 ? (
+                  <TableEmptyState
+                    colSpan={activeColSpan}
+                    icon="inventory_2"
+                    title="No products found"
+                    description="Click 'Add Product' to start building your catalog."
+                  />
+                ) : (
+                  filteredProducts.length === 0 ? (
+                    <TableEmptyState
+                      colSpan={activeColSpan}
+                      icon="inventory_2"
+                      title="No products found"
+                      description="No products match the selected filter criteria."
+                    />
+                  ) : (
+                    paginatedProducts.map((product) => {
+                      const isInactive = !product.isActive;
+                      const isExpanded = !!expandedProducts[product.id];
+                      return (
+                        <React.Fragment key={product.id}>
+                          <tr
+                            className={`category-row group transition-colors ${
+                              isInactive ? 'bg-[#f8f3eb]/40 opacity-75' : 'hover:bg-[#f8f3eb]'
+                            }`}
+                          >
+                            <td className={`w-10 text-center ${densityPadding}`}>
+                              <button
+                                onClick={() => setExpandedProducts(prev => ({
+                                  ...prev,
+                                  [product.id]: !prev[product.id]
+                                }))}
+                                className="text-secondary hover:text-[#ae001a] transition-colors cursor-pointer"
+                                title={isExpanded ? 'Collapse details' : 'Expand variants and modifiers'}
+                              >
+                                <span className="material-symbols-outlined text-[20px] align-middle select-none">
+                                  {isExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right'}
+                                </span>
+                              </button>
+                            </td>
+                            {visibleColumns.product && (
+                              <td className={`${densityPadding} truncate`}>
+                                <div className="min-w-0 flex flex-col justify-center">
+                                  <span className={`font-bold text-[#1d1c17] font-sans text-sm truncate ${isInactive ? 'line-through opacity-75' : ''}`} title={product.name}>
+                                    {product.name}
+                                  </span>
+                                  {product.sku && (
+                                    <span className={`font-mono text-[11px] font-normal text-[#5f5e5e] truncate mt-0.5 ${isInactive ? 'line-through' : ''}`}>
+                                      SKU: {product.sku}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            )}
+
+                            {visibleColumns.category && (
+                              <td className={`text-xs text-[#5f5e5e] font-normal font-sans truncate ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
+                                <span title={product.category ? product.category.name : 'No Category'}>
+                                  {product.category ? product.category.name : 'No Category'}
+                                </span>
+                              </td>
+                            )}
+
+                            {visibleColumns.basePrice && (
+                              <td className={`text-right font-mono font-normal text-xs text-[#1d1c17] whitespace-nowrap ${densityPadding} ${isInactive ? 'line-through' : ''}`}>
+                                {formatPrice(product.basePrice)}
+                              </td>
+                            )}
+
+                            {visibleColumns.status && (
+                              <td className={`text-center whitespace-nowrap ${densityPadding}`}>
+                                <span
+                                  className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans whitespace-nowrap ${
+                                    product.isActive
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-zinc-200 text-[#5f5e5e]'
+                                  }`}
+                                >
+                                  {product.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                            )}
+
+                            {visibleColumns.actions && (
+                              <td className={`text-center whitespace-nowrap ${densityPadding}`}>
+                                <div className="flex justify-center gap-3">
+                                  {product.isActive ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleOpenEditModal(product)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                        title="Edit product"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                      </button>
+                                      <button
+                                        onClick={() => void handleToggleActive(product)}
+                                        className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                        title="Deactivate product"
+                                      >
+                                        <span className="material-symbols-outlined text-[20px]">block</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => void handleToggleActive(product)}
+                                      className="p-1 text-[#5f5e5e] hover:text-emerald-600 transition-colors cursor-pointer"
+                                      title="Activate product"
+                                    >
+                                      <span className="material-symbols-outlined text-[20px]">check_circle_outline</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+
+                        {isExpanded && (
+                          <tr className="bg-[#fcfbfa]/80">
+                            <td colSpan={activeColSpan} className="px-12 py-5 border-t border-b border-[#e8e2d8]/60">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Variantes */}
+                                <div className="space-y-3">
+                                  <h4 className="text-[11px] font-bold text-[#ae001a] uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                                    <span className="material-symbols-outlined text-[16px]">layers</span>
+                                    VARIANTS ({product.variants?.length || 0})
+                                  </h4>
+                                  {product.variants && product.variants.length > 0 ? (
+                                    <div className="border border-[#e8e2d8] rounded overflow-hidden bg-white shadow-sm">
+                                      <table className="w-full text-xs font-sans">
+                                        <thead className="bg-[#ece8e0]/40">
+                                          <tr className="border-b border-[#e8e2d8]">
+                                            <th className="px-3 py-2 text-left font-bold text-secondary">Name</th>
+                                            <th className="px-3 py-2 text-left font-bold text-secondary">SKU</th>
+                                            <th className="px-3 py-2 text-right font-bold text-secondary">Price</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#e8e2d8]/50">
+                                          {product.variants.map((v) => (
+                                            <tr key={v.id} className="hover:bg-zinc-50/50">
+                                              <td className="px-3 py-2 font-medium text-[#1d1c17]">{v.name}</td>
+                                              <td className="px-3 py-2 font-mono text-[#5f5e5e]">{v.sku}</td>
+                                              <td className="px-3 py-2 text-right font-mono font-bold text-[#1d1c17]">
+                                                {formatPrice(v.price)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-secondary italic pl-1 font-sans">
+                                      No variants defined for this item.
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Modificadores */}
+                                <div className="space-y-3">
+                                  <h4 className="text-[11px] font-bold text-[#ae001a] uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                                    <span className="material-symbols-outlined text-[16px]">tune</span>
+                                    MODIFIERS ({product.modifiers?.length || 0})
+                                  </h4>
+                                  {product.modifiers && product.modifiers.length > 0 ? (
+                                    <div className="border border-[#e8e2d8] rounded overflow-hidden bg-white shadow-sm">
+                                      <table className="w-full text-xs font-sans">
+                                        <thead className="bg-[#ece8e0]/40">
+                                          <tr className="border-b border-[#e8e2d8]">
+                                            <th className="px-3 py-2 text-left font-bold text-secondary">Name</th>
+                                            <th className="px-3 py-2 text-right font-bold text-secondary">Extra Cost</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#e8e2d8]/50">
+                                          {product.modifiers.map((m) => (
+                                            <tr key={m.id} className="hover:bg-zinc-50/50">
+                                              <td className="px-3 py-2 font-medium text-[#1d1c17]">{m.name}</td>
+                                              <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">
+                                                +{formatPrice(m.priceDelta)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-secondary italic pl-1 font-sans">
+                                      No modifiers linked to this product.
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+        <TablePaginationFooter
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={filteredProducts.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
+      </div>
+
+      {/* Interactive Add / Edit Product Modal */}
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-start overflow-y-auto p-2 md:pt-4 md:pb-12 backdrop-blur-sm">
+          <div className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-md overflow-hidden animate-fade-in text-left max-h-[90vh] flex flex-col">
+            <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
+              <span className="font-bold text-label-caps uppercase tracking-wider font-sans">
+                {modalMode === 'add' ? 'Add Product' : 'Edit Product'}
+              </span>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-white/70 hover:text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleSaveProduct} className="flex-1 flex flex-col min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-[#5f5e5e] uppercase font-sans">
+                  Product Name
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-body-md focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full font-sans"
+                  placeholder="e.g., Coca-Cola, Pepperoni Pizza"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-[#5f5e5e] uppercase font-sans">
+                  SKU
+                </label>
+                <input
+                  type="text"
+                  value={formSku}
+                  onChange={(e) => setFormSku(e.target.value)}
+                  className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-body-md focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full font-sans"
+                  placeholder="e.g., BEV-COCA-01"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-[#5f5e5e] uppercase font-sans">
+                  Base Price ($)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formPrice}
+                  onChange={(e) => setFormPrice(e.target.value)}
+                  className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-body-md focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full font-mono"
+                  placeholder="e.g., 2.50"
+                  required
+                  min="0.01"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-[#5f5e5e] uppercase font-sans">
+                  Category
+                </label>
+                <select
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-body-md focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full font-sans"
+                >
+                  <option value="NULL">None (No Category)</option>
+                  {categories.map((cat) => (
+                     <option key={cat.id} value={cat.id}>
+                       {cat.name}
+                     </option>
+                  ))}
+                </select>
+              </div>
+
+              </div>
+              <div className="p-6 pt-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0 bg-[#fefbf6]">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-[#222222] text-[#222222] font-bold text-label-caps hover:bg-zinc-100 transition-colors font-sans cursor-pointer"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#d2272f] transition-colors font-sans cursor-pointer"
+                >
+                  SAVE PRODUCT
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <EmergencySupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+      />
+
+      {/* Activation/deactivation confirmation modal */}
+      {isConfirmModalOpen && confirmTargetProduct && (
+        <div className="fixed inset-0 z-[10000] overflow-y-auto flex items-center justify-center p-4 font-sans">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setIsConfirmModalOpen(false)}
+          />
+
+          {/* Modal Box */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-zinc-200 animate-scale-in">
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                confirmTargetProduct.isActive 
+                  ? 'bg-red-50 border border-red-100 text-[#ae001a]'
+                  : 'bg-emerald-50 border border-emerald-100 text-emerald-600'
+              }`}>
+                <span className="material-symbols-outlined text-2xl block">
+                  {confirmTargetProduct.isActive ? 'power_settings_new' : 'check_circle'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-body-md font-bold text-zinc-900 font-sans">
+                  {confirmTargetProduct.isActive ? 'Confirm Deactivation' : 'Confirm Activation'}
+                </h3>
+                <p className="text-body-xs text-zinc-500 leading-relaxed font-sans">
+                  Are you sure you want to {confirmTargetProduct.isActive ? 'deactivate' : 'activate'} this product? This action will set the status to {confirmTargetProduct.isActive ? 'inactive' : 'active'}.
+                </p>
+              </div>
+            </div>
+
+            {toggleError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-body-xs font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm block">error</span>
+                <span>{toggleError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="px-4 py-2 text-body-xs font-bold border border-zinc-200 rounded-lg text-zinc-700 hover:bg-zinc-50 transition-all duration-200 cursor-pointer font-sans"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeToggleActive}
+                disabled={isToggling}
+                className={`px-4 py-2 text-white text-body-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 font-sans ${
+                  confirmTargetProduct.isActive
+                    ? 'bg-red-600 hover:bg-[#ae001a]'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {isToggling ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin block">sync</span>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{confirmTargetProduct.isActive ? 'Deactivate' : 'Activate'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent Quick Links Hub */}
+      <CatalogQuickLinks current="products" onNavigate={onNavigate} />
+
+      {/* Persistent Inventory Navigation Hub Bar */}
+      <InventoryNavHubBar activeModuleId="products" onNavigate={onNavigate} />
+    </div>
+  );
+};
+
+export default ProductsView;
