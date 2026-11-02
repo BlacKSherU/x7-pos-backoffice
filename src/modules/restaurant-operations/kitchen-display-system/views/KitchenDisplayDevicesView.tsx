@@ -1357,20 +1357,20 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         items={[
           {
             id: 'kitchen-stations',
-            label: 'KITCHEN STATIONS',
+            label: 'STATIONS',
             icon: 'soup_kitchen',
             onClick: () => onNavigate?.('kitchen-stations'),
           },
           {
             id: 'kitchen-display-devices',
-            label: 'KDS DEVICES',
+            label: 'DEVICES',
             icon: 'desktop_windows',
             active: true,
             onClick: () => onNavigate?.('kitchen-display-devices'),
           },
           {
             id: 'kitchen-orders',
-            label: 'KITCHEN ORDERS',
+            label: 'ORDERS',
             icon: 'receipt_long',
             onClick: () => onNavigate?.('kitchen-orders'),
           },
@@ -1382,15 +1382,15 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
           },
           {
             id: 'kitchen-event-log',
-            label: 'KDS EVENT LOG',
+            label: 'EVENT LOG',
             icon: 'history',
             onClick: () => onNavigate?.('kitchen-event-log'),
           },
           {
-            id: 'kitchen-analytics',
-            label: 'KDS ANALYTICS',
-            icon: 'bar_chart',
-            onClick: () => onNavigate?.('kitchen-analytics'),
+            id: 'kitchen-performance',
+            label: 'PERFORMANCE',
+            icon: 'speed',
+            onClick: () => onNavigate?.('kitchen-performance'),
           },
         ]}
       />

@@ -25,14 +25,14 @@ const STOCK_ANCHORS: Array<{
 }> = [
   {
     key: 'raw-material-categories',
-    label: 'RM CATEGORIES',
+    label: 'CATEGORIES',
     route: '/dashboard/raw-material-categories',
     featureId: 'raw-material-categories',
     icon: 'category',
   },
   {
     key: 'raw-materials',
-    label: 'RAW MATERIALS',
+    label: 'MATERIALS',
     route: '/inventory/raw-materials',
     featureId: 'raw-materials',
     icon: 'inventory_2',

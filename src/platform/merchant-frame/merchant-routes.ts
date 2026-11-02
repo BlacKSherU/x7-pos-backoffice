@@ -87,6 +87,15 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('commerce', 'online-orders', '/online-ordering/orders'),
   ...routes('commerce', 'online-order-items', '/online-ordering/order-items'),
   ...routes('commerce', 'online-delivery-info', '/online-ordering/delivery', '/online-ordering/delivery-info'),
+
+  // Cocina (KDS)
+  ...routes(OPS, 'kitchen-kds-hub', '/kitchen-kds-hub', '/kds', '/app/kitchen-display-system', '/app/kitchen-display-system/hub'),
+  ...routes(OPS, 'kitchen-stations', '/kitchen-stations', '/kds/stations', '/app/kitchen-display-system/kitchen-stations'),
+  ...routes(OPS, 'kitchen-display-devices', '/kitchen-display-devices', '/kds/devices', '/app/kitchen-display-system/kitchen-display-devices'),
+  ...routes(OPS, 'kitchen-orders', '/kitchen-orders', '/kds/orders', '/app/kitchen-display-system/kitchen-orders'),
+  ...routes(OPS, 'kitchen-order-items', '/kitchen-order-items', '/kds/order-items', '/app/kitchen-display-system/kitchen-order-items'),
+  ...routes(OPS, 'kitchen-event-log', '/kitchen-event-log', '/kds/event-log', '/app/kitchen-display-system/kitchen-event-log'),
+  ...routes(OPS, 'kitchen-performance', '/kitchen-analytics', '/kitchen-performance', '/kds/analytics', '/app/kitchen-display-system/kitchen-performance', '/app/kitchen-display-system/kitchen-analytics'),
 ]);
 
 /** Secciones cuyas sub-URLs abren MerchantFrame aunque no estén en la tabla. */
@@ -97,6 +106,7 @@ const SECTION_PREFIXES = [
   '/online-ordering',
   '/reservations',
   '/delivery',
+  '/kds',
   '/app',
   '/hub',
 ];

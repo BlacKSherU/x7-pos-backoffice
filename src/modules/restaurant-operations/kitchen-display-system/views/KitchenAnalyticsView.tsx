@@ -1979,33 +1979,33 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
 
       {/* QUICK LINKS BANNER */}
       <div className="w-full">
-        <KitchenQuickLinks activeTab="kitchen-analytics" onNavigate={onNavigate} />
+        <KitchenQuickLinks activeTab="kitchen-performance" onNavigate={onNavigate} />
       </div>
 
       {/* PERSISTENT BOTTOM NAVIGATION HUB BAR (Connecting All 6 Sub-Modules) */}
       <NavHubBar
-        title="KDS ANALYTICS WORKSPACE"
+        title="KITCHEN PERFORMANCE WORKSPACE"
         titleIcon="space_dashboard"
         subtitle="Executive Speed of Service & Throughput Telemetry"
-        activeModuleId="kitchen-analytics"
+        activeModuleId="kitchen-performance"
         onBackToDashboard={() => onNavigate?.('kitchen-kds-hub')}
         backToDashboardLabel="KDS COMMAND HUB"
         items={[
           {
             id: 'kitchen-stations',
-            label: 'KITCHEN STATIONS',
+            label: 'STATIONS',
             icon: 'soup_kitchen',
             onClick: () => onNavigate?.('kitchen-stations'),
           },
           {
             id: 'kitchen-display-devices',
-            label: 'KDS DEVICES',
+            label: 'DEVICES',
             icon: 'desktop_windows',
             onClick: () => onNavigate?.('kitchen-display-devices'),
           },
           {
             id: 'kitchen-orders',
-            label: 'KITCHEN ORDERS',
+            label: 'ORDERS',
             icon: 'receipt_long',
             onClick: () => onNavigate?.('kitchen-orders'),
           },
@@ -2017,14 +2017,14 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
           },
           {
             id: 'kitchen-event-log',
-            label: 'KDS EVENT LOG',
+            label: 'EVENT LOG',
             icon: 'history',
             onClick: () => onNavigate?.('kitchen-event-log'),
           },
           {
-            id: 'kitchen-analytics',
-            label: 'KDS ANALYTICS',
-            icon: 'bar_chart',
+            id: 'kitchen-performance',
+            label: 'PERFORMANCE',
+            icon: 'speed',
             active: true,
             onClick: () => {},
           },
