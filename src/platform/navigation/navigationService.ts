@@ -78,6 +78,77 @@ export interface NavCategory {
   applications: NavApplication[];
 }
 
+export const REPRESENTATIVE_NAV_ICONS: Record<string, string> = {
+  // Platform SaaS
+  'saas-dashboard': 'space_dashboard',
+  reports: 'bar_chart',
+  'company-profile': 'domain',
+  'company-configurations': 'tune',
+  'merchants-provisioning': 'add_business',
+  'global-merchants-directory': 'store',
+  'merchant-directory': 'storefront',
+  'users-auth-profiles': 'badge',
+  'user-management': 'manage_accounts',
+
+  // Food Costing
+  'actual-cost-variance': 'trending_down',
+  recipes: 'menu_book',
+  'recipe-ingredients': 'egg',
+  'theoretical-cost': 'calculate',
+
+  // Products
+  categories: 'category',
+  products: 'inventory_2',
+  modifiers: 'tune',
+  variants: 'style',
+
+  // Raw Materials
+  'raw-material-categories': 'shelves',
+  'raw-materials': 'inventory',
+  'purchase-orders': 'shopping_cart_checkout',
+  'stock-inventory': 'warehouse',
+  'stock-movements': 'swap_vert',
+  locations: 'place',
+
+  // KDS (Kitchen Display System)
+  'kitchen-stations': 'countertops',
+  'kitchen-display-devices': 'tablet_android',
+  'kitchen-orders': 'receipt_long',
+  'kitchen-order-items': 'restaurant_menu',
+  'kitchen-event-log': 'history',
+  'kitchen-performance': 'speed',
+
+  // Table Turnover
+  'table-turnover': 'table_bar',
+
+  // Loyalty System
+  'loyalty-customers': 'loyalty',
+  'loyalty-coupons': 'confirmation_number',
+  'loyalty-point-transactions': 'toll',
+  'loyalty-programs': 'card_membership',
+  'loyalty-rewards': 'redeem',
+  'loyalty-rewards-redemptions': 'savings',
+  'loyalty-tiers': 'workspace_premium',
+
+  // Marketing System
+  'marketing-automation': 'smart_toy',
+  'marketing-automation-action': 'play_arrow',
+  'marketing-campaign': 'campaign',
+  'marketing-campaign-audience': 'groups',
+  'marketing-coupon': 'confirmation_number',
+  'marketing-coupon-redemption': 'redeem',
+  'marketing-message-log': 'forum',
+  'marketing-segment': 'pie_chart',
+  'marketing-segment-rule': 'rule',
+};
+
+export function resolveNavIcon(code: string, rawIcon?: string | null): string {
+  if (rawIcon && rawIcon !== 'circle' && rawIcon !== 'radio_button_unchecked' && rawIcon.trim() !== '') {
+    return rawIcon;
+  }
+  return REPRESENTATIVE_NAV_ICONS[code] || 'widgets';
+}
+
 export const navigationService = {
   /**
    * Loads the dynamic navigation tree directly from backend API (GET /api/me/navigation).
@@ -104,19 +175,22 @@ export const navigationService = {
           // Map features/screens (kind !== 'hub')
           const features: NavFeature[] = (app.items || [])
             .filter((item) => item.kind !== 'hub')
-            .map((item) => ({
-              id: item.code,
-              name: item.label,
-              applicationId: appCode,
-              planId: res.planId ?? 1,
-              isSaaS: surface === 'saas_web',
-              icon: item.icon,
-              route: item.route || undefined,
-              kind: item.kind,
-              status: item.status,
-              description: item.description || undefined,
-              sortOrder: item.sortOrder,
-            }));
+            .map((item) => {
+              const resolvedIcon = resolveNavIcon(item.code, item.icon);
+              return {
+                id: item.code,
+                name: item.label,
+                applicationId: appCode,
+                planId: res.planId ?? 1,
+                isSaaS: surface === 'saas_web',
+                icon: resolvedIcon,
+                route: item.route || undefined,
+                kind: item.kind,
+                status: item.status,
+                description: item.description || undefined,
+                sortOrder: item.sortOrder,
+              };
+            });
 
           // Find or derive primary hub item
           const hubItem = (app.items || []).find((item) => item.kind === 'hub');
@@ -126,13 +200,16 @@ export const navigationService = {
           // Build dynamic ModuleNavHub for this application
           const hubNavItems: ModuleNavItem[] = (app.items || [])
             .filter((item) => item.kind !== 'hub')
-            .map((item) => ({
-              featureId: item.code,
-              label: item.label,
-              icon: item.icon,
-              description: item.description || item.label,
-              live: item.status === 'live',
-            }));
+            .map((item) => {
+              const resolvedIcon = resolveNavIcon(item.code, item.icon);
+              return {
+                featureId: item.code,
+                label: item.label,
+                icon: resolvedIcon,
+                description: item.description || item.label,
+                live: item.status === 'live',
+              };
+            });
 
           dynamicHubs.push({
             appId: appCode,
@@ -153,7 +230,10 @@ export const navigationService = {
             categorySortOrder: cat.sortOrder,
             icon: app.icon || cat.icon,
             sortOrder: app.sortOrder,
-            items: app.items,
+            items: (app.items || []).map((item) => ({
+              ...item,
+              icon: resolveNavIcon(item.code, item.icon),
+            })),
             features,
           };
         });
