@@ -173,7 +173,7 @@ export const navigationService = {
       return categories;
     } catch (error) {
       console.warn('Dynamic navigation loading failed:', error);
-      return [];
+      throw error;
     }
   },
 
