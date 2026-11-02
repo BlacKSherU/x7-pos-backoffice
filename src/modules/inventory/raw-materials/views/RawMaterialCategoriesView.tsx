@@ -654,14 +654,14 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
         items={[
           {
             id: 'raw-material-categories',
-            label: 'RM CATEGORIES',
+            label: 'CATEGORIES',
             icon: 'category',
             active: true,
             onClick: () => onNavigate?.('raw-material-categories'),
           },
           {
             id: 'raw-materials',
-            label: 'RAW MATERIALS',
+            label: 'MATERIALS',
             icon: 'inventory_2',
             onClick: () => onNavigate?.('raw-materials'),
           },

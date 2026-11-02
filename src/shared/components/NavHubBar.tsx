@@ -21,9 +21,61 @@ export interface NavHubBarProps {
   backToDashboardLabel?: string;
 }
 
+const SPECIFIC_SHORTCUTS: Record<string, string> = {
+  'PROCUREMENT & PURCHASE ORDERS': 'PURCHASE ORDERS',
+  'STOCK LOCATIONS & BALANCE WORKSPACE': 'STOCK & BALANCE',
+  'STOCK MOVEMENTS LOG': 'MOVEMENTS',
+  'STORAGE LOCATIONS': 'LOCATIONS',
+  'COMPANY MERCHANTS DIRECTORY': 'MERCHANTS',
+  'COMPANY USERS DIRECTORY': 'USERS',
+  'RM CATEGORIES': 'CATEGORIES',
+  'RAW MATERIALS CATEGORIES': 'CATEGORIES',
+  'RAW MATERIALS WORKSPACE': 'RAW MATERIALS',
+  'QR CODE MENU SECTIONS': 'MENU SECTIONS',
+  'QR CODE MENU ITEMS': 'MENU ITEMS',
+  'QR ORDER ITEMS': 'ORDER ITEMS',
+  'SUPPLIER INVOICE ITEMS': 'INVOICE ITEMS',
+  'SUPPLIER PAYMENT ITEMS': 'PAYMENT ITEMS',
+  'SUPPLIER PAYMENTS ALLOCATION': 'ALLOCATIONS',
+  'AUTOMATION ACTION': 'ACTIONS',
+  'AUTOMATION ACTIONS': 'ACTIONS',
+  'CAMPAIGN AUDIENCE': 'AUDIENCES',
+  'COUPON REDEMPTION': 'REDEMPTIONS',
+  'REWARDS REDEMPTIONS': 'REDEMPTIONS',
+  'POINT TRANSACTIONS': 'POINTS LOG',
+  'SEGMENT RULE': 'RULES',
+  'SEGMENT RULES': 'RULES',
+  'CATEGORY MANAGEMENT': 'CATEGORIES',
+  'PRODUCT MANAGMENT': 'PRODUCTS',
+  'MODIFIERS MANAGEMENT': 'MODIFIERS',
+  'VARIANTS MANAGEMENT': 'VARIANTS',
+};
+
 function formatNavHubLabel(rawLabel: string): string {
   if (!rawLabel) return '';
-  return rawLabel.replace(/^KITCHEN\s+/i, '').trim();
+  const trimmed = rawLabel.trim();
+  const uppercase = trimmed.toUpperCase();
+
+  if (SPECIFIC_SHORTCUTS[uppercase]) {
+    return SPECIFIC_SHORTCUTS[uppercase];
+  }
+
+  return (
+    trimmed
+      .replace(/^QR(\s*CODE|-CODE)?\s+/i, '')
+      .replace(/^QR\s+/i, '')
+      .replace(/^RAW\s+MATERIALS?\s+/i, '')
+      .replace(/^ACCOUNTS?\s+PAYABLE\s+/i, '')
+      .replace(/^SUPPLIER\s+/i, '')
+      .replace(/^MERCHANT\s+/i, '')
+      .replace(/^COMPANY\s+/i, '')
+      .replace(/^KITCHEN\s+/i, '')
+      .replace(/^ONLINE\s+(ORDERING\s+)?/i, '')
+      .replace(/^LOYALTY\s+/i, '')
+      .replace(/^MARKETING\s+/i, '')
+      .replace(/\s+(MANAGEMENT|MANAGMENT)$/i, '')
+      .trim() || trimmed
+  );
 }
 
 export const NavHubBar: React.FC<NavHubBarProps> = ({
@@ -143,9 +195,9 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
               <div className="h-5 w-px bg-zinc-700/80 ml-1 mr-2 hidden sm:block" aria-hidden="true" />
             </>
           ) : title ? (
-            <div className="hidden lg:flex items-center gap-2 text-xs font-bold tracking-wider text-[#e8e2d8] uppercase mr-2">
+            <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[#e8e2d8] uppercase mr-2 shrink-0">
               {titleIcon && (
-                <span className="material-symbols-outlined text-[#ae001a] text-[24px]" aria-hidden="true">
+                <span className="material-symbols-outlined text-[#ae001a] text-[20px]" aria-hidden="true">
                   {titleIcon}
                 </span>
               )}
@@ -169,14 +221,14 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   item.onClick();
                 }}
                 aria-current={isActive ? 'page' : undefined}
-                className={`px-2.5 sm:px-3 py-1.5 rounded text-[11px] sm:text-xs font-bold transition-colors duration-200 flex items-center gap-1.5 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
+                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded text-[11px] sm:text-xs font-semibold sm:font-bold transition-colors duration-200 flex items-center gap-1 sm:gap-1.5 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
                   isActive
                     ? 'bg-[#ae001a] text-white shadow-xs'
                     : 'text-zinc-300 hover:text-[#ae001a] hover:bg-zinc-800'
                 }`}
               >
                 {item.icon && (
-                  <span className="material-symbols-outlined text-[18px] sm:text-[20px] shrink-0" aria-hidden="true">{item.icon}</span>
+                  <span className="material-symbols-outlined text-[17px] sm:text-[18px] shrink-0" aria-hidden="true">{item.icon}</span>
                 )}
                 <span>{displayLabel}</span>
               </button>

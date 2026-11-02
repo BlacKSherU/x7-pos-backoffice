@@ -918,13 +918,13 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
         items={[
           {
             id: 'raw-material-categories',
-            label: 'RM CATEGORIES',
+            label: 'CATEGORIES',
             icon: 'category',
             onClick: () => onNavigate?.('raw-material-categories'),
           },
           {
             id: 'raw-materials',
-            label: 'RAW MATERIALS',
+            label: 'MATERIALS',
             icon: 'inventory_2',
             onClick: () => onNavigate?.('raw-materials'),
           },
