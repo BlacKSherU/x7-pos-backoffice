@@ -20,7 +20,10 @@ import type {
 import { GlobalHeader } from '@/platform/merchant-frame/layout/GlobalHeader';
 import { GlobalFooter } from '@/platform/merchant-frame/layout/GlobalFooter';
 import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenMonitorView';
-import { sendStationKeepaliveHeartbeat } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-keepalive';
+import {
+  sendStationKeepaliveHeartbeat,
+  resetHeartbeatSuspension,
+} from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-keepalive';
 import {
   NewReservationModal,
   VoidTransactionModal,
@@ -312,6 +315,7 @@ export const MerchantFrame: React.FC = () => {
 
   // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa
   useEffect(() => {
+    resetHeartbeatSuspension();
     void sendStationKeepaliveHeartbeat('ALL');
 
     const keepaliveTimer = setInterval(() => {
