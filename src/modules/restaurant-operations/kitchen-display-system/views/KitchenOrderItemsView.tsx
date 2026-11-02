@@ -2219,10 +2219,10 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
             onClick: () => onNavigate?.('kitchen-event-log'),
           },
           {
-            id: 'kitchen-analytics',
-            label: 'KDS ANALYTICS',
-            icon: 'bar_chart',
-            onClick: () => onNavigate?.('kitchen-analytics'),
+            id: 'kitchen-performance',
+            label: 'KITCHEN PERFORMANCE',
+            icon: 'speed',
+            onClick: () => onNavigate?.('kitchen-performance'),
           },
         ]}
       />

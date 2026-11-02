@@ -392,7 +392,9 @@ view('kitchen-display-devices', (ctx) => <KitchenDisplayDevicesView onNavigate={
 view('kitchen-orders', (ctx) => <KitchenOrdersView onNavigate={ctx.onNavigate} />);
 view('kitchen-order-items', (ctx) => <KitchenOrderItemsView onNavigate={ctx.onNavigate} />);
 view('kitchen-event-log', (ctx) => <KitchenEventLogView onNavigate={ctx.onNavigate} />);
-view('kitchen-analytics', (ctx) => <KitchenAnalyticsView onNavigate={ctx.onNavigate} />);
+view(['kitchen-analytics', 'kitchen-performance'], (ctx) => (
+  <KitchenAnalyticsView onNavigate={ctx.onNavigate} />
+));
 
 /** Pestañas con vista propia (para tests y para saber si una pestaña está implementada). */
 export const REGISTERED_VIEW_TABS: readonly string[] = [...VIEWS.keys()];

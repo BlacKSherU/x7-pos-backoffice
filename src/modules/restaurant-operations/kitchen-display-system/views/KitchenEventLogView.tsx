@@ -2096,10 +2096,10 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
             onClick: () => {},
           },
           {
-            id: 'kitchen-analytics',
-            label: 'KDS ANALYTICS',
-            icon: 'bar_chart',
-            onClick: () => onNavigate?.('kitchen-analytics'),
+            id: 'kitchen-performance',
+            label: 'KITCHEN PERFORMANCE',
+            icon: 'speed',
+            onClick: () => onNavigate?.('kitchen-performance'),
           },
         ]}
       />

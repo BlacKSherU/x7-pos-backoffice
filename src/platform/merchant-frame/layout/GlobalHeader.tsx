@@ -65,6 +65,11 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     { id: 'movements', name: 'Inventory Movements Log', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
     { id: 'kitchen-stations', name: 'Kitchen Stations routing', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'kitchen-display-devices', name: 'KDS Display Devices Inventory', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'kitchen-orders', name: 'Kitchen Orders Queue', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'kitchen-order-items', name: 'Kitchen Order Items', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'kitchen-event-log', name: 'KDS Event Log & Audit', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'kitchen-performance', name: 'Kitchen Performance & Analytics', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'kitchen-analytics', name: 'Kitchen Performance & Analytics', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'floor-plans', name: 'Floor Plans Workspace', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'table-zones', name: 'Floor Zones', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'tables', name: 'Dining Tables', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
@@ -169,6 +174,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'kitchen-order-items',
     'kitchen-event-log',
     'kitchen-analytics',
+    'kitchen-performance',
     'kitchen-kds-hub',
     'kds-dashboard',
     'floor-plans',
@@ -362,6 +368,16 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Inventory Locations';
   } else if (activeTab === 'kitchen-stations') {
     friendlyTitle = 'Kitchen Stations Directory';
+  } else if (activeTab === 'kitchen-display-devices') {
+    friendlyTitle = 'KDS Display Devices';
+  } else if (activeTab === 'kitchen-orders') {
+    friendlyTitle = 'Kitchen Orders Queue';
+  } else if (activeTab === 'kitchen-order-items') {
+    friendlyTitle = 'Kitchen Order Items';
+  } else if (activeTab === 'kitchen-event-log') {
+    friendlyTitle = 'KDS System Event Log';
+  } else if (activeTab === 'kitchen-performance' || activeTab === 'kitchen-analytics') {
+    friendlyTitle = 'Kitchen Performance';
   } else if (activeTab === 'purchase-orders') {
     friendlyTitle = 'Purchase Orders';
   } else if (activeTab === 'merchant-directory') {
