@@ -825,40 +825,18 @@ export const MerchantFrame: React.FC = () => {
                   Active: #{activeMerchantId}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                {merchantsList.slice(0, 4).map((m) => {
-                  const isCurrent = String(m.id) === String(activeMerchantId);
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => handleMerchantSwitch(String(m.id))}
-                      className={`px-2 py-1.5 text-xs font-bold rounded flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                        isCurrent
-                          ? 'bg-[#ae001a] text-white shadow-sm ring-1 ring-white/30'
-                          : 'bg-[#111111] hover:bg-zinc-800 text-zinc-300 border border-white/10'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[14px]">storefront</span>
-                      <span className="truncate">{m.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {merchantsList.length > 4 && (
-                <select
-                  aria-label="Active Merchant Store"
-                  value={activeMerchantId}
-                  onChange={(e) => handleMerchantSwitch(e.target.value)}
-                  className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1.5 rounded focus:outline-none focus:border-[#d51f2c] cursor-pointer"
-                >
-                  {merchantsList.map((m) => (
-                    <option key={m.id} value={String(m.id)}>
-                      {m.name || `Merchant ${m.id}`} (#{m.id})
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                aria-label="Active Merchant Store"
+                value={activeMerchantId}
+                onChange={(e) => handleMerchantSwitch(e.target.value)}
+                className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1.5 rounded focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans"
+              >
+                {merchantsList.map((m) => (
+                  <option key={m.id} value={String(m.id)}>
+                    {m.name || `Merchant ${m.id}`} (#{m.id})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="border-t border-white/10 pt-2">
