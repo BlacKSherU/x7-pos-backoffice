@@ -32,7 +32,6 @@ import {
   NewQuickOrderModal,
   LoginGatewayModal
 } from '@/shared/components/QuickActionModals';
-import { setSimulateApiFailure, getSimulateApiFailure } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
 import type { JournalEntry } from '@/modules/core/financial-engine/types/accounting';
 import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/types/accounts-payable';
@@ -45,6 +44,11 @@ import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-regi
 import type { AllocationsContext, MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
 import { FeatureInDevelopmentView } from '@/shared/components/PlaceholderViews';
 import { MerchantHomeDashboard } from '@/modules/platform-saas/client-backoffice/views/dashboard/MerchantHomeDashboard';
+import {
+  apiRequest,
+  getActiveSuperAdminMerchantId,
+  setActiveSuperAdminMerchantId,
+} from '@/shared/api/http';
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
@@ -206,8 +210,43 @@ export const MerchantFrame: React.FC = () => {
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
   const [demo401Toggle, setDemo401Toggle] = useState<boolean>(getSimulate401());
   const [showDemoPanel, setShowDemoPanel] = useState<boolean>(false);
+
+  // Super Admin active merchant switching
+  const [activeMerchantId, setActiveMerchantId] = useState<string>(
+    () => getActiveSuperAdminMerchantId() || '1',
+  );
+  const [merchantsList, setMerchantsList] = useState<Array<{ id: number; name: string }>>([
+    { id: 1, name: 'Merchant 1 (mer1)' },
+    { id: 2, name: 'Merchant 2 (mer2)' },
+  ]);
+
+  useEffect(() => {
+    if (
+      profile?.role === 'super_admin' ||
+      profile?.role === 'Super Admin (All Access)'
+    ) {
+      apiRequest<{ data?: Array<{ id: number; name: string }> }>(
+        '/merchants',
+        { method: 'GET' },
+        'Failed to load merchants list',
+      )
+        .then((res) => {
+          if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+            setMerchantsList(res.data.map((m) => ({ id: m.id, name: m.name })));
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load merchants list for superadmin:', err);
+        });
+    }
+  }, [profile?.role]);
+
+  const handleMerchantSwitch = (newMerchantId: string) => {
+    setActiveMerchantId(newMerchantId);
+    setActiveSuperAdminMerchantId(newMerchantId);
+    window.location.reload();
+  };
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  const [apiFailedToggle, setApiFailedToggle] = useState<boolean>(getSimulateApiFailure());
 
   const [isReservationOpen, setIsReservationOpen] = useState<boolean>(false);
   const [isVoidOpen, setIsVoidOpen] = useState<boolean>(false);
@@ -324,13 +363,6 @@ export const MerchantFrame: React.FC = () => {
 
     return () => clearInterval(keepaliveTimer);
   }, []);
-
-  const handleToggleApiFailure = () => {
-    const newState = !apiFailedToggle;
-    setSimulateApiFailure(newState);
-    setApiFailedToggle(newState);
-    setRefreshTrigger((prev) => prev + 1);
-  };
 
   const handleToggle401 = () => {
     const newState = !demo401Toggle;
@@ -756,23 +788,77 @@ export const MerchantFrame: React.FC = () => {
 
       <LoginGatewayModal isOpen={false} onLoginSuccess={handleLoginSuccess} />
 
-      {import.meta.env.DEV && (
+      {(profile?.role === 'super_admin' ||
+        profile?.role === 'Super Admin (All Access)') && (
         <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
           isSidebarCollapsed ? 'left-6' : 'left-[272px]'
         }`}>
         <button
           onClick={() => setShowDemoPanel(!showDemoPanel)}
-          className="w-10 h-10 bg-[#222222] hover:bg-[#d51f2c] text-white rounded-full shadow-lg flex items-center justify-center border border-white/20 transition-all active:scale-95"
-          title="Demo Simulation Controls"
+          className="relative w-10 h-10 bg-[#222222] hover:bg-[#d51f2c] text-white rounded-full shadow-lg flex items-center justify-center border border-white/20 transition-all active:scale-95 cursor-pointer"
+          title={`Super Admin Controls - Active Store: Merchant ${activeMerchantId}`}
         >
           <span className="material-symbols-outlined text-[20px]">construction</span>
+          <span className="absolute -top-1 -right-1 bg-[#ae001a] text-white text-[9px] font-bold px-1 rounded-full border border-[#222222] leading-tight">
+            M{activeMerchantId}
+          </span>
         </button>
 
         {showDemoPanel && (
           <div className="absolute bottom-12 left-0 w-64 bg-[#222222] border border-white/10 p-4 rounded shadow-2xl space-y-3 animate-fade-in text-left">
             <div>
-              <p className="font-bold text-[#d51f2c] uppercase text-[10px] tracking-wider">Demo Simulation Controls</p>
-              <p className="text-[9px] text-white/50 mb-2">Simulate live conditions.</p>
+              <p className="font-bold text-[#d51f2c] uppercase text-[10px] tracking-wider flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px]">admin_panel_settings</span>
+                Super Admin Controls
+              </p>
+              <p className="text-[9px] text-white/50 mb-2">Switch active store & environment.</p>
+            </div>
+
+            {/* Active Merchant Switcher */}
+            <div className="border-t border-white/10 pt-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="font-bold text-white uppercase text-[9px] tracking-wider flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px] text-amber-400">storefront</span>
+                  Switch Merchant
+                </p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#ae001a] text-white font-bold">
+                  Active: #{activeMerchantId}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                {merchantsList.slice(0, 4).map((m) => {
+                  const isCurrent = String(m.id) === String(activeMerchantId);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleMerchantSwitch(String(m.id))}
+                      className={`px-2 py-1.5 text-xs font-bold rounded flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[#ae001a] text-white shadow-sm ring-1 ring-white/30'
+                          : 'bg-[#111111] hover:bg-zinc-800 text-zinc-300 border border-white/10'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[14px]">storefront</span>
+                      <span className="truncate">{m.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {merchantsList.length > 4 && (
+                <select
+                  aria-label="Active Merchant Store"
+                  value={activeMerchantId}
+                  onChange={(e) => handleMerchantSwitch(e.target.value)}
+                  className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1.5 rounded focus:outline-none focus:border-[#d51f2c] cursor-pointer"
+                >
+                  {merchantsList.map((m) => (
+                    <option key={m.id} value={String(m.id)}>
+                      {m.name || `Merchant ${m.id}`} (#{m.id})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="border-t border-white/10 pt-2">
@@ -812,66 +898,44 @@ export const MerchantFrame: React.FC = () => {
               </select>
             </div>
 
-            {profile?.role !== 'SaaS Owner' &&
-              profile?.role !== 'portal_admin' &&
-              profile?.role !== 'portal_user' && (
-              <div className="border-t border-white/10 pt-2">
-                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
-                <select
-                  aria-label="Merchant Plan (Tier)"
-                  value={profile?.Plan_id || 2}
-                  onChange={(e) => {
-                    const planId = parseInt(e.target.value);
-                    setSimulationPlanId(planId);
-                    if (planId === 1 && (activeCategory === 'finance' || activeCategory === 'growth')) {
-                      setActiveCategory('core');
-                      setActiveTab('dashboard');
-                    } else if (planId === 2 && activeCategory === 'growth') {
-                      setActiveCategory('core');
-                      setActiveTab('dashboard');
-                    }
-                    setRefreshTrigger((p) => p + 1);
-                  }}
-                  className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
-                >
-                  <option value="1">Plan 1: Quick Service</option>
-                  <option value="2">Plan 2: Full Restaurant</option>
-                  <option value="3">Plan 3: Enterprise</option>
-                </select>
-              </div>
-            )}
+            <div className="border-t border-white/10 pt-2">
+              <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
+              <select
+                aria-label="Merchant Plan (Tier)"
+                value={profile?.Plan_id || 2}
+                onChange={(e) => {
+                  const planId = parseInt(e.target.value);
+                  setSimulationPlanId(planId);
+                  if (planId === 1 && (activeCategory === 'finance' || activeCategory === 'growth')) {
+                    setActiveCategory('core');
+                    setActiveTab('dashboard');
+                  } else if (planId === 2 && activeCategory === 'growth') {
+                    setActiveCategory('core');
+                    setActiveTab('dashboard');
+                  }
+                  setRefreshTrigger((p) => p + 1);
+                }}
+                className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
+              >
+                <option value="1">Plan 1: Quick Service</option>
+                <option value="2">Plan 2: Full Restaurant</option>
+                <option value="3">Plan 3: Enterprise</option>
+              </select>
+            </div>
 
-            {profile?.role === 'SaaS Owner' ||
-            profile?.role === 'portal_admin' ||
-            profile?.role === 'portal_user' ? (
-              <div className="border-t border-white/10 pt-2">
-                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">SaaS Status</p>
-                <button
-                  onClick={() => {
-                    handleToggleApiFailure();
-                  }}
-                  className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
-                    apiFailedToggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
-                  }`}
-                >
-                  {apiFailedToggle ? 'Simulate Online API' : 'Simulate API Failure'}
-                </button>
-              </div>
-            ) : (
-              <div className="border-t border-white/10 pt-2">
-                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Auth Session</p>
-                <button
-                  onClick={() => {
-                    handleToggle401();
-                  }}
-                  className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
-                    demo401Toggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
-                  }`}
-                >
-                  {demo401Toggle ? 'Simulate Session OK (200)' : 'Force Expiration (401)'}
-                </button>
-              </div>
-            )}
+            <div className="border-t border-white/10 pt-2">
+              <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Auth Session</p>
+              <button
+                onClick={() => {
+                  handleToggle401();
+                }}
+                className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
+                  demo401Toggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {demo401Toggle ? 'Simulate Session OK (200)' : 'Force Expiration (401)'}
+              </button>
+            </div>
           </div>
         )}
       </div>
