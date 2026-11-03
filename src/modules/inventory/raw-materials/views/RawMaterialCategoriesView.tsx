@@ -262,7 +262,7 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
       <div className="bg-white border border-[#e8e2d8] rounded p-6 shadow-sm space-y-4">
         {/* Fila 1: Buscador a ancho completo */}
         <div className="relative w-full">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary">
             search
           </span>
           <input

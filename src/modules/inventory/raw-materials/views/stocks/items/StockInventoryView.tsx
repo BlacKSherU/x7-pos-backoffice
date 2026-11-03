@@ -567,7 +567,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
         {/* Row 1: Search on left and View Switcher on right on SAME horizontal line */}
         <div className="flex flex-row items-center justify-between gap-3 w-full">
           <div className="relative flex-1 min-w-0">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary">
               search
             </span>
             <input
