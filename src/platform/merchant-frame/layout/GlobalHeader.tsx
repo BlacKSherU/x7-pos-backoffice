@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import type { UserProfile, SystemNotification } from '@/modules/platform-saas/client-backoffice/api/restaurant-service';
-import { apiRequest } from '@/shared/api/http';
+import {
+  apiRequest,
+  getActiveSuperAdminMerchantId,
+  setActiveSuperAdminMerchantId,
+} from '@/shared/api/http';
 import { navHubById } from '@/platform/navigation/module-nav-hubs';
 import type { NavCategory } from '@/platform/navigation/navigationService';
 import logoX7 from '@/assets/logo-x7.png';
@@ -34,6 +38,15 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   onMenuSearchChange,
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  // Super Admin active merchant switching state
+  const [activeMerchantId, setActiveMerchantId] = useState<string>(
+    () => getActiveSuperAdminMerchantId() || '1',
+  );
+  const [merchantsList, setMerchantsList] = useState<Array<{ id: number; name: string }>>([
+    { id: 1, name: 'Merchant 1 (mer1)' },
+    { id: 2, name: 'Merchant 2 (mer2)' },
+  ]);
 
   // State for expandable search magnifying glass in sidebar / header
   const [isMenuSearchOpen, setIsMenuSearchOpen] = useState<boolean>(false);
@@ -133,6 +146,33 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       void fetchHeaderData();
     });
   }, [refreshTrigger]);
+
+  useEffect(() => {
+    if (
+      profile?.role === 'super_admin' ||
+      profile?.role === 'Super Admin (All Access)'
+    ) {
+      apiRequest<{ data?: Array<{ id: number; name: string }> }>(
+        '/merchants',
+        { method: 'GET' },
+        'Failed to load merchants list',
+      )
+        .then((res) => {
+          if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+            setMerchantsList(res.data.map((m) => ({ id: m.id, name: m.name })));
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load merchants list for superadmin:', err);
+        });
+    }
+  }, [profile?.role]);
+
+  const handleMerchantSwitch = (newMerchantId: string) => {
+    setActiveMerchantId(newMerchantId);
+    setActiveSuperAdminMerchantId(newMerchantId);
+    window.location.reload();
+  };
 
   // Resolve breadcrumbs and titles reactively and dynamically from navCategories
   let categoryName = '';
@@ -652,6 +692,31 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               <span className="material-symbols-outlined text-base">punch_clock</span>
               <span className="hidden lg:inline text-[11px]">Time Clock</span>
             </button>
+
+            {/* Super Admin Store Switcher */}
+            {(profile?.role === 'super_admin' ||
+              profile?.role === 'Super Admin (All Access)') && (
+              <div className="flex items-center gap-1.5 bg-white border border-[#e8e2d8] rounded px-2 py-1 text-xs shadow-xs">
+                <span className="material-symbols-outlined text-[17px] text-[#ae001a]" aria-hidden="true">
+                  storefront
+                </span>
+                <span className="text-[10px] font-bold text-[#5f5e5e] uppercase tracking-wider hidden sm:inline">
+                  STORE:
+                </span>
+                <select
+                  aria-label="Active Store Switcher"
+                  value={activeMerchantId}
+                  onChange={(e) => handleMerchantSwitch(e.target.value)}
+                  className="bg-transparent font-bold text-[#1d1c17] text-xs cursor-pointer focus:outline-none pr-1"
+                >
+                  {merchantsList.map((m) => (
+                    <option key={m.id} value={String(m.id)}>
+                      {m.name || `Merchant ${m.id}`} (#{m.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Super Admin Frame Switcher to SaaS */}
             {(profile?.role === 'super_admin' ||
