@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { StockQuickLinks } from '@/modules/inventory/raw-materials/views/stocks/StockQuickLinks';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
@@ -72,6 +72,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const [supplies, setSupplies] = useState<Supply[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Search and status filters
@@ -79,6 +80,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
   const [productFilter, setProductFilter] = useState<string>('ALL');
+
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
 
   // Table options state
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
@@ -153,6 +157,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       setIsLoading(true);
       setError(null);
     }
+    setIsRefreshing(true);
     try {
       // A failing list renders empty instead of blocking the whole workspace.
       const optionalList = <T,>(path: string) =>
@@ -191,6 +196,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       setError(message);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -203,6 +209,15 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       fetchData();
     });
   }, [fetchData]);
+
+  // Periodic Auto Refresh Effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const timer = setInterval(() => {
+      void fetchData(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(timer);
+  }, [autoRefreshInterval, fetchData]);
 
   // Open Drawer to Create New Recipe
   const handleOpenAdd = () => {
@@ -403,6 +418,21 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
     }
   };
 
+  // Recipe Status Counts for Pills Strip
+  const recipeStatusCounts = useMemo(() => {
+    const all = recipes.length;
+    let active = 0;
+    let inactive = 0;
+    for (const r of recipes) {
+      const prod = r.finishedProduct || products.find((p) => p.id === r.finishedProductId);
+      const isProdActive = prod ? prod.isActive !== false : true;
+      const recIsActive = r.isActive !== false && isProdActive;
+      if (recIsActive) active++;
+      else inactive++;
+    }
+    return { all, active, inactive };
+  }, [recipes, products]);
+
   // Multi-criteria Dynamic Recipe Filtering
   const filteredRecipes = recipes.filter((rec) => {
     const prod = rec.finishedProduct || products.find((p) => p.id === rec.finishedProductId);
@@ -483,87 +513,163 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
       {/* 2. Canonical Unified Filter Toolbar */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
-        {/* Row 1: Full-width search standardized from CategoriesView */}
-        <div className="relative w-full">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]" aria-hidden="true">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search recipes by name, product SKU, or contained ingredient..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-[38px] w-full pl-9 pr-8 text-xs sm:text-sm rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
-            aria-label="Search recipes"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
-              title="Clear search"
-              aria-label="Clear search"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        {/* Row 1: Search on left, Product selector, Auto Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search recipes by name or SKU..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search recipes"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-        {/* Row 2: Filters on the left, Buttons on the right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-3">
+            {/* Product Dropdown Selector */}
             <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
-              <span className="material-symbols-outlined text-base" aria-hidden="true">inventory_2</span>
+              <span className="material-symbols-outlined text-base">category</span>
               <select
-                aria-label="Filter by product"
                 value={productFilter}
                 onChange={(e) => setProductFilter(e.target.value)}
-                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs font-semibold focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer"
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[200px] transition-colors duration-200"
+                aria-label="Filter by product"
               >
                 <option value="ALL">All Products</option>
                 {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.sku}){!p.isActive ? ' (Inactive)' : ''}
+                  <option key={p.id} value={String(p.id)}>
+                    {p.name}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
 
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
-              <span className="material-symbols-outlined text-base" aria-hidden="true">tune</span>
-              <select
-                aria-label="Filter by status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE')}
-                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs font-semibold focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer"
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchData(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh recipes now"
               >
-                <option value="ALL">All Status</option>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
               </select>
             </div>
           </div>
+        </div>
 
+        {/* Row 2: STATUS Pills Strip on left, Primary Add Button on right */}
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: STATUS Pills Strip */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Status:
+            </span>
+
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter('ALL')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'ALL'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
+            >
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {recipeStatusCounts.all}
+              </span>
+            </button>
+
+            {/* Active Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'ACTIVE' ? 'ALL' : 'ACTIVE')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'ACTIVE'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>ACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'ACTIVE' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {recipeStatusCounts.active}
+              </span>
+            </button>
+
+            {/* Inactive Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'INACTIVE' ? 'ALL' : 'INACTIVE')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'INACTIVE'
+                  ? 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
+                  : 'bg-white text-zinc-700 border-zinc-300 hover:bg-zinc-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">block</span>
+              <span>INACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'INACTIVE' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-700'
+                }`}
+              >
+                {recipeStatusCounts.inactive}
+              </span>
+            </button>
+          </div>
+
+          {/* Right: Primary Add Button */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={handleOpenAdd}
               className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
             >
-              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">add</span>
+              <span className="material-symbols-outlined text-[18px]">add</span>
               ADD RECIPE
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void fetchData(false)}
-              className="p-2 bg-white border border-[#e8e2d8] rounded-lg hover:bg-[#fef9f1] text-[#5f5e5e] hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer shrink-0 h-[34px] w-[34px]"
-              title="Refresh recipes"
-              aria-label="Refresh recipes"
-            >
-              <span className={`material-symbols-outlined text-[18px] ${isLoading ? 'animate-spin text-[#ae001a]' : ''}`}>
-                refresh
-              </span>
             </button>
           </div>
         </div>
