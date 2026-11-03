@@ -8,6 +8,8 @@ export type StockQuickLinkAnchorKey =
   | 'recipes'
   | 'purchase-orders'
   | 'locations'
+  | 'stock-inventory'
+  | 'stock-balance'
   | 'stock-movements'
   | 'movements';
 
@@ -45,17 +47,17 @@ const STOCK_ANCHORS: Array<{
     icon: 'receipt_long',
   },
   {
-    key: 'stock-movements',
-    label: 'STOCK LEVELS',
-    route: '/inventory/stocks',
-    featureId: 'stock-movements',
+    key: 'stock-inventory',
+    label: 'STOCK & BALANCE',
+    route: '/dashboard/stock-inventory',
+    featureId: 'stock-inventory',
     icon: 'table_rows',
   },
   {
-    key: 'movements',
+    key: 'stock-movements',
     label: 'MOVEMENTS',
-    route: '/inventory/movements',
-    featureId: 'movements',
+    route: '/dashboard/stock-movements',
+    featureId: 'stock-movements',
     icon: 'swap_vert',
   },
   {
@@ -84,7 +86,10 @@ export const StockQuickLinks: React.FC<StockQuickLinksProps> = ({
     id: anchor.featureId,
     label: anchor.label,
     icon: anchor.icon,
-    active: anchor.key === current,
+    active:
+      anchor.key === current ||
+      (anchor.key === 'stock-inventory' && (current === 'stock-balance' || current === 'stock-movements')) ||
+      (anchor.key === 'stock-movements' && current === 'movements'),
     onClick: () => {
       if (onNavigate) {
         onNavigate(anchor.featureId);

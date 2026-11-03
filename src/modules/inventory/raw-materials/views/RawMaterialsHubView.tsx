@@ -101,7 +101,6 @@ export const RawMaterialsHubView: React.FC<RawMaterialsHubViewProps> = ({
       subtitle: 'Active base supplies',
       icon: 'inventory_2',
       variant: 'blue',
-      onClick: () => onNavigate?.('raw-materials'),
     },
     {
       title: 'Low Stock Alerts',
@@ -109,7 +108,6 @@ export const RawMaterialsHubView: React.FC<RawMaterialsHubViewProps> = ({
       subtitle: lowStockCount > 0 ? `${lowStockCount} items need restock` : 'All inventory levels healthy',
       icon: lowStockCount > 0 ? 'warning' : 'verified',
       variant: lowStockCount > 0 ? 'red' : 'emerald',
-      onClick: () => onNavigate?.('stock-movements'),
     },
     {
       title: 'Inbound Orders',
@@ -120,7 +118,6 @@ export const RawMaterialsHubView: React.FC<RawMaterialsHubViewProps> = ({
           : `${purchaseOrdersCount} completed orders`,
       icon: 'receipt_long',
       variant: pendingOrdersCount > 0 ? 'amber' : 'zinc',
-      onClick: () => onNavigate?.('purchase-orders'),
     },
     {
       title: 'Live Stock Items',
@@ -128,7 +125,6 @@ export const RawMaterialsHubView: React.FC<RawMaterialsHubViewProps> = ({
       subtitle: 'Real-time inventory balances',
       icon: 'table_rows',
       variant: 'purple',
-      onClick: () => onNavigate?.('stock-movements'),
     },
   ];
 
@@ -164,17 +160,17 @@ export const RawMaterialsHubView: React.FC<RawMaterialsHubViewProps> = ({
       actionText: 'Manage Purchase Orders',
     },
     {
-      id: 'stock-movements',
+      id: 'stock-inventory',
       title: 'Stock Levels & Balances',
       subtitle: 'Live Inventory Balances & Thresholds',
       description: 'Track real-time inventory balances, stock counts by location, par levels, and low-stock alerts.',
       icon: 'table_rows',
       badge: lowStockCount > 0 ? `${lowStockCount} Low Stock` : 'Stock Healthy',
       badgeVariant: lowStockCount > 0 ? 'rose' : 'emerald',
-      actionText: 'Manage Stock Levels',
+      actionText: 'Manage Stock & Balance',
     },
     {
-      id: 'movements',
+      id: 'stock-movements',
       title: 'Stock Movements & Audit',
       subtitle: 'Audit Trail & Transfer Logs',
       description: 'Record manual adjustments, internal warehouse transfers, waste logging, and audit history.',

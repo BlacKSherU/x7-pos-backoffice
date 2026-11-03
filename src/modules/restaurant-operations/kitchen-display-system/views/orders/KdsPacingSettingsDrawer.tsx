@@ -1,5 +1,5 @@
 import React from 'react';
-import type { KdsCardDensity } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
+import type { KdsCardDensity } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
 
 interface KdsPacingSettingsDrawerProps {
   cardDensity: KdsCardDensity;

@@ -12,12 +12,17 @@ import { MerchantStepPage } from '@/platform/onboarding/pages/MerchantStepPage';
 import { OnboardingRoutes } from '@/platform/onboarding/pages/OnboardingRoutes';
 import { SubscriptionStepPage } from '@/platform/onboarding/pages/SubscriptionStepPage';
 import { UserStepPage } from '@/platform/onboarding/pages/UserStepPage';
-import { isAuthenticated } from '@/platform/auth/lib/auth-storage';
+import { getStoredUser, isAuthenticated } from '@/platform/auth/lib/auth-storage';
 
 function RootRedirect() {
-  return (
-    <Navigate replace to={isAuthenticated() ? '/dashboard' : '/login'} />
-  );
+  const user = getStoredUser();
+  if (!isAuthenticated()) {
+    return <Navigate replace to="/login" />;
+  }
+  if (user?.role === 'portal_admin' || user?.role === 'portal_user') {
+    return <Navigate replace to="/saas-admin" />;
+  }
+  return <Navigate replace to="/dashboard" />;
 }
 
 export default function App() {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { StockQuickLinks } from '@/modules/inventory/raw-materials/views/stocks/StockQuickLinks';
@@ -105,6 +105,10 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
   const [locationFilter, setLocationFilter] = useState<string>('All');
   const [outOfStockOnly, setOutOfStockOnly] = useState<boolean>(false);
 
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
   // Table options state
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
@@ -147,8 +151,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
     return true;
   };
 
-  const fetchInitialData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchInitialData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
     setError(null);
     try {
       // 1. Upload master list of locations to check actual active status by ID
@@ -244,6 +249,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
       setError('Failed to load stock control panel data. Please check your backend connection.');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -252,9 +258,30 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
       topRef.current.scrollIntoView({ behavior: 'instant' });
     }
     void Promise.resolve().then(() => {
-      fetchInitialData();
+      fetchInitialData(true);
     });
   }, [fetchInitialData]);
+
+  // Canonical auto refresh interval effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      void fetchInitialData(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchInitialData]);
+
+  const stockMetrics = useMemo(() => {
+    const total = stockItems.length;
+    let low = 0;
+    stockItems.forEach((item) => {
+      const minThreshold = Number(item.minimumQty ?? item.supply?.min_stock_threshold ?? 0);
+      if (minThreshold > 0 && item.currentQty <= minThreshold) {
+        low++;
+      }
+    });
+    return { total, low, healthy: total - low };
+  }, [stockItems]);
 
   // Open Stock Adjustment Modal
   const handleOpenAdjust = (item: StockItem) => {
@@ -557,104 +584,210 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
             </h2>
           </div>
           <p className="text-body-sm text-[#5f5e5e] mt-1 font-sans">
-            Manage physical storage areas (RawMaterialLocation), inspect current stock levels (RawMaterialItem), track allocated production reserves and identify primary storage hubs.
+            Manage physical storage areas, inspect current stock levels, track allocated production reserves and identify primary storage hubs.
           </p>
         </div>
       </div>
 
-      {/* 2. Multi-criteria Toolbar (Search + Filters) */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
-        {/* Row 1: Search on left and View Switcher on right on SAME horizontal line */}
-        <div className="flex flex-row items-center justify-between gap-3 w-full">
-          <div className="relative flex-1 min-w-0">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Search location, code, or material..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md transition-all font-sans"
-            />
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Location Selector, View Switcher, Auto Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search location, code, or material..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search stock inventory"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Location Dropdown Selector */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">warehouse</span>
+              <select
+                value={locationFilter}
+                onChange={(e) => {
+                  setLocationFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[190px] transition-colors duration-200"
+                aria-label="Filter by location"
+              >
+                <option value="All">All Locations</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={String(loc.id)}>
+                    {loc.name} {loc.code ? `(${loc.code})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* View Mode Toggle: By Location vs By Material */}
-          <div className="flex items-center bg-[#f2ede5] p-1 rounded border border-[#e8e2d8] shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('by-location');
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'by-location'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">warehouse</span>
-              BY LOCATION
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('by-material');
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'by-material'
-                  ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
-                  : 'text-[#5f5e5e] hover:text-[#ae001a]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-              BY MATERIAL
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* View Switcher Toggle (Canónico de dos modos) */}
+            <div className="flex items-center h-[34px] bg-[#f2ede5] p-0.5 rounded-lg border border-[#e8e2d8] shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('by-location');
+                  setCurrentPage(1);
+                }}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'by-location'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Group inventory by physical storage location"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'by-location' ? 'text-[#ae001a]' : ''}`}>
+                  warehouse
+                </span>
+                By Location
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('by-material');
+                  setCurrentPage(1);
+                }}
+                className={`h-full px-3 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'by-material'
+                    ? 'bg-white text-[#1d1c17] shadow-xs border border-[#e8e2d8]'
+                    : 'text-[#5f5e5e] hover:text-[#ae001a]'
+                }`}
+                title="Group inventory by raw material"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${viewMode === 'by-material' ? 'text-[#ae001a]' : ''}`}>
+                  inventory_2
+                </span>
+                By Material
+              </button>
+            </div>
+
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchInitialData(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh stock balances now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Row 2: Filters on the left, Buttons on the right */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Specific Location Selector */}
-            <select
-              value={locationFilter}
-              onChange={(e) => {
-                setLocationFilter(e.target.value);
+        {/* Row 2: STATUS Pills Strip on left, Actions on right */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: STATUS Pills Strip */}
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 no-scrollbar">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Filter:
+            </span>
+
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setOutOfStockOnly(false);
                 setCurrentPage(1);
               }}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                !outOfStockOnly
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
             >
-              <option value="All">All Locations</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={String(loc.id)}>
-                  {loc.name} {loc.code ? `(${loc.code})` : ''}
-                </option>
-              ))}
-            </select>
-
-            {/* Quick Toggle: Low Stock Only */}
-            <label className="flex items-center gap-2 cursor-pointer select-none px-3 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded">
-              <input
-                type="checkbox"
-                checked={outOfStockOnly}
-                onChange={(e) => {
-                  setOutOfStockOnly(e.target.checked);
-                  setCurrentPage(1);
-                }}
-                className="sr-only peer"
-              />
-              <div className="relative w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#ae001a]" />
-              <span className="text-xs font-bold text-[#5f5e5e] uppercase tracking-wider">
-                Low Stock Only
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  !outOfStockOnly ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {stockMetrics.total}
               </span>
-            </label>
-          </div>
+            </button>
 
+            {/* Healthy Stock Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                if (outOfStockOnly) setOutOfStockOnly(false);
+                setCurrentPage(1);
+              }}
+              className="flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50"
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>HEALTHY</span>
+              <span className="text-[8.5px] px-1 py-0 rounded-full font-bold bg-emerald-100 text-emerald-800">
+                {stockMetrics.healthy}
+              </span>
+            </button>
+
+            {/* Low Stock Alert Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setOutOfStockOnly(!outOfStockOnly);
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                outOfStockOnly
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">warning</span>
+              <span>LOW STOCK ONLY</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  outOfStockOnly ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {stockMetrics.low}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1075,14 +1208,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
       </div>
 
       {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
-      <StockQuickLinks current="stock-movements" onNavigate={onNavigate} />
+      <StockQuickLinks current="stock-inventory" onNavigate={onNavigate} />
 
       {/* Persistent Raw Materials Navigation Hub Bar */}
       <NavHubBar
         title="RAW MATERIALS COMMAND HUB"
         titleIcon="inventory_2"
         subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
-        activeModuleId="stock-movements"
+        activeModuleId="stock-inventory"
         onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
         backToDashboardLabel="RAW MATERIALS COMMAND HUB"
         items={[
@@ -1105,17 +1238,17 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
             onClick: () => onNavigate?.('purchase-orders'),
           },
           {
-            id: 'stock-movements',
-            label: 'STOCK LEVELS',
+            id: 'stock-inventory',
+            label: 'STOCK & BALANCE',
             icon: 'table_rows',
             active: true,
-            onClick: () => onNavigate?.('stock-movements'),
+            onClick: () => onNavigate?.('stock-inventory'),
           },
           {
-            id: 'movements',
+            id: 'stock-movements',
             label: 'MOVEMENTS',
             icon: 'swap_vert',
-            onClick: () => onNavigate?.('movements'),
+            onClick: () => onNavigate?.('stock-movements'),
           },
           {
             id: 'locations',

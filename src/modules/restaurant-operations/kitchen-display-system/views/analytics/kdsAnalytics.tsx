@@ -9,7 +9,7 @@ import {
   TablePaginationFooter,
 } from '@/shared/components/TableOptionsMenu';
 import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
-import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenQuickLinks';
+import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/hub/KitchenQuickLinks';
 import { apiRequest, getWithFallback, unwrapList, type MaybeEnvelopedList } from '@/shared/api/http';
 export interface HourlyHeatmapItem {
   hour: number;
@@ -2034,4 +2034,5 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
   );
 };
 
+export const KdsAnalytics = KitchenAnalyticsView;
 export default KitchenAnalyticsView;

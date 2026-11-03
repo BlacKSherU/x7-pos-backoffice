@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { UserProfile, SystemNotification } from '@/modules/platform-saas/client-backoffice/api/restaurant-service';
 import { apiRequest } from '@/shared/api/http';
-import { navHubById } from '@/platform/navigation/module-nav-hubs';
+import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import type { NavCategory } from '@/platform/navigation/navigationService';
 import logoX7 from '@/assets/logo-x7.png';
 
@@ -61,7 +61,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     { id: 'recipes', name: 'Product Recipes (BOM)', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
     { id: 'purchase-orders', name: 'Purchase Orders', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
     { id: 'locations', name: 'Inventory Locations', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
-    { id: 'stock-movements', name: 'Stock & Inventory Control', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'stock-inventory', name: 'Stock & Balance', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'stock-balance', name: 'Stock & Balance', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
+    { id: 'stock-movements', name: 'Stock Movements', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
     { id: 'movements', name: 'Inventory Movements Log', categoryId: 'raw-materials', categoryName: 'Raw Materials' },
     { id: 'kitchen-stations', name: 'Kitchen Stations routing', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'kitchen-display-devices', name: 'KDS Display Devices Inventory', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
@@ -160,10 +162,23 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   // Module Command Hubs (`<appId>-hub`) are not in the feature catalog; resolve them
   // from module-nav-hubs.ts so the header doesn't fall back to "SYSTEM / RESERVATIONS HUB".
+  // Top Global Header title stays concise (strips "Command Hub") to avoid wrapping onto 2 lines.
   const commandHub = navHubById(activeTab);
-  if (commandHub) {
+  if (commandHub && !commandHub.items.some((item) => item.featureId === activeTab)) {
     categoryName = commandHub.category;
-    activeFeatureName = commandHub.title;
+    activeFeatureName = commandHub.title.replace(/\s+(Command\s+)?Hub$/i, '').trim();
+  }
+
+  // 2. If activeTab is a feature inside a module hub, resolve its category and label
+  const featureHub = navHubForFeature(activeTab);
+  if (featureHub) {
+    if (!categoryName) {
+      categoryName = featureHub.category;
+    }
+    const matchingItem = featureHub.items.find((item) => item.featureId === activeTab);
+    if (matchingItem && (!activeFeatureName || activeFeatureName === activeTab.replace(/-/g, ' ').toUpperCase())) {
+      activeFeatureName = matchingItem.label;
+    }
   }
 
   // Domain tabs list to map Breadcrumbs accurately and immune to accordion clicks
@@ -210,6 +225,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'recipes',
     'purchase-orders',
     'locations',
+    'stock-inventory',
+    'stock-balance',
     'stock-movements',
     'movements',
     'raw-materials-dashboard',
@@ -277,7 +294,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     else if (activeTab === 'categories') activeFeatureName = 'Categories';
     else if (activeTab === 'variants') activeFeatureName = 'Variants';
     else if (activeTab === 'modifiers') activeFeatureName = 'Modifiers';
-    else if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') activeFeatureName = 'Products Command Hub';
+    else if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') activeFeatureName = 'Products';
   } else if (rawMaterialsTabs.includes(activeTab)) {
     categoryName = 'Inventory';
     if (activeTab === 'raw-materials') activeFeatureName = 'Raw Materials Workspace';
@@ -285,9 +302,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     else if (activeTab === 'recipes') activeFeatureName = 'Recipes';
     else if (activeTab === 'purchase-orders') activeFeatureName = 'Purchase Orders';
     else if (activeTab === 'locations') activeFeatureName = 'Locations';
-    else if (activeTab === 'stock-movements') activeFeatureName = 'Stock & Movements';
+    else if (activeTab === 'stock-inventory' || activeTab === 'stock-balance') activeFeatureName = 'Stock & Balance';
+    else if (activeTab === 'stock-movements') activeFeatureName = 'Stock Movements';
     else if (activeTab === 'movements') activeFeatureName = 'Movements Log';
-    else if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') activeFeatureName = 'Raw Materials Command Hub';
+    else if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') activeFeatureName = 'Raw Materials';
   } else if (restaurantOpsTabs.includes(activeTab)) {
     categoryName = 'Restaurant Operations';
   } else if (accountsPayableTabs.includes(activeTab)) {
@@ -305,7 +323,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     categoryName = 'Platform SaaS';
   } else if (onlineOrderingTabs.includes(activeTab)) {
     categoryName = 'Commerce';
-    if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') activeFeatureName = 'Online Ordering Command Hub';
+    if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') activeFeatureName = 'Online Ordering';
     else if (activeTab === 'online-stores') activeFeatureName = 'Online Stores';
     else if (activeTab === 'online-payments') activeFeatureName = 'Online Payments';
     else if (activeTab === 'online-menus') activeFeatureName = 'Menus';
@@ -335,7 +353,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   // Breadcrumb: Only first (L1 Category) and third (Active L3 Feature), skipping intermediate application
   const rawBreadcrumbItems: string[] = [];
   if (categoryName) rawBreadcrumbItems.push(categoryName);
-  if (activeFeatureName) rawBreadcrumbItems.push(activeFeatureName);
+  const cleanFeatureBreadcrumb = activeFeatureName.replace(/\s+(Command\s+)?Hub$/i, '').trim();
+  if (cleanFeatureBreadcrumb) rawBreadcrumbItems.push(cleanFeatureBreadcrumb);
 
   // Filter out any consecutive duplicates (case-insensitive)
   const breadcrumbItems = rawBreadcrumbItems.filter((item, index, arr) => {
@@ -348,22 +367,63 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   // Friendly title for Headline h2
   let friendlyTitle = activeFeatureName;
+  if (friendlyTitle && friendlyTitle === friendlyTitle.toUpperCase() && friendlyTitle.length > 2) {
+    friendlyTitle = friendlyTitle
+      .toLowerCase()
+      .split(' ')
+      .map((w) => {
+        if (['pos', 'kds', 'qr', 'vat', 'sla', 'id', 'emv', 'sms', 'gps', 'eta'].includes(w)) {
+          return w.toUpperCase();
+        }
+        return w.charAt(0).toUpperCase() + w.slice(1);
+      })
+      .join(' ');
+  }
+
   if (activeTab === 'dashboard') {
     friendlyTitle = 'Restaurant Dashboard';
   } else if (activeTab === 'saas-dashboard') {
     friendlyTitle = 'Platform SaaS / Overview';
   } else if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') {
-    friendlyTitle = 'Products Command Hub';
+    friendlyTitle = 'Products';
   } else if (activeTab === 'raw-materials-dashboard' || activeTab === 'raw-materials-hub') {
-    friendlyTitle = 'Raw Materials Command Hub';
+    friendlyTitle = 'Raw Materials';
   } else if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') {
-    friendlyTitle = 'Online Ordering Command Hub';
+    friendlyTitle = 'Online Ordering';
+  } else if (activeTab === 'merchant-tips-rules') {
+    friendlyTitle = 'Tips Management Rules';
+  } else if (activeTab === 'merchant-tax-rules') {
+    friendlyTitle = 'Merchant Tax Rules';
+  } else if (activeTab === 'merchant-overtime-rules') {
+    friendlyTitle = 'Overtime Calculation Rules';
+  } else if (activeTab === 'merchant-payroll-rules') {
+    friendlyTitle = 'Payroll Processing Rules';
+  } else if (activeTab === 'customers') {
+    friendlyTitle = 'Customers Directory';
+  } else if (activeTab === 'suppliers') {
+    friendlyTitle = 'Suppliers Directory';
+  } else if (activeTab === 'journal-entries') {
+    friendlyTitle = 'Journal Entries';
+  } else if (activeTab === 'journal-entries-lines') {
+    friendlyTitle = 'Journal Entries Lines';
+  } else if (activeTab === 'ledger-accounts') {
+    friendlyTitle = 'Ledger Accounts';
+  } else if (activeTab === 'receipt-orders') {
+    friendlyTitle = 'Customer Sales Receipts';
+  } else if (activeTab === 'receipt-items') {
+    friendlyTitle = 'Receipt Items';
+  } else if (activeTab === 'receipt-taxes') {
+    friendlyTitle = 'Receipts Taxes';
   } else if (activeTab === 'categories') {
     friendlyTitle = 'Categories';
   } else if (activeTab === 'products') {
     friendlyTitle = 'Products';
+  } else if (activeTab === 'stock-inventory' || activeTab === 'stock-balance') {
+    friendlyTitle = 'Stock & Balance Workspace';
   } else if (activeTab === 'stock-movements') {
-    friendlyTitle = 'Stock and Stock Movements Management';
+    friendlyTitle = 'Stock Movements Management';
+  } else if (activeTab === 'movements') {
+    friendlyTitle = 'Stock Movements Log';
   } else if (activeTab === 'locations') {
     friendlyTitle = 'Inventory Locations';
   } else if (activeTab === 'kitchen-stations') {
@@ -419,6 +479,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       friendlyTitle = 'System Reports';
     }
   }
+
+  // Top Global Header should always have concise titles without redundant "Command Hub" suffix
+  friendlyTitle = friendlyTitle.replace(/\s+(Command\s+)?Hub$/i, '').trim();
 
   // Initials fallback for user avatar when portraitUrl is missing
   const getInitials = (name: string) => {
@@ -572,10 +635,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       {/* Main Header content with light background */}
       <div className="flex-1 h-full bg-surface flex justify-between items-center px-xl">
         {/* Left Side: Breadcrumbs & Titles */}
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col text-left">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="flex flex-col text-left min-w-0">
             {/* Breadcrumb location tracking */}
-            <nav className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e] mb-0.5">
+            <nav className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e] mb-0.5 truncate whitespace-nowrap">
               {breadcrumbItems.map((item, idx) => (
                 <React.Fragment key={idx}>
                   {idx > 0 && (
@@ -591,7 +654,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
             </nav>
             
             {/* Main Headline */}
-            <h2 className="text-lg font-bold text-primary leading-tight">
+            <h2 className="text-lg font-bold text-primary leading-tight truncate whitespace-nowrap">
               {friendlyTitle}
             </h2>
           </div>

@@ -6,6 +6,7 @@ import { AuthLayout } from '@/platform/auth/components/AuthLayout';
 import { ApiError, INVALID_CREDENTIALS_MESSAGE } from '@/shared/lib/api-error';
 import {
   getRememberedLogin,
+  getStoredUser,
   isAuthenticated,
   saveAuthSession,
   saveRememberStation,
@@ -38,7 +39,12 @@ export function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      navigate('/dashboard', { replace: true });
+      const user = getStoredUser();
+      if (user?.role === 'portal_admin' || user?.role === 'portal_user') {
+        navigate('/saas-admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
   }, [navigate]);
 
@@ -83,7 +89,11 @@ export function LoginPage() {
         remember,
       );
       saveRememberStation(trimmedEmail, remember);
-      navigate('/dashboard', { replace: true });
+      const targetRoute =
+        response.user.role === 'portal_admin' || response.user.role === 'portal_user'
+          ? '/saas-admin'
+          : '/dashboard';
+      navigate(targetRoute, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         setError(INVALID_CREDENTIALS_MESSAGE);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { BackendKitchenStation, KitchenTicket } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
+import type { BackendKitchenStation, KitchenTicket } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
 import { apiRequest } from '@/shared/api/http';
 export interface StationRerouteStatus {
   stationId: number;

@@ -19,7 +19,7 @@ import type {
 } from '@/platform/navigation/navigationService';
 import { GlobalHeader } from '@/platform/merchant-frame/layout/GlobalHeader';
 import { GlobalFooter } from '@/platform/merchant-frame/layout/GlobalFooter';
-import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenMonitorView';
+import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/KitchenMonitorView';
 import {
   sendStationKeepaliveHeartbeat,
   resetHeartbeatSuspension,
@@ -138,8 +138,32 @@ export const MerchantFrame: React.FC = () => {
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
+
+  // Auto-expand category strictly when activeTab changes (single accordion model)
+  useEffect(() => {
+    if (!activeTab || navCategories.length === 0) return;
+    const featureHub = navHubForFeature(activeTab);
+    const activeCommandHub = navHubById(activeTab);
+    for (const cat of navCategories) {
+      const isMatchingCategory =
+        cat.applications.some(
+          (app) =>
+            app.features.some((f) => f.id === activeTab) ||
+            app.id === featureHub?.appId ||
+            app.id === activeCommandHub?.appId ||
+            activeTab === `${app.id}-hub` ||
+            activeTab === app.id,
+        ) ||
+        cat.name.toLowerCase() === (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase();
+
+      if (isMatchingCategory) {
+        setExpandedCategories({ [cat.id]: true });
+        setActiveCategory(cat.id);
+        break;
+      }
+    }
+  }, [activeTab, navCategories]);
 
   const filteredNavCategories = useMemo(() => {
     const query = sidebarSearchQuery.trim().toLowerCase();
@@ -173,7 +197,18 @@ export const MerchantFrame: React.FC = () => {
   const [isNavLoading, setIsNavLoading] = useState<boolean>(true);
   const [navError, setNavError] = useState<string | null>(null);
 
+  // Redirigir al portal SaaS a los roles administrativos globales de plataforma
   useEffect(() => {
+    if (profile?.role === 'portal_admin' || profile?.role === 'portal_user') {
+      navigate('/saas-admin', { replace: true });
+    }
+  }, [profile?.role, navigate]);
+
+  useEffect(() => {
+    if (profile?.role === 'portal_admin' || profile?.role === 'portal_user') {
+      setIsNavLoading(false);
+      return;
+    }
     let ignore = false;
     setIsNavLoading(true);
     setNavError(null);
@@ -204,7 +239,7 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, profile?.role]);
 
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
@@ -280,7 +315,7 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, profile?.role]);
 
   useEffect(() => {
     let ignore = false;
@@ -352,8 +387,11 @@ export const MerchantFrame: React.FC = () => {
     };
   }, [activeTab, activeCategory, profile?.role]);
 
-  // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa
+  // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa de comercio
   useEffect(() => {
+    if (profile?.role === 'portal_admin' || profile?.role === 'portal_user') {
+      return;
+    }
     resetHeartbeatSuspension();
     void sendStationKeepaliveHeartbeat('ALL');
 
@@ -362,7 +400,7 @@ export const MerchantFrame: React.FC = () => {
     }, 15000);
 
     return () => clearInterval(keepaliveTimer);
-  }, []);
+  }, [profile?.role]);
 
   const handleToggle401 = () => {
     const newState = !demo401Toggle;
@@ -451,7 +489,7 @@ export const MerchantFrame: React.FC = () => {
     if (registered !== undefined) return registered;
 
     const commandHub = navHubById(activeTab);
-    if (commandHub) {
+    if (commandHub && !commandHub.items.some((i) => i.featureId === activeTab)) {
       return <GenericModuleNavHub hub={commandHub} onNavigate={navigateToFeature} />;
     }
 
@@ -465,7 +503,7 @@ export const MerchantFrame: React.FC = () => {
           const feat = app.features.find(f => f.id === activeTab);
           if (feat) {
             featureName = feat.name;
-            featureIcon = cat.icon;
+            featureIcon = feat.icon || cat.icon;
             appName = app.name;
             break;
           }
@@ -564,13 +602,22 @@ export const MerchantFrame: React.FC = () => {
           ) : (
             filteredNavCategories.map((cat) => {
               const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
-              const hasActiveTab = cat.applications.some(
-                (app) =>
-                  app.features.some((f) => f.id === activeTab) ||
-                  navHubById(activeTab)?.appId === app.id ||
-                  activeTab === `${app.id}-hub`,
+              const featureHub = navHubForFeature(activeTab);
+              const activeCommandHub = navHubById(activeTab);
+
+              // Active category is strictly determined by the active tab location; fallback to activeCategory only when no category matches activeTab
+              const activeMatchingCat = navCategories.find((c) =>
+                c.applications.some(
+                  (app) =>
+                    app.features.some((f) => f.id === activeTab) ||
+                    activeCommandHub?.appId === app.id ||
+                    featureHub?.appId === app.id ||
+                    activeTab === `${app.id}-hub` ||
+                    activeTab === app.id,
+                ) ||
+                c.name.toLowerCase() === (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase()
               );
-              const isCatActive = activeCategory === cat.id || hasActiveTab;
+              const isCatActive = activeMatchingCat ? activeMatchingCat.id === cat.id : activeCategory === cat.id;
 
               return (
                 <div key={cat.id} className="w-full text-left">
@@ -578,7 +625,6 @@ export const MerchantFrame: React.FC = () => {
                     onClick={() => {
                       const isCurrentlyExpanded = !!expandedCategories[cat.id];
                       setExpandedCategories(isCurrentlyExpanded ? {} : { [cat.id]: true });
-                      setExpandedApps({});
                       setActiveCategory(cat.id);
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
@@ -604,11 +650,11 @@ export const MerchantFrame: React.FC = () => {
                         const hubId = appHub?.hubId ?? `${app.id}-hub`;
                         const isAppSelected =
                           app.features.some((f) => f.id === activeTab) ||
-                          navHubById(activeTab)?.appId === app.id ||
+                          activeCommandHub?.appId === app.id ||
+                          featureHub?.appId === app.id ||
+                          featureHub?.hubId === hubId ||
                           activeTab === hubId ||
                           activeTab === app.id;
-                        const isAppExpanded =
-                          sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id];
 
                         const handleNavigateTarget = (targetId: string, route?: string) => {
                           setActiveCategory(cat.id);
@@ -635,70 +681,25 @@ export const MerchantFrame: React.FC = () => {
                         };
 
                         return (
-                          <div key={app.id} className="w-full text-left">
-                            <div
-                              className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
-                                isAppSelected
-                                  ? 'text-[#d51f2c] font-semibold bg-white/5'
-                                  : 'text-white/70 hover:text-white'
-                              }`}
-                            >
-                              <div
-                                onClick={() => {
-                                  if (app.features.length === 1) {
-                                    handleNavigateTarget(app.features[0].id, app.features[0].route);
-                                  } else {
-                                    handleNavigateTarget(hubId);
-                                  }
-                                }}
-                                className="flex items-center gap-2.5 flex-1 min-w-0"
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/40'
-                                  }`}
-                                />
-                                <span className="truncate">{app.name}</span>
-                              </div>
-
-                              {app.features.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const isCurrentlyExpanded = !!expandedApps[app.id];
-                                    setExpandedApps(isCurrentlyExpanded ? {} : { [app.id]: true });
-                                  }}
-                                  className="p-1 text-white/40 hover:text-white transition-colors"
-                                  title={isAppExpanded ? 'Collapse submenus' : 'Expand submenus'}
-                                >
-                                  <span className="material-symbols-outlined text-[16px]">
-                                    {isAppExpanded ? 'expand_more' : 'chevron_right'}
-                                  </span>
-                                </button>
-                              )}
+                          <div
+                            key={app.id}
+                            onClick={() => {
+                              handleNavigateTarget(hubId);
+                            }}
+                            className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
+                              isAppSelected
+                                ? 'text-[#d51f2c] font-semibold bg-white/5'
+                                : 'text-white/70 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/40'
+                                }`}
+                              />
+                              <span className="truncate">{app.name}</span>
                             </div>
-
-                            {isAppExpanded && app.features.length > 1 && (
-                              <div className="ml-12 mt-1 border-l border-white/10 space-y-0.5">
-                                {app.features.map((feat) => {
-                                  const isFeatActive = activeTab === feat.id;
-                                  return (
-                                    <div
-                                      key={feat.id}
-                                      onClick={() => handleNavigateTarget(feat.id, feat.route)}
-                                      className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
-                                        isFeatActive
-                                          ? 'bg-white/20 text-white font-semibold border-l-2 border-[#d51f2c] -ml-[2px]'
-                                          : 'text-white/60 hover:text-white hover:bg-white/5'
-                                      }`}
-                                    >
-                                      {feat.name}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
                           </div>
                         );
                       })}

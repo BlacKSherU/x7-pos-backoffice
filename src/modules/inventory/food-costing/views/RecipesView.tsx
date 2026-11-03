@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { StockQuickLinks } from '@/modules/inventory/raw-materials/views/stocks/StockQuickLinks';
+import { NavHubBar } from '@/shared/components/NavHubBar';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
 import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
 import { apiRequest, type MaybeEnvelopedList } from '@/shared/api/http';
@@ -591,9 +592,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
         </div>
 
         {/* Row 2: STATUS Pills Strip on left, Primary Add Button on right */}
-        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
           {/* Left: STATUS Pills Strip */}
-          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 no-scrollbar">
             <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
               Status:
             </span>
@@ -985,6 +986,61 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
       {/* Quick Links Navigational Hub (Sprint 25 Story 4114) */}
       <StockQuickLinks current="recipes" onNavigate={onNavigate} />
+
+      {/* Persistent Raw Materials Navigation Hub Bar */}
+      <NavHubBar
+        title="RAW MATERIALS COMMAND HUB"
+        titleIcon="inventory_2"
+        subtitle="Purchase Orders, Stock Balances, Raw Materials & Locations"
+        activeModuleId="recipes"
+        onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
+        backToDashboardLabel="RAW MATERIALS COMMAND HUB"
+        items={[
+          {
+            id: 'raw-material-categories',
+            label: 'CATEGORIES',
+            icon: 'category',
+            onClick: () => onNavigate?.('raw-material-categories'),
+          },
+          {
+            id: 'raw-materials',
+            label: 'MATERIALS',
+            icon: 'inventory_2',
+            onClick: () => onNavigate?.('raw-materials'),
+          },
+          {
+            id: 'purchase-orders',
+            label: 'PURCHASE ORDERS',
+            icon: 'receipt_long',
+            onClick: () => onNavigate?.('purchase-orders'),
+          },
+          {
+            id: 'stock-inventory',
+            label: 'STOCK & BALANCE',
+            icon: 'table_rows',
+            onClick: () => onNavigate?.('stock-inventory'),
+          },
+          {
+            id: 'stock-movements',
+            label: 'MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate?.('stock-movements'),
+          },
+          {
+            id: 'locations',
+            label: 'LOCATIONS',
+            icon: 'warehouse',
+            onClick: () => onNavigate?.('locations'),
+          },
+          {
+            id: 'recipes',
+            label: 'RECIPES & BOM',
+            icon: 'menu_book',
+            active: true,
+            onClick: () => onNavigate?.('recipes'),
+          },
+        ]}
+      />
 
       {/* Interactive Drawer to Create / Edit Recipes */}
       {isDrawerOpen &&

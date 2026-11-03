@@ -11,7 +11,7 @@ import {
   TablePaginationFooter,
 } from '@/shared/components/TableOptionsMenu';
 import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
-import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenQuickLinks';
+import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/hub/KitchenQuickLinks';
 import { apiRequest, unwrapList, type MaybeEnvelopedList } from '@/shared/api/http';
 export type KitchenEventType = 'inicio' | 'listo' | 'servido' | 'cancelado' | 'recall' | 'reroute';
 
@@ -1099,7 +1099,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
         </div>
 
         {/* ROW 3: Event Type Multi-Select Pills */}
-        <div className="flex items-center gap-1 pt-2.5 border-t border-[#f0ede6] overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-[#f0ede6] no-scrollbar">
           <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
             STATUS:
           </span>
@@ -2107,4 +2107,5 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
   );
 };
 
+export const KdsEventLog = KitchenEventLogView;
 export default KitchenEventLogView;

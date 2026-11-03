@@ -50,13 +50,13 @@ import { CashTipMovementsView } from '@/modules/restaurant-operations/tips/views
 import { OpenShiftsMarketplaceView } from '@/modules/restaurant-operations/shifts/views/OpenShiftsMarketplaceView';
 import { LaborCostForecastingView } from '@/modules/restaurant-operations/shifts/views/LaborCostForecastingView';
 
-import { KitchenStationsView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenStationsView';
-import { KitchenKDSHubView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenKDSHubView';
-import { KitchenDisplayDevicesView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenDisplayDevicesView';
-import { KitchenOrdersView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenOrdersView';
-import { KitchenOrderItemsView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenOrderItemsView';
-import { KitchenEventLogView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenEventLogView';
-import { KitchenAnalyticsView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenAnalyticsView';
+import { KitchenStationsView } from '@/modules/restaurant-operations/kitchen-display-system/views/stations/kdsStations';
+import { KitchenKDSHubView } from '@/modules/restaurant-operations/kitchen-display-system/views/hub/KitchenKDSHubView';
+import { KitchenDisplayDevicesView } from '@/modules/restaurant-operations/kitchen-display-system/views/devices/kdsDevices';
+import { KitchenOrdersView } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/kdsOrders';
+import { KitchenOrderItemsView } from '@/modules/restaurant-operations/kitchen-display-system/views/order-items/kdsOrderItems';
+import { KitchenEventLogView } from '@/modules/restaurant-operations/kitchen-display-system/views/event-log/kdsEventLog';
+import { KitchenAnalyticsView } from '@/modules/restaurant-operations/kitchen-display-system/views/analytics/kdsAnalytics';
 
 import { LedgerAccountsView } from '@/modules/core/financial-engine/views/LedgerAccountsView';
 import { JournalEntriesView } from '@/modules/core/financial-engine/views/JournalEntriesView';
@@ -72,8 +72,10 @@ import { SupplierPaymentAllocationsView } from '@/modules/finance-hr/accounts-pa
 
 import { MerchantDirectoryView } from '@/modules/platform-saas/merchants/views/MerchantDirectoryView';
 import { UserManagementView } from '@/modules/platform-saas/users/views/UserManagementView';
+import { GlobalUsersDirectoryView } from '@/modules/platform-saas/users/views/GlobalUsersDirectoryView';
 import { CompanyProfileView } from '@/modules/platform-saas/companies/views/CompanyProfileView';
 import { CompanyConfigurationsView } from '@/modules/platform-saas/companies/views/CompanyConfigurationsView';
+import { CompanyRegistryView } from '@/modules/platform-saas/companies/views/CompanyRegistryView';
 
 import { FloorPlansView } from '@/modules/restaurant-operations/dining-system/views/FloorPlansView';
 import { FloorZonesView } from '@/modules/restaurant-operations/dining-system/views/FloorZonesView';
@@ -178,10 +180,13 @@ view('plan-features-mapping', (ctx) =>
     <PlanFeaturesPickPlanView onChoosePlan={() => ctx.navigateToFeature('sub-plans-core')} />
   ),
 );
-view('merchant-directory', () => <MerchantDirectoryView />);
-view('user-management', () => <UserManagementView />);
+view(['merchant-directory', 'merchants-directory', 'merchants'], () => <MerchantDirectoryView />);
+view(['merchants-provisioning', 'global-merchants-directory'], () => <MerchantDirectoryView />);
+view(['user-management', 'users-directory', 'users'], () => <UserManagementView />);
+view(['users-auth-profiles', 'global-users-directory'], () => <GlobalUsersDirectoryView />);
 view('company-profile', () => <CompanyProfileView />);
 view('company-configurations', () => <CompanyConfigurationsView />);
+view(['companies', 'company-registry', 'companies-registry'], () => <CompanyRegistryView />);
 
 // ---- Productos e inventario ----
 view('categories', (ctx) => <CategoriesView onNavigate={ctx.onNavigate} />);
@@ -190,8 +195,8 @@ view('modifiers', (ctx) => <ModifiersView onNavigate={ctx.onNavigate} />);
 view('variants', (ctx) => <VariantsView onNavigate={ctx.onNavigate} />);
 view('locations', (ctx) => <LocationsView onNavigate={ctx.onNavigate} />);
 view('purchase-orders', (ctx) => <PurchaseOrdersView onNavigate={ctx.onNavigate} />);
-view('stock-movements', (ctx) => <StockInventoryView onNavigate={ctx.onNavigate} />);
-view('movements', (ctx) => <MovementsView onNavigate={ctx.onNavigate} />);
+view(['stock-inventory', 'stock-balance', 'stocks', 'stock-levels'], (ctx) => <StockInventoryView onNavigate={ctx.onNavigate} />);
+view(['stock-movements', 'movements'], (ctx) => <MovementsView onNavigate={ctx.onNavigate} />);
 view('raw-materials', (ctx) => <RawMaterialsView onNavigate={ctx.onNavigate} />);
 view('raw-material-categories', (ctx) => <RawMaterialCategoriesView onNavigate={ctx.onNavigate} />);
 view('recipes', (ctx) => <RecipesView onNavigate={ctx.onNavigate} />);
@@ -384,7 +389,7 @@ view('online-menu-items', (ctx) => <OnlineMenuItemsView onNavigate={ctx.onNaviga
 view('online-orders', (ctx) => <OnlineOrdersView onNavigate={ctx.onNavigate} />);
 
 // ---- Cocina (KDS) ----
-view(['kds-dashboard', 'kitchen-kds-hub'], (ctx) => (
+view(['kds-dashboard', 'kitchen-kds-hub', 'kitchen-display-system-hub', 'kitchen-display-system'], (ctx) => (
   <KitchenKDSHubView onNavigate={ctx.onNavigate} onOpenLiveMonitor={ctx.openLiveMonitor} />
 ));
 view('kitchen-stations', (ctx) => <KitchenStationsView onNavigate={ctx.onNavigate} />);

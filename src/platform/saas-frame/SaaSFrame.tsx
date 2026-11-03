@@ -121,7 +121,7 @@ export const SaaSFrame: React.FC = () => {
   // Render views according to active tab
   const renderContent = () => {
     const activeCommandHub = navHubById(activeTab);
-    if (activeCommandHub) {
+    if (activeCommandHub && !activeCommandHub.items.some((item) => item.featureId === activeTab)) {
       return (
         <GenericModuleNavHub
           hub={activeCommandHub}

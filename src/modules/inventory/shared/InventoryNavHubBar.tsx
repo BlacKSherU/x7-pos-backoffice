@@ -5,7 +5,8 @@ export type ProductsSubModule =
   | 'categories'
   | 'modifiers'
   | 'products'
-  | 'variants';
+  | 'variants'
+  | 'recipes';
 
 export type InventorySubModule = ProductsSubModule;
 
@@ -55,6 +56,13 @@ export const ProductsNavHubBar: React.FC<ProductsNavHubBarProps> = ({
             icon: 'tune',
             active: activeModuleId === 'modifiers',
             onClick: () => onNavigate?.('modifiers'),
+          },
+          {
+            id: 'recipes',
+            label: 'RECIPES',
+            icon: 'menu_book',
+            active: activeModuleId === 'recipes',
+            onClick: () => onNavigate?.('recipes'),
           },
         ]}
       />

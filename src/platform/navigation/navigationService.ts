@@ -149,6 +149,61 @@ export function resolveNavIcon(code: string, rawIcon?: string | null): string {
   return REPRESENTATIVE_NAV_ICONS[code] || 'widgets';
 }
 
+const SHORT_HUB_TITLES: Record<string, string> = {
+  'subscription-system': 'Subscription System',
+  'billing-transactions': 'Billing & Transactions',
+  'table-turnover': 'Table Turnover',
+  'kitchen-display-system': 'Kitchen Display System',
+  'products-inventory': 'Products & Inventory',
+  'accounts-payable': 'Accounts Payable',
+  'delivery-management': 'Delivery Management',
+  'business-partners': 'Business Partners',
+  'financial-engine': 'Financial Engine',
+  'online-ordering': 'Online Ordering',
+  'qr-code-system': 'QR Code Ordering',
+  'marketing-system': 'Marketing System',
+  'loyalty-system': 'Loyalty Program',
+  'food-costing': 'Food Costing',
+  'configuration': 'Configuration',
+  'cash-drawers': 'Cash Drawers',
+  'dining-system': 'Dining System',
+  'reservations': 'Reservations',
+  'payrolls': 'Payrolls',
+  'shifts': 'Staff Shifts',
+  'tips': 'Tips & Gratuities',
+  'hr': 'HR & Staff',
+  'pos': 'Point of Sale',
+  'central-backoffice': 'Central Backoffice',
+  'client-backoffice': 'Restaurant Operations',
+  'companies': 'Company Administration',
+  'merchants': 'Merchants & Branches',
+  'users': 'Users Directory',
+};
+
+export function resolveShortHubTitle(code: string, rawName: string): string {
+  const baseName =
+    SHORT_HUB_TITLES[code] ||
+    rawName.replace(/\s+(Command\s+Hub|Hub)$/i, '').replace(/\s*\/\s*/g, ' & ');
+  return `${baseName} Command Hub`;
+}
+
+export function toTitleCaseLabel(text: string): string {
+  if (!text) return '';
+  if (text === text.toUpperCase() && text.length > 2) {
+    return text
+      .toLowerCase()
+      .split(' ')
+      .map((w) => {
+        if (['pos', 'kds', 'qr', 'vat', 'sla', 'id', 'emv', 'sms', 'gps', 'eta'].includes(w)) {
+          return w.toUpperCase();
+        }
+        return w.charAt(0).toUpperCase() + w.slice(1);
+      })
+      .join(' ');
+  }
+  return text;
+}
+
 export const navigationService = {
   /**
    * Loads the dynamic navigation tree directly from backend API (GET /api/me/navigation).
@@ -179,7 +234,7 @@ export const navigationService = {
               const resolvedIcon = resolveNavIcon(item.code, item.icon);
               return {
                 id: item.code,
-                name: item.label,
+                name: toTitleCaseLabel(item.label),
                 applicationId: appCode,
                 planId: res.planId ?? 1,
                 isSaaS: surface === 'saas_web',
@@ -204,7 +259,7 @@ export const navigationService = {
               const resolvedIcon = resolveNavIcon(item.code, item.icon);
               return {
                 featureId: item.code,
-                label: item.label,
+                label: toTitleCaseLabel(item.label),
                 icon: resolvedIcon,
                 description: item.description || item.label,
                 live: item.status === 'live',
@@ -215,7 +270,7 @@ export const navigationService = {
             appId: appCode,
             hubId,
             hubLabel,
-            title: `${app.name} Command Hub`,
+            title: resolveShortHubTitle(appCode, app.name),
             category: cat.name,
             icon: app.icon || cat.icon || 'space_dashboard',
             description: `Operational command hub and navigation shortcuts for ${app.name}.`,
@@ -224,7 +279,7 @@ export const navigationService = {
 
           return {
             id: appCode,
-            name: app.name,
+            name: toTitleCaseLabel(app.name),
             categoryName: cat.name,
             categoryIcon: cat.icon,
             categorySortOrder: cat.sortOrder,
@@ -232,6 +287,7 @@ export const navigationService = {
             sortOrder: app.sortOrder,
             items: (app.items || []).map((item) => ({
               ...item,
+              label: toTitleCaseLabel(item.label),
               icon: resolveNavIcon(item.code, item.icon),
             })),
             features,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { StockQuickLinks } from '@/modules/inventory/raw-materials/views/stocks/StockQuickLinks';
 import { NavHubBar } from '@/shared/components/NavHubBar';
@@ -89,6 +89,10 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [supplierFilter, setSupplierFilter] = useState<string>('All');
 
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
   // Table options state
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
@@ -137,6 +141,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
   // Cargar datos
   const fetchPurchaseOrders = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
     setError(null);
     try {
       const json = await apiRequest<MaybeEnvelopedList<PurchaseOrder>>(
@@ -149,9 +154,29 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       console.error(err);
       if (!silent) setError('Failed to load purchase orders. Please verify your backend server connection.');
     } finally {
-      if (!silent) setIsLoading(false);
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
+
+  // Canonical auto refresh interval effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      void fetchPurchaseOrders(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchPurchaseOrders]);
+
+  const orderStatusCounts = useMemo(() => {
+    const all = purchaseOrders.length;
+    const draft = purchaseOrders.filter(po => (po.status || '').toUpperCase() === 'DRAFT').length;
+    const sent = purchaseOrders.filter(po => (po.status || '').toUpperCase() === 'SENT').length;
+    const partial = purchaseOrders.filter(po => (po.status || '').toUpperCase() === 'PARTIALLY_RECEIVED').length;
+    const received = purchaseOrders.filter(po => (po.status || '').toUpperCase() === 'RECEIVED').length;
+    const cancelled = purchaseOrders.filter(po => (po.status || '').toUpperCase() === 'CANCELLED').length;
+    return { all, draft, sent, partial, received, cancelled };
+  }, [purchaseOrders]);
 
   const handleOpenDeleteConfirm = (po: PurchaseOrder) => {
     setSelectedOrderForDelete(po);
@@ -556,31 +581,33 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
   }
 
   // List filtering and sorting (from newest to oldest by status/date update)
-  const filteredOrders = purchaseOrders
-    .filter(po => {
-      const supplierName = po.supplier?.name || '';
-      const formattedId = `PO-#${String(po.id).padStart(4, '0')}`;
-      const matchesSearch =
-        supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        formattedId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(po.id).includes(searchQuery);
+  const filteredOrders = useMemo(() => {
+    return purchaseOrders
+      .filter((po) => {
+        const supplierName = po.supplier?.name || '';
+        const formattedId = `PO-#${String(po.id).padStart(4, '0')}`;
+        const matchesSearch =
+          supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          formattedId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          String(po.id).includes(searchQuery);
 
-      const matchesStatus =
-        statusFilter === 'All' ||
-        po.status.toUpperCase() === statusFilter.toUpperCase();
+        const matchesStatus =
+          statusFilter === 'All' ||
+          po.status.toUpperCase() === statusFilter.toUpperCase();
 
-      const matchesSupplier =
-        supplierFilter === 'All' ||
-        (po.supplier && String(po.supplier.id) === supplierFilter);
+        const matchesSupplier =
+          supplierFilter === 'All' ||
+          (po.supplier && String(po.supplier.id) === supplierFilter);
 
-      return matchesSearch && matchesStatus && matchesSupplier;
-    })
-    .sort((a, b) => {
-      const timeA = a.orderDate ? new Date(a.orderDate).getTime() : 0;
-      const timeB = b.orderDate ? new Date(b.orderDate).getTime() : 0;
-      if (timeB !== timeA) return timeB - timeA;
-      return b.id - a.id;
-    });
+        return matchesSearch && matchesStatus && matchesSupplier;
+      })
+      .sort((a, b) => {
+        const timeA = a.orderDate ? new Date(a.orderDate).getTime() : 0;
+        const timeB = b.orderDate ? new Date(b.orderDate).getTime() : 0;
+        if (timeB !== timeA) return timeB - timeA;
+        return b.id - a.id;
+      });
+  }, [purchaseOrders, searchQuery, statusFilter, supplierFilter]);
 
   // Inspection drawer portal
   const drawerPortal = (isDetailDrawerOpen && selectedOrderForInspect)
@@ -875,70 +902,254 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
       {mode === 'list' ? (
         <>
-          {/* Search Bar and Filters */}
-          <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
-            {/* Row 1: Full-width search */}
-            <div className="relative w-full">
-              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary">
-                search
-              </span>
-              <input
-                type="text"
-                placeholder="Search by PO code or supplier name..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md transition-all font-sans"
-              />
-            </div>
+          {/* 2. Canonical Unified Filter Toolbar */}
+          <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+            {/* Row 1: Search on left, Supplier Selector, Auto Refresh on right */}
+            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+                {/* Search Input */}
+                <div className="relative flex-1 min-w-[170px] max-w-sm">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search by PO code or supplier name..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                    aria-label="Search purchase orders"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setCurrentPage(1);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                      title="Clear search"
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
 
-            {/* Row 2: Filters on the left, Buttons on the right */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Filter by Supplier */}
-                <select
-                  value={supplierFilter}
-                  onChange={(e) => {
-                    setSupplierFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
-                >
-                  <option value="All">All Suppliers</option>
-                  {suppliers.map(sup => (
-                    <option key={sup.id} value={String(sup.id)}>{sup.name}</option>
-                  ))}
-                </select>
-
-                {/* Filter by State */}
-                <select
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-                >
-                  <option value="All">All Status</option>
-                  <option value="DRAFT">Draft</option>
-                  <option value="SENT">Sent</option>
-                  <option value="PARTIALLY_RECEIVED">Partially Received</option>
-                  <option value="RECEIVED">Received</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
+                {/* Supplier Dropdown Selector */}
+                <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+                  <span className="material-symbols-outlined text-base">storefront</span>
+                  <select
+                    value={supplierFilter}
+                    onChange={(e) => {
+                      setSupplierFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[190px] transition-colors duration-200"
+                    aria-label="Filter by supplier"
+                  >
+                    <option value="All">All Suppliers</option>
+                    {suppliers.map(sup => (
+                      <option key={sup.id} value={String(sup.id)}>{sup.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Canonical Auto Refresh */}
+                <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void fetchPurchaseOrders(false)}
+                    disabled={isLoading || isRefreshing}
+                    className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                    title="Refresh purchase orders now"
+                  >
+                    <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                      sync
+                    </span>
+                  </button>
+                  <select
+                    value={autoRefreshInterval}
+                    onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                    className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+                  >
+                    <option value={0}>Auto: Off</option>
+                    <option value={5}>Auto: 5s</option>
+                    <option value={10}>Auto: 10s</option>
+                    <option value={30}>Auto: 30s</option>
+                    <option value={60}>Auto: 60s</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: STATUS Pills Strip on left, Primary Add Button on right */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+              {/* Left: STATUS Pills Strip */}
+              <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 no-scrollbar">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+                  Status:
+                </span>
+
+                {/* All Pill */}
                 <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('All');
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                    statusFilter === 'All'
+                      ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                      : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+                  }`}
+                >
+                  <span>All</span>
+                  <span
+                    className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                      statusFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                    }`}
+                  >
+                    {orderStatusCounts.all}
+                  </span>
+                </button>
+
+                {/* Draft Pill */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(statusFilter === 'DRAFT' ? 'All' : 'DRAFT');
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                    statusFilter === 'DRAFT'
+                      ? 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
+                      : 'bg-white text-zinc-700 border-zinc-300 hover:bg-zinc-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[12px]">edit_note</span>
+                  <span>DRAFT</span>
+                  <span
+                    className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                      statusFilter === 'DRAFT' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-700'
+                    }`}
+                  >
+                    {orderStatusCounts.draft}
+                  </span>
+                </button>
+
+                {/* Sent Pill */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(statusFilter === 'SENT' ? 'All' : 'SENT');
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                    statusFilter === 'SENT'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-white text-blue-800 border-blue-200 hover:bg-blue-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[12px]">send</span>
+                  <span>SENT</span>
+                  <span
+                    className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                      statusFilter === 'SENT' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                    }`}
+                  >
+                    {orderStatusCounts.sent}
+                  </span>
+                </button>
+
+                {/* Partially Received Pill */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(statusFilter === 'PARTIALLY_RECEIVED' ? 'All' : 'PARTIALLY_RECEIVED');
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                    statusFilter === 'PARTIALLY_RECEIVED'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[12px]">hourglass_top</span>
+                  <span>PARTIAL</span>
+                  <span
+                    className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                      statusFilter === 'PARTIALLY_RECEIVED' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {orderStatusCounts.partial}
+                  </span>
+                </button>
+
+                {/* Received Pill */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(statusFilter === 'RECEIVED' ? 'All' : 'RECEIVED');
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                    statusFilter === 'RECEIVED'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                  <span>RECEIVED</span>
+                  <span
+                    className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                      statusFilter === 'RECEIVED' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    {orderStatusCounts.received}
+                  </span>
+                </button>
+
+                {/* Cancelled Pill */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(statusFilter === 'CANCELLED' ? 'All' : 'CANCELLED');
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                    statusFilter === 'CANCELLED'
+                      ? 'bg-red-700 text-white border-red-700 shadow-xs'
+                      : 'bg-white text-red-700 border-red-300 hover:bg-red-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[12px]">cancel</span>
+                  <span>CANCELLED</span>
+                  <span
+                    className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                      statusFilter === 'CANCELLED' ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {orderStatusCounts.cancelled}
+                  </span>
+                </button>
+              </div>
+
+              {/* Right: Primary Add Button & Reload */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
                   onClick={handleOpenCreateMode}
-                  className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+                  className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
                 >
                   <span className="material-symbols-outlined text-[18px]">add</span>
                   ADD PURCHASE ORDER
                 </button>
-
               </div>
             </div>
           </div>
@@ -1616,16 +1827,16 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
             onClick: () => onNavigate?.('purchase-orders'),
           },
           {
-            id: 'stock-movements',
-            label: 'STOCK LEVELS',
+            id: 'stock-inventory',
+            label: 'STOCK & BALANCE',
             icon: 'table_rows',
-            onClick: () => onNavigate?.('stock-movements'),
+            onClick: () => onNavigate?.('stock-inventory'),
           },
           {
-            id: 'movements',
+            id: 'stock-movements',
             label: 'MOVEMENTS',
             icon: 'swap_vert',
-            onClick: () => onNavigate?.('movements'),
+            onClick: () => onNavigate?.('stock-movements'),
           },
           {
             id: 'locations',
