@@ -1,11 +1,13 @@
 //src/components/SaaSDashboard/SaaSDashboard.tsx
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SaasOverviewContent } from '@/modules/platform-saas/central-backoffice/views/dashboard/SaasOverviewContent';
 import { setSimulateApiFailure, getSimulateApiFailure } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import { SubscriptionPlansView } from '@/modules/platform-saas/subscription-system/views/SubscriptionPlansView';
 import { SaasLoginOverlay } from '@/platform/auth/components/SaasLoginOverlay';
-import { isSaasAuthenticated } from '@/platform/auth/lib/saas-auth-storage';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { isSaasAuthenticated, clearSaasToken } from '@/platform/auth/lib/saas-auth-storage';
+import { getStoredUser, clearAuthSession } from '@/platform/auth/lib/auth-storage';
+import { EmergencySupportModal } from '@/shared/components/QuickActionModals';
 import logoX7 from '@/assets/logo-x7.png';
 import { PlatformApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from '@/modules/platform-saas/subscription-system/views/PlatformFeatureCatalogView';
@@ -37,7 +39,9 @@ const SAAS_PENDING_TABS: Record<string, { icon: string; title: string; desc: str
 };
 
 export const SaaSFrame: React.FC = () => {
+  const navigate = useNavigate();
   const [saasAuthenticated, setSaasAuthenticated] = useState(isSaasAuthenticated);
+  const [isSupportOpen, setIsSupportOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [searchText, setSearchText] = useState<string>('');
@@ -111,6 +115,13 @@ export const SaaSFrame: React.FC = () => {
 
   const handleRefresh = () => {
     setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleLogout = () => {
+    clearSaasToken();
+    clearAuthSession();
+    setSaasAuthenticated(false);
+    navigate('/login', { replace: true });
   };
 
   const handleNavigateView = (view: string, plan?: SubscriptionPlan) => {
@@ -393,28 +404,22 @@ export const SaaSFrame: React.FC = () => {
         </div>
 
         <div className="mt-auto p-2 border-t border-white/10">
-          <a
-            className="text-white/70 pl-4 py-2 flex items-center gap-3 hover:bg-white/5 hover:text-white transition-all text-[13px]"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              alert('Support module simulation');
-            }}
+          <button
+            type="button"
+            className="w-full text-white/70 pl-4 py-2 flex items-center gap-3 hover:bg-white/5 hover:text-white transition-all text-[13px] cursor-pointer text-left"
+            onClick={() => setIsSupportOpen(true)}
           >
             <span className="material-symbols-outlined">contact_support</span>
             Support
-          </a>
-          <a
-            className="text-white/70 pl-4 py-2 flex items-center gap-3 hover:bg-white/5 hover:text-white transition-all text-[13px]"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              alert('Logout simulation');
-            }}
+          </button>
+          <button
+            type="button"
+            className="w-full text-white/70 pl-4 py-2 flex items-center gap-3 hover:bg-white/5 hover:text-white transition-all text-[13px] cursor-pointer text-left"
+            onClick={handleLogout}
           >
             <span className="material-symbols-outlined">logout</span>
             Logout
-          </a>
+          </button>
         </div>
       </aside>
 
@@ -631,6 +636,12 @@ export const SaaSFrame: React.FC = () => {
           <span className="material-symbols-outlined text-3xl">insights</span>
         </button>
       )}
+
+      {/* Support Modal */}
+      <EmergencySupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+      />
     </div>
   );
 };
