@@ -218,7 +218,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       const [suppliersList, suppliesList, locationsList] = await Promise.all([
         optionalList<Supplier>('/v1/inventory/suppliers?limit=100'),
         optionalList<Supply>('/v1/inventory/raw-materials?status=active&limit=500'),
-        optionalList<{ id: number; name: string; isActive?: boolean }>('/locations'),
+        optionalList<{ id: number; name: string; isActive?: boolean }>('/locations?limit=100'),
       ]);
 
       if (suppliersList) setSuppliers(suppliersList.filter((s) => s.isActive !== false));
