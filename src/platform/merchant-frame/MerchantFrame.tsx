@@ -36,7 +36,7 @@ import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/type
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
 import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
-import { clearAuthSession, saveAuthSession } from '@/platform/auth/lib/auth-storage';
+import { clearAuthSession, getStoredUser, saveAuthSession } from '@/platform/auth/lib/auth-storage';
 import { login } from '@/platform/auth/api/auth';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
@@ -57,6 +57,14 @@ interface MerchantStaffUser {
   shiftRole?: string | null;
   collaboratorName?: string | null;
 }
+
+const PLATFORM_ROLES: readonly string[] = ['super_admin', 'portal_admin', 'portal_user'];
+
+const PLATFORM_FALLBACK_USERS: MerchantStaffUser[] = [
+  { id: 14, email: 'superadmin@x7pos.com', username: 'superadmin', role: 'super_admin' },
+  { id: 16, email: 'portal.admin@x7pos.com', username: 'portal_admin', role: 'portal_admin' },
+  { id: 17, email: 'portal.user@x7pos.com', username: 'portal_user', role: 'portal_user' },
+];
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
@@ -223,42 +231,39 @@ export const MerchantFrame: React.FC = () => {
   const [isNavLoading, setIsNavLoading] = useState<boolean>(true);
   const [navError, setNavError] = useState<string | null>(null);
 
-  // Redirigir al portal SaaS a los roles administrativos globales de plataforma
+  // Platform SaaS lives inside this same shell: portal staff only see the Platform SaaS
+  // category (saas_web); the super admin sees it together with the merchant categories;
+  // every other role gets the merchant menu with the SaaS category hidden.
   useEffect(() => {
-    if (profile?.role === 'portal_admin' || profile?.role === 'portal_user') {
-      navigate('/saas-admin', { replace: true });
-    }
-  }, [profile?.role, navigate]);
-
-  useEffect(() => {
-    if (profile?.role === 'portal_admin' || profile?.role === 'portal_user') {
-      setIsNavLoading(false);
-      return;
-    }
+    const role = profile?.role ?? getStoredUser()?.role;
+    const isPortalStaff = role === 'portal_admin' || role === 'portal_user';
+    const isSuperAdmin = role === 'super_admin' || role === 'Super Admin (All Access)';
     let ignore = false;
     setIsNavLoading(true);
     setNavError(null);
 
-    navigationService
-      .loadDynamicNavigation('merchant_web')
+    const loadMenu = async (): Promise<NavCategory[]> => {
+      if (isPortalStaff) {
+        return navigationService.loadDynamicNavigation('saas_web');
+      }
+      const merchantMenu = await navigationService.loadDynamicNavigation('merchant_web');
+      if (!isSuperAdmin) {
+        return merchantMenu.filter(
+          (cat) =>
+            cat.id !== 'platform-saas' &&
+            cat.id !== 'platformsaas' &&
+            cat.name.toLowerCase() !== 'platform saas',
+        );
+      }
+      const saasMenu = await navigationService.loadDynamicNavigation('saas_web');
+      const merchantOnly = merchantMenu.filter((cat) => !saasMenu.some((s) => s.id === cat.id));
+      return [...saasMenu, ...merchantOnly];
+    };
+
+    loadMenu()
       .then((menu) => {
         if (!ignore) {
-          const isPlatformAdmin =
-            profile?.role === 'super_admin' ||
-            profile?.role === 'Super Admin (All Access)' ||
-            profile?.role === 'portal_admin' ||
-            profile?.role === 'portal_user' ||
-            profile?.role === 'SaaS Owner';
-
-          const sanitizedMenu = isPlatformAdmin
-            ? menu
-            : menu.filter(
-                (cat) =>
-                  cat.id !== 'platform-saas' &&
-                  cat.id !== 'platformsaas' &&
-                  cat.name.toLowerCase() !== 'platform saas',
-              );
-          setNavCategories(sanitizedMenu);
+          setNavCategories(menu);
           setNavError(null);
           setIsNavLoading(false);
         }
@@ -341,6 +346,30 @@ export const MerchantFrame: React.FC = () => {
   }, [merchantsList]);
 
   const [merchantUsers, setMerchantUsers] = useState<MerchantStaffUser[]>([]);
+  const [platformUsers, setPlatformUsers] = useState<MerchantStaffUser[]>(PLATFORM_FALLBACK_USERS);
+
+  // Platform staff (super admin + portal admin/user). Only a super admin can list them;
+  // while impersonating another role the static list keeps the switcher usable.
+  useEffect(() => {
+    if (profile?.role !== 'super_admin') return;
+    let ignore = false;
+    apiRequest<{ data: MerchantStaffUser[] }>(
+      '/users/platform',
+      { method: 'GET' },
+      'Failed to load platform users',
+    )
+      .then((res) => {
+        if (!ignore && Array.isArray(res?.data) && res.data.length > 0) {
+          setPlatformUsers(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load platform users:', err);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [profile?.role]);
   const [selectedUserEmail, setSelectedUserEmail] = useState<string>('');
   const [isSwitchingUser, setIsSwitchingUser] = useState<boolean>(false);
   const isImpersonating = Boolean(localStorage.getItem('x7_superadmin_impersonating'));
@@ -439,8 +468,15 @@ export const MerchantFrame: React.FC = () => {
       setIsSwitchingUser(true);
       const res = await login(targetEmail, 'softPassword');
       saveAuthSession(res.access_token, res.refreshToken, res.user, true);
-      localStorage.setItem('x7_superadmin_impersonating', 'true');
-      setActiveSuperAdminMerchantId(res.user.merchant?.id || activeMerchantId);
+      if (res.user.role === 'super_admin') {
+        localStorage.removeItem('x7_superadmin_impersonating');
+      } else {
+        localStorage.setItem('x7_superadmin_impersonating', 'true');
+      }
+      // Platform accounts keep the store the super admin was working on.
+      if (!PLATFORM_ROLES.includes(res.user.role)) {
+        setActiveSuperAdminMerchantId(res.user.merchant?.id || activeMerchantId);
+      }
       window.location.href = '/dashboard';
     } catch (err) {
       console.error('Failed to impersonate user:', err);
@@ -549,7 +585,8 @@ export const MerchantFrame: React.FC = () => {
       profile?.role === 'portal_admin' ||
       profile?.role === 'portal_user' ||
       exclusiveSaaS.includes(activeTab) ||
-      activeCategory === 'saas';
+      activeCategory === 'saas' ||
+      activeCategory === 'platform-saas';
 
     if (isSaaSTab) {
       rootEl?.classList.remove('restaurant-active');
@@ -1064,31 +1101,43 @@ export const MerchantFrame: React.FC = () => {
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[15px] text-purple-400">group</span>
-                  Merchant Users & Team
+                  Users & Team
                 </label>
                 <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-white/70 rounded font-medium">
-                  {merchantUsers.length} users
+                  {platformUsers.length + merchantUsers.length} users
                 </span>
               </div>
               <select
-                aria-label="Merchant Staff Users"
+                aria-label="Platform and Merchant Users"
                 value={selectedUserEmail}
                 onChange={(e) => setSelectedUserEmail(e.target.value)}
                 className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
               >
-                {merchantUsers.map((u) => {
-                  const roleLabel = u.shiftRole
-                    ? u.shiftRole.toUpperCase()
-                    : u.role === 'merchant_admin'
-                    ? 'STORE ADMIN'
-                    : u.role.toUpperCase();
-                  const nameLabel = u.collaboratorName || u.username;
-                  return (
-                    <option key={u.id} value={u.email} className="bg-[#111111] text-white py-1">
-                      {nameLabel} [{roleLabel}] — {u.email}
+                <optgroup label="Platform Team (SaaS)" className="bg-[#111111] text-white/60">
+                  {platformUsers.map((u) => (
+                    <option key={`p-${u.id}`} value={u.email} className="bg-[#111111] text-white py-1">
+                      {u.username} [{u.role.replace('_', ' ').toUpperCase()}] — {u.email}
                     </option>
-                  );
-                })}
+                  ))}
+                </optgroup>
+                <optgroup
+                  label={`Merchant Team (#${activeMerchantId})`}
+                  className="bg-[#111111] text-white/60"
+                >
+                  {merchantUsers.map((u) => {
+                    const roleLabel = u.shiftRole
+                      ? u.shiftRole.toUpperCase()
+                      : u.role === 'merchant_admin'
+                      ? 'STORE ADMIN'
+                      : u.role.toUpperCase();
+                    const nameLabel = u.collaboratorName || u.username;
+                    return (
+                      <option key={u.id} value={u.email} className="bg-[#111111] text-white py-1">
+                        {nameLabel} [{roleLabel}] — {u.email}
+                      </option>
+                    );
+                  })}
+                </optgroup>
               </select>
 
               <button

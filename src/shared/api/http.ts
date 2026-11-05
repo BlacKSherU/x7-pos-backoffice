@@ -165,7 +165,9 @@ export async function saasRequest<T>(
   init: RequestInit,
   fallbackMessage: string,
 ): Promise<T> {
-  const token = getSaasToken();
+  // Platform staff sign in once through the regular login; the dedicated SaaS token is
+  // only an override, so fall back to the session's access token.
+  const token = getSaasToken() ?? getAccessToken();
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {

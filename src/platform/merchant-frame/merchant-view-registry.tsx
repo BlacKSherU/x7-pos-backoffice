@@ -11,6 +11,9 @@ import { PlatformFeatureCatalogView } from '@/modules/platform-saas/subscription
 import { PlanApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlanApplicationsView';
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
 import { SaasDashboardView } from '@/modules/platform-saas/central-backoffice/views/SaasDashboardView';
+import { OrdersRegistryView } from '@/modules/platform-saas/central-backoffice/views/OrdersRegistryView';
+import { MerchantSettlementsView } from '@/modules/platform-saas/central-backoffice/views/MerchantSettlementsView';
+import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
 import { ComingSoonView, PlanFeaturesPickPlanView } from '@/shared/components/PlaceholderViews';
 
 import { CategoriesView } from '@/modules/inventory/products-inventory/views/CategoriesView';
@@ -170,6 +173,9 @@ view('saas-dashboard', (ctx) => (
 view('sub-plans-core', (ctx) => <SubscriptionPlansView onNavigate={ctx.onSaasNavigate} />);
 view('apps-config', (ctx) => <PlatformApplicationsView onNavigate={ctx.onSaasNavigate} />);
 view('features-control', (ctx) => <PlatformFeatureCatalogView onNavigate={ctx.onSaasNavigate} />);
+view('merchant-subs-link', () => <CompanySubscriptionsView />);
+view('orders-registry', (ctx) => <OrdersRegistryView onNavigate={ctx.onNavigate} />);
+view('merchant-settlements', (ctx) => <MerchantSettlementsView onNavigate={ctx.onNavigate} />);
 view('plan-apps-rules', (ctx) => (
   <PlanApplicationsView plan={ctx.selectedPlan ?? undefined} onNavigate={ctx.onSaasNavigate} />
 ));

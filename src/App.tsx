@@ -6,21 +6,16 @@ import { ForgotPasswordPage } from '@/platform/auth/pages/ForgotPasswordPage';
 import { LoginPage } from '@/platform/auth/pages/LoginPage';
 import { ResetPasswordPage } from '@/platform/auth/pages/ResetPasswordPage';
 import { ResetPasswordSuccessPage } from '@/platform/auth/pages/ResetPasswordSuccessPage';
-import SaaSFrame from '@/platform/saas-frame/SaaSFrame';
 import { CompanyStepPage } from '@/platform/onboarding/pages/CompanyStepPage';
 import { MerchantStepPage } from '@/platform/onboarding/pages/MerchantStepPage';
 import { OnboardingRoutes } from '@/platform/onboarding/pages/OnboardingRoutes';
 import { SubscriptionStepPage } from '@/platform/onboarding/pages/SubscriptionStepPage';
 import { UserStepPage } from '@/platform/onboarding/pages/UserStepPage';
-import { getStoredUser, isAuthenticated } from '@/platform/auth/lib/auth-storage';
+import { isAuthenticated } from '@/platform/auth/lib/auth-storage';
 
 function RootRedirect() {
-  const user = getStoredUser();
   if (!isAuthenticated()) {
     return <Navigate replace to="/login" />;
-  }
-  if (user?.role === 'portal_admin' || user?.role === 'portal_user') {
-    return <Navigate replace to="/saas-admin" />;
   }
   return <Navigate replace to="/dashboard" />;
 }
@@ -54,7 +49,8 @@ export default function App() {
             <Route key={path} path={path} element={<></>} />
           ))}
         </Route>
-        <Route path="/saas-admin" element={<SaaSFrame />} />
+        {/* Legacy URL: Platform SaaS now lives inside the unified backoffice shell. */}
+        <Route path="/saas-admin" element={<Navigate replace to="/dashboard" />} />
         <Route path="*" element={<Navigate replace to="/login" />} />
       </Routes>
     </BrowserRouter>
