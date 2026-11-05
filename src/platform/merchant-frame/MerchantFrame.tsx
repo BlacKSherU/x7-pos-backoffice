@@ -250,9 +250,15 @@ export const MerchantFrame: React.FC = () => {
   const [activeMerchantId, setActiveMerchantId] = useState<string>(
     () => getActiveSuperAdminMerchantId() || '1',
   );
-  const [merchantsList, setMerchantsList] = useState<Array<{ id: number; name: string }>>([
-    { id: 1, name: 'Merchant 1 (mer1)' },
-    { id: 2, name: 'Merchant 2 (mer2)' },
+  const [merchantsList, setMerchantsList] = useState<
+    Array<{ id: number; name: string; companyId?: number; companyName?: string }>
+  >([
+    { id: 1, name: 'FastBites Downtown [Essential M1]', companyId: 1, companyName: 'FastBites Corp [Essential]' },
+    { id: 3, name: 'FastBites Airport [Essential M2]', companyId: 1, companyName: 'FastBites Corp [Essential]' },
+    { id: 2, name: 'Bistro Central [Professional M1]', companyId: 2, companyName: 'Bistro Gourmet Group [Professional]' },
+    { id: 4, name: 'Bistro Marina [Professional M2]', companyId: 2, companyName: 'Bistro Gourmet Group [Professional]' },
+    { id: 5, name: 'Grand Palace Dining [Executive M1]', companyId: 3, companyName: 'Grand Palace Hospitality [Executive]' },
+    { id: 6, name: 'Grand Palace Sky Bar [Executive M2]', companyId: 3, companyName: 'Grand Palace Hospitality [Executive]' },
   ]);
 
   useEffect(() => {
@@ -260,14 +266,21 @@ export const MerchantFrame: React.FC = () => {
       profile?.role === 'super_admin' ||
       profile?.role === 'Super Admin (All Access)'
     ) {
-      apiRequest<{ data?: Array<{ id: number; name: string }> }>(
+      apiRequest<{ data?: Array<{ id: number; name: string; company?: { id: number; name: string } }> }>(
         '/merchants',
         { method: 'GET' },
         'Failed to load merchants list',
       )
         .then((res) => {
           if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-            setMerchantsList(res.data.map((m) => ({ id: m.id, name: m.name })));
+            setMerchantsList(
+              res.data.map((m) => ({
+                id: m.id,
+                name: m.name,
+                companyId: m.company?.id,
+                companyName: m.company?.name || (m.name.includes('Essential') ? 'FastBites Corp [Essential]' : m.name.includes('Professional') ? 'Bistro Gourmet Group [Professional]' : 'Grand Palace Hospitality [Executive]'),
+              })),
+            );
           }
         })
         .catch((err) => {
@@ -275,6 +288,16 @@ export const MerchantFrame: React.FC = () => {
         });
     }
   }, [profile?.role]);
+
+  const groupedMerchants = useMemo(() => {
+    const groups: Record<string, Array<{ id: number; name: string }>> = {};
+    for (const m of merchantsList) {
+      const groupKey = m.companyName || 'Other Companies';
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(m);
+    }
+    return groups;
+  }, [merchantsList]);
 
   const handleMerchantSwitch = (newMerchantId: string) => {
     setActiveMerchantId(newMerchantId);
@@ -806,44 +829,63 @@ export const MerchantFrame: React.FC = () => {
         </button>
 
         {showDemoPanel && (
-          <div className="absolute bottom-12 left-0 w-64 bg-[#222222] border border-white/10 p-4 rounded shadow-2xl space-y-3 animate-fade-in text-left">
-            <div>
-              <p className="font-bold text-[#d51f2c] uppercase text-[10px] tracking-wider flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">admin_panel_settings</span>
-                Super Admin Controls
-              </p>
-              <p className="text-[9px] text-white/50 mb-2">Switch active store & environment.</p>
+          <div className="absolute bottom-12 left-0 w-[350px] bg-[#1c1c1c] border border-white/20 p-4 rounded-xl shadow-2xl space-y-3.5 animate-fade-in text-left font-sans z-[10000]">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-[#d51f2c]">admin_panel_settings</span>
+                <div>
+                  <h3 className="font-bold text-white text-xs leading-none">Super Admin Controls</h3>
+                  <p className="text-[10px] text-white/50 mt-0.5">Switch active store, role & plan</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDemoPanel(false)}
+                className="p-1 text-white/40 hover:text-white rounded hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-center"
+                title="Close panel"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
             </div>
 
-            {/* Active Merchant Switcher */}
-            <div className="border-t border-white/10 pt-2">
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="font-bold text-white uppercase text-[9px] tracking-wider flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px] text-amber-400">storefront</span>
-                  Switch Merchant
-                </p>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#ae001a] text-white font-bold">
-                  Active: #{activeMerchantId}
+            {/* Active Merchant Switcher with Optgroups by Company */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[15px] text-amber-400">storefront</span>
+                  Switch Active Merchant
+                </label>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#ae001a] text-white font-bold tracking-wide">
+                  Active #{activeMerchantId}
                 </span>
               </div>
               <select
                 aria-label="Active Merchant Store"
                 value={activeMerchantId}
                 onChange={(e) => handleMerchantSwitch(e.target.value)}
-                className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1.5 rounded focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans"
+                className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
               >
-                {merchantsList.map((m) => (
-                  <option key={m.id} value={String(m.id)}>
-                    {m.name || `Merchant ${m.id}`} (#{m.id})
-                  </option>
+                {Object.entries(groupedMerchants).map(([groupName, stores]) => (
+                  <optgroup key={groupName} label={groupName} className="bg-[#222222] text-amber-400 font-bold py-1">
+                    {stores.map((m) => (
+                      <option key={m.id} value={String(m.id)} className="bg-[#111111] text-white font-normal py-1">
+                        #{m.id} — {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
 
-            <div className="border-t border-white/10 pt-2">
-              <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Role / Environment</p>
+            {/* Role & Platform Environment */}
+            <div className="border-t border-white/10 pt-2.5 space-y-1.5">
+              <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[15px] text-blue-400">badge</span>
+                Role & Platform Environment
+              </label>
               <select
-                aria-label="Role / Environment"
+                aria-label="Role & Platform Environment"
                 value={profile?.role || 'merchant_admin'}
                 onChange={(e) => {
                   const role = e.target.value;
@@ -867,20 +909,24 @@ export const MerchantFrame: React.FC = () => {
                   }
                   setRefreshTrigger((p) => p + 1);
                 }}
-                className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
+                className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
               >
                 <option value="super_admin">Super Admin (All Access)</option>
                 <option value="portal_admin">Portal Admin (Platform SaaS)</option>
                 <option value="portal_user">Portal User (SaaS Read-Only)</option>
-                <option value="merchant_admin">Merchant Admin (General Manager)</option>
-                <option value="merchant_user">Merchant User (Staff)</option>
+                <option value="merchant_admin">Merchant Admin (Store General Manager)</option>
+                <option value="merchant_user">Merchant User (Restaurant Staff)</option>
               </select>
             </div>
 
-            <div className="border-t border-white/10 pt-2">
-              <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
+            {/* Simulated Plan */}
+            <div className="border-t border-white/10 pt-2.5 space-y-1.5">
+              <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[15px] text-purple-400">workspace_premium</span>
+                Simulated Plan (Tier)
+              </label>
               <select
-                aria-label="Merchant Plan (Tier)"
+                aria-label="Simulated Plan (Tier)"
                 value={profile?.Plan_id || 2}
                 onChange={(e) => {
                   const planId = parseInt(e.target.value);
@@ -894,25 +940,35 @@ export const MerchantFrame: React.FC = () => {
                   }
                   setRefreshTrigger((p) => p + 1);
                 }}
-                className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
+                className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
               >
-                <option value="1">Plan 1: Quick Service</option>
-                <option value="2">Plan 2: Full Restaurant</option>
-                <option value="3">Plan 3: Enterprise</option>
+                <option value="1">Plan 1: Essential (Quick Service - 15 apps)</option>
+                <option value="2">Plan 2: Professional (Full Restaurant - 26 apps)</option>
+                <option value="3">Plan 3: Executive (Enterprise - 28 apps)</option>
               </select>
             </div>
 
-            <div className="border-t border-white/10 pt-2">
-              <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Auth Session</p>
+            {/* Auth Session / 401 Testing */}
+            <div className="border-t border-white/10 pt-2.5 space-y-1.5">
+              <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-400">lock</span>
+                Session Security (401 Testing)
+              </label>
               <button
+                type="button"
                 onClick={() => {
                   handleToggle401();
                 }}
-                className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
-                  demo401Toggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                className={`w-full py-2 px-3 text-center text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  demo401Toggle
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'
+                    : 'bg-red-600 hover:bg-red-700 text-white shadow-md'
                 }`}
               >
-                {demo401Toggle ? 'Simulate Session OK (200)' : 'Force Expiration (401)'}
+                <span className="material-symbols-outlined text-[15px]">
+                  {demo401Toggle ? 'check_circle' : 'warning'}
+                </span>
+                <span>{demo401Toggle ? 'Simulate Session OK (200)' : 'Force Expiration (401)'}</span>
               </button>
             </div>
           </div>
