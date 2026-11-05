@@ -70,8 +70,18 @@ export const MerchantFrame: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Session loading and initialization state
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  // Session loading and initialization state (hydrated synchronously from stored user so role is known on first render)
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    const stored = getStoredUser();
+    if (!stored) return null;
+    return {
+      name: stored.email ? stored.email.split('@')[0] : 'Merchant Admin',
+      role: stored.role || 'merchant_admin',
+      portraitUrl: '',
+      Plan_id: 2,
+      company_id: stored.merchant?.id,
+    };
+  });
   const [isAuthLocked, setIsAuthLocked] = useState<boolean>(false);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
@@ -131,19 +141,20 @@ export const MerchantFrame: React.FC = () => {
     setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
   };
 
+  const effectiveProfileRole = profile?.role ?? getStoredUser()?.role;
   const [prevRouteKey, setPrevRouteKey] = useState<string>('');
-  const currentRouteKey = `${location.pathname}:${location.search}:${profile?.role ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
+  const currentRouteKey = `${location.pathname}:${location.search}:${effectiveProfileRole ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
 
   if (currentRouteKey !== prevRouteKey) {
     setPrevRouteKey(currentRouteKey);
-    const routeNav = getNavFromPath(location.pathname, location.state, profile?.role);
+    const routeNav = getNavFromPath(location.pathname, location.state, effectiveProfileRole);
     if (routeNav) {
       const isPlatformStaff =
-        profile?.role === 'super_admin' ||
-        profile?.role === 'Super Admin (All Access)' ||
-        profile?.role === 'portal_admin' ||
-        profile?.role === 'portal_user' ||
-        profile?.role === 'SaaS Owner';
+        effectiveProfileRole === 'super_admin' ||
+        effectiveProfileRole === 'Super Admin (All Access)' ||
+        effectiveProfileRole === 'portal_admin' ||
+        effectiveProfileRole === 'portal_user' ||
+        effectiveProfileRole === 'SaaS Owner';
 
       const isSaaSCat =
         routeNav.category === 'platformsaas' ||
@@ -242,11 +253,33 @@ export const MerchantFrame: React.FC = () => {
     setIsNavLoading(true);
     setNavError(null);
 
+    const loadWithRetry = async (
+      surface: 'merchant_web' | 'saas_web',
+      attempts = 3,
+    ): Promise<NavCategory[]> => {
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          return await navigationService.loadDynamicNavigation(surface);
+        } catch (err) {
+          const status =
+            typeof err === 'object' && err !== null && 'status' in err
+              ? (err as { status?: number }).status
+              : undefined;
+          const isTransient = status === 502 || status === 503 || status === 504 || err instanceof TypeError;
+          if (!isTransient || attempt === attempts) {
+            throw err;
+          }
+          await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+        }
+      }
+      return [];
+    };
+
     const loadMenu = async (): Promise<NavCategory[]> => {
       if (isPortalStaff) {
-        return navigationService.loadDynamicNavigation('saas_web');
+        return loadWithRetry('saas_web');
       }
-      const merchantMenu = await navigationService.loadDynamicNavigation('merchant_web');
+      const merchantMenu = await loadWithRetry('merchant_web');
       if (!isSuperAdmin) {
         return merchantMenu.filter(
           (cat) =>
@@ -255,9 +288,14 @@ export const MerchantFrame: React.FC = () => {
             cat.name.toLowerCase() !== 'platform saas',
         );
       }
-      const saasMenu = await navigationService.loadDynamicNavigation('saas_web');
-      const merchantOnly = merchantMenu.filter((cat) => !saasMenu.some((s) => s.id === cat.id));
-      return [...saasMenu, ...merchantOnly];
+      try {
+        const saasMenu = await loadWithRetry('saas_web');
+        const merchantOnly = merchantMenu.filter((cat) => !saasMenu.some((s) => s.id === cat.id));
+        return [...saasMenu, ...merchantOnly];
+      } catch (err) {
+        console.warn('Could not load saas_web menu for super_admin, falling back to merchant_web:', err);
+        return merchantMenu;
+      }
     };
 
     loadMenu()
@@ -308,10 +346,8 @@ export const MerchantFrame: React.FC = () => {
   ]);
 
   useEffect(() => {
-    if (
-      profile?.role === 'super_admin' ||
-      profile?.role === 'Super Admin (All Access)'
-    ) {
+    const role = profile?.role ?? getStoredUser()?.role;
+    if (role === 'super_admin' || role === 'Super Admin (All Access)') {
       apiRequest<{ data?: Array<{ id: number; name: string; company?: { id: number; name: string } }> }>(
         '/merchants',
         { method: 'GET' },
@@ -333,7 +369,7 @@ export const MerchantFrame: React.FC = () => {
           console.error('Failed to load merchants list for superadmin:', err);
         });
     }
-  }, [profile?.role]);
+  }, [profile?.role, refreshTrigger]);
 
   const groupedMerchants = useMemo(() => {
     const groups: Record<string, Array<{ id: number; name: string }>> = {};
@@ -351,7 +387,8 @@ export const MerchantFrame: React.FC = () => {
   // Platform staff (super admin + portal admin/user). Only a super admin can list them;
   // while impersonating another role the static list keeps the switcher usable.
   useEffect(() => {
-    if (profile?.role !== 'super_admin') return;
+    const role = profile?.role ?? getStoredUser()?.role;
+    if (role !== 'super_admin') return;
     let ignore = false;
     apiRequest<{ data: MerchantStaffUser[] }>(
       '/users/platform',
@@ -369,8 +406,10 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [profile?.role]);
-  const [selectedUserEmail, setSelectedUserEmail] = useState<string>('');
+  }, [profile?.role, refreshTrigger]);
+  const [selectedUserEmail, setSelectedUserEmail] = useState<string>(
+    () => getStoredUser()?.email || 'superadmin@x7pos.com',
+  );
   const [isSwitchingUser, setIsSwitchingUser] = useState<boolean>(false);
   const isImpersonating = Boolean(localStorage.getItem('x7_superadmin_impersonating'));
 
@@ -381,6 +420,89 @@ export const MerchantFrame: React.FC = () => {
   };
 
   useEffect(() => {
+    const role = profile?.role ?? getStoredUser()?.role;
+    const canSwitchUsers =
+      role === 'super_admin' ||
+      role === 'Super Admin (All Access)' ||
+      isImpersonating;
+    if (!canSwitchUsers) return;
+
+    const fallbackUsers: Record<string, MerchantStaffUser[]> = {
+      '1': [
+        { id: 18, email: 'admin.mer1@x7pos.com', username: 'admin_mer1', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 19, email: 'manager.mer1@x7pos.com', username: 'manager_mer1', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mateo Manager' },
+        { id: 20, email: 'cashier.mer1@x7pos.com', username: 'cashier_mer1', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Camila Cajera' },
+        { id: 21, email: 'waiter.mer1@x7pos.com', username: 'waiter_mer1', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Manuel Mozo' },
+        { id: 22, email: 'cook.mer1@x7pos.com', username: 'cook_mer1', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristian Cocinero' },
+        { id: 23, email: 'delivery.mer1@x7pos.com', username: 'delivery_mer1', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'David Delivery' },
+      ],
+      '2': [
+        { id: 25, email: 'admin.mer2@x7pos.com', username: 'admin_mer2', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 26, email: 'manager.mer2@x7pos.com', username: 'manager_mer2', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcos Manager M2' },
+        { id: 27, email: 'cashier.mer2@x7pos.com', username: 'cashier_mer2', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carla Cashier M2' },
+        { id: 28, email: 'waiter.mer2@x7pos.com', username: 'waiter_mer2', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Walter Waiter M2' },
+        { id: 33, email: 'cook.mer2@x7pos.com', username: 'cook_mer2', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Claudio Chef M2' },
+        { id: 34, email: 'delivery.mer2@x7pos.com', username: 'delivery_mer2', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Diego Delivery M2' },
+      ],
+      '3': [
+        { id: 29, email: 'admin.mer1b@x7pos.com', username: 'admin_mer1b', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 35, email: 'manager.mer1b@x7pos.com', username: 'manager_mer1b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mariano Manager M1B' },
+        { id: 36, email: 'cashier.mer1b@x7pos.com', username: 'cashier_mer1b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carolina Cashier M1B' },
+        { id: 37, email: 'waiter.mer1b@x7pos.com', username: 'waiter_mer1b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'William Waiter M1B' },
+        { id: 38, email: 'cook.mer1b@x7pos.com', username: 'cook_mer1b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cesar Cook M1B' },
+      ],
+      '4': [
+        { id: 30, email: 'admin.mer2b@x7pos.com', username: 'admin_mer2b', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 39, email: 'manager.mer2b@x7pos.com', username: 'manager_mer2b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mauricio Manager M2B' },
+        { id: 40, email: 'cashier.mer2b@x7pos.com', username: 'cashier_mer2b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carmen Cashier M2B' },
+        { id: 41, email: 'waiter.mer2b@x7pos.com', username: 'waiter_mer2b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wendy Waiter M2B' },
+        { id: 42, email: 'cook.mer2b@x7pos.com', username: 'cook_mer2b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Camilo Cook M2B' },
+        { id: 43, email: 'delivery.mer2b@x7pos.com', username: 'delivery_mer2b', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Daniel Delivery M2B' },
+      ],
+      '5': [
+        { id: 31, email: 'admin.mer3a@x7pos.com', username: 'admin_mer3a', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 44, email: 'manager.mer3a@x7pos.com', username: 'manager_mer3a', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcelo Manager M3A' },
+        { id: 45, email: 'cashier.mer3a@x7pos.com', username: 'cashier_mer3a', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Clara Cashier M3A' },
+        { id: 46, email: 'waiter.mer3a@x7pos.com', username: 'waiter_mer3a', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Waldemar Waiter M3A' },
+        { id: 47, email: 'cook.mer3a@x7pos.com', username: 'cook_mer3a', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Carlos Chef M3A' },
+        { id: 48, email: 'delivery.mer3a@x7pos.com', username: 'delivery_mer3a', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Dario Delivery M3A' },
+      ],
+      '6': [
+        { id: 32, email: 'admin.mer3b@x7pos.com', username: 'admin_mer3b', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 49, email: 'manager.mer3b@x7pos.com', username: 'manager_mer3b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Martin Manager M3B' },
+        { id: 50, email: 'cashier.mer3b@x7pos.com', username: 'cashier_mer3b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Cinthia Cashier M3B' },
+        { id: 51, email: 'waiter.mer3b@x7pos.com', username: 'waiter_mer3b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wenceslao Waiter M3B' },
+        { id: 52, email: 'bartender.mer3b@x7pos.com', username: 'bartender_mer3b', role: 'merchant_user', shiftRole: 'bartender', collaboratorName: 'Bernardo Bartender M3B' },
+        { id: 53, email: 'cook.mer3b@x7pos.com', username: 'cook_mer3b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristobal Cook M3B' },
+      ],
+    };
+
+    const applyUsersList = (users: MerchantStaffUser[]) => {
+      setMerchantUsers(users);
+      if (users.length > 0) {
+        setSelectedUserEmail((prev) => {
+          const isKnown =
+            users.some((u) => u.email === prev) ||
+            PLATFORM_FALLBACK_USERS.some((u) => u.email === prev);
+          if (prev && isKnown) return prev;
+          return users[0].email;
+        });
+      }
+    };
+
+    // Only super_admin, portal_admin, portal_user, or merchant_admin (of the same merchant)
+    // can call GET /users/merchant/:merchantId; impersonated staff roles use the preloaded list directly.
+    const canFetchFromApi =
+      role === 'super_admin' ||
+      role === 'portal_admin' ||
+      role === 'portal_user' ||
+      role === 'merchant_admin';
+
+    if (!canFetchFromApi) {
+      applyUsersList(fallbackUsers[String(activeMerchantId)] || []);
+      return;
+    }
+
     let ignore = false;
     apiRequest<{ data: MerchantStaffUser[] }>(
       `/users/merchant/${activeMerchantId}`,
@@ -389,79 +511,19 @@ export const MerchantFrame: React.FC = () => {
     )
       .then((res) => {
         if (!ignore && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          setMerchantUsers(res.data);
-          setSelectedUserEmail((prev) => {
-            if (prev && res.data.some((u) => u.email === prev)) return prev;
-            return res.data[0].email;
-          });
+          applyUsersList(res.data);
         }
       })
       .catch((err) => {
         console.error('Failed to load merchant users:', err);
-        const fallbackUsers: Record<string, MerchantStaffUser[]> = {
-          '1': [
-            { id: 18, email: 'admin.mer1@x7pos.com', username: 'admin_mer1', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
-            { id: 19, email: 'manager.mer1@x7pos.com', username: 'manager_mer1', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mateo Manager' },
-            { id: 20, email: 'cashier.mer1@x7pos.com', username: 'cashier_mer1', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Camila Cajera' },
-            { id: 21, email: 'waiter.mer1@x7pos.com', username: 'waiter_mer1', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Manuel Mozo' },
-            { id: 22, email: 'cook.mer1@x7pos.com', username: 'cook_mer1', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristian Cocinero' },
-            { id: 23, email: 'delivery.mer1@x7pos.com', username: 'delivery_mer1', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'David Delivery' },
-          ],
-          '2': [
-            { id: 25, email: 'admin.mer2@x7pos.com', username: 'admin_mer2', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
-            { id: 26, email: 'manager.mer2@x7pos.com', username: 'manager_mer2', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcos Manager M2' },
-            { id: 27, email: 'cashier.mer2@x7pos.com', username: 'cashier_mer2', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carla Cashier M2' },
-            { id: 28, email: 'waiter.mer2@x7pos.com', username: 'waiter_mer2', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Walter Waiter M2' },
-            { id: 33, email: 'cook.mer2@x7pos.com', username: 'cook_mer2', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Claudio Chef M2' },
-            { id: 34, email: 'delivery.mer2@x7pos.com', username: 'delivery_mer2', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Diego Delivery M2' },
-          ],
-          '3': [
-            { id: 29, email: 'admin.mer1b@x7pos.com', username: 'admin_mer1b', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
-            { id: 35, email: 'manager.mer1b@x7pos.com', username: 'manager_mer1b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mariano Manager M1B' },
-            { id: 36, email: 'cashier.mer1b@x7pos.com', username: 'cashier_mer1b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carolina Cashier M1B' },
-            { id: 37, email: 'waiter.mer1b@x7pos.com', username: 'waiter_mer1b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'William Waiter M1B' },
-            { id: 38, email: 'cook.mer1b@x7pos.com', username: 'cook_mer1b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cesar Cook M1B' },
-          ],
-          '4': [
-            { id: 30, email: 'admin.mer2b@x7pos.com', username: 'admin_mer2b', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
-            { id: 39, email: 'manager.mer2b@x7pos.com', username: 'manager_mer2b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mauricio Manager M2B' },
-            { id: 40, email: 'cashier.mer2b@x7pos.com', username: 'cashier_mer2b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carmen Cashier M2B' },
-            { id: 41, email: 'waiter.mer2b@x7pos.com', username: 'waiter_mer2b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wendy Waiter M2B' },
-            { id: 42, email: 'cook.mer2b@x7pos.com', username: 'cook_mer2b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Camilo Cook M2B' },
-            { id: 43, email: 'delivery.mer2b@x7pos.com', username: 'delivery_mer2b', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Daniel Delivery M2B' },
-          ],
-          '5': [
-            { id: 31, email: 'admin.mer3a@x7pos.com', username: 'admin_mer3a', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
-            { id: 44, email: 'manager.mer3a@x7pos.com', username: 'manager_mer3a', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcelo Manager M3A' },
-            { id: 45, email: 'cashier.mer3a@x7pos.com', username: 'cashier_mer3a', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Clara Cashier M3A' },
-            { id: 46, email: 'waiter.mer3a@x7pos.com', username: 'waiter_mer3a', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Waldemar Waiter M3A' },
-            { id: 47, email: 'cook.mer3a@x7pos.com', username: 'cook_mer3a', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Carlos Chef M3A' },
-            { id: 48, email: 'delivery.mer3a@x7pos.com', username: 'delivery_mer3a', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Dario Delivery M3A' },
-          ],
-          '6': [
-            { id: 32, email: 'admin.mer3b@x7pos.com', username: 'admin_mer3b', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
-            { id: 49, email: 'manager.mer3b@x7pos.com', username: 'manager_mer3b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Martin Manager M3B' },
-            { id: 50, email: 'cashier.mer3b@x7pos.com', username: 'cashier_mer3b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Cinthia Cashier M3B' },
-            { id: 51, email: 'waiter.mer3b@x7pos.com', username: 'waiter_mer3b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wenceslao Waiter M3B' },
-            { id: 52, email: 'bartender.mer3b@x7pos.com', username: 'bartender_mer3b', role: 'merchant_user', shiftRole: 'bartender', collaboratorName: 'Bernardo Bartender M3B' },
-            { id: 53, email: 'cook.mer3b@x7pos.com', username: 'cook_mer3b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristobal Cook M3B' },
-          ],
-        };
-        const fallback = fallbackUsers[String(activeMerchantId)] || [];
         if (!ignore) {
-          setMerchantUsers(fallback);
-          if (fallback.length > 0) {
-            setSelectedUserEmail((prev) => {
-              if (prev && fallback.some((u) => u.email === prev)) return prev;
-              return fallback[0].email;
-            });
-          }
+          applyUsersList(fallbackUsers[String(activeMerchantId)] || []);
         }
       });
     return () => {
       ignore = true;
     };
-  }, [activeMerchantId]);
+  }, [activeMerchantId, refreshTrigger, profile?.role, isImpersonating]);
 
   const handleSwitchToUser = async (targetEmail: string) => {
     try {
@@ -608,7 +670,8 @@ export const MerchantFrame: React.FC = () => {
 
   // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa de comercio
   useEffect(() => {
-    if (profile?.role === 'portal_admin' || profile?.role === 'portal_user') {
+    const role = profile?.role ?? getStoredUser()?.role;
+    if (!role || role === 'portal_admin' || role === 'portal_user') {
       return;
     }
     resetHeartbeatSuspension();

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { UserProfile, SystemNotification } from '@/modules/platform-saas/client-backoffice/api/restaurant-service';
 import { apiRequest } from '@/shared/api/http';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import type { NavCategory } from '@/platform/navigation/navigationService';
 import logoX7 from '@/assets/logo-x7.png';
@@ -33,7 +34,16 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   onSelectFeature,
   onMenuSearchChange,
 }) => {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    const stored = getStoredUser();
+    if (!stored) return null;
+    return {
+      name: stored.email || 'User',
+      role: stored.role ?? '',
+      portraitUrl: '',
+      Plan_id: 0,
+    };
+  });
 
   // True while the active screen belongs to the Platform SaaS category.
   const isSaasContext =
@@ -125,28 +135,46 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   );
 
   useEffect(() => {
+    let ignore = false;
     const fetchHeaderData = async () => {
-      try {
-        // El backend devuelve la entidad User (username/email/role), no un UserProfile.
-        const user = await apiRequest<{ username?: string; email?: string; role?: string }>(
-          '/auth/profile',
-          { method: 'GET' },
-          'Failed to load profile',
-        );
-        setProfile({
-          name: user.username || user.email || 'User',
-          role: user.role ?? '',
-          portraitUrl: '',
-          Plan_id: 0,
-        });
-      } catch (err) {
-        console.error('Error fetching header data:', err);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          // El backend devuelve la entidad User (username/email/role), no un UserProfile.
+          const user = await apiRequest<{ username?: string; email?: string; role?: string }>(
+            '/auth/profile',
+            { method: 'GET' },
+            'Failed to load profile',
+          );
+          if (!ignore) {
+            setProfile({
+              name: user.username || user.email || 'User',
+              role: user.role ?? '',
+              portraitUrl: '',
+              Plan_id: 0,
+            });
+          }
+          return;
+        } catch (err) {
+          const status =
+            typeof err === 'object' && err !== null && 'status' in err
+              ? (err as { status?: number }).status
+              : undefined;
+          const isTransient = status === 502 || status === 503 || status === 504 || err instanceof TypeError;
+          if (!isTransient || attempt === 3) {
+            console.error('Error fetching header data:', err);
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+        }
       }
     };
 
     void Promise.resolve().then(() => {
       void fetchHeaderData();
     });
+    return () => {
+      ignore = true;
+    };
   }, [refreshTrigger]);
 
   // Resolve breadcrumbs and titles reactively and dynamically from navCategories
