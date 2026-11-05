@@ -4,8 +4,6 @@ import {
   restaurantService,
   setSimulate401,
   getSimulate401,
-  setSimulationPlanId,
-  setSimulationRole,
   setAuthenticatedState
 } from '@/modules/platform-saas/client-backoffice/api/restaurant-service';
 import type {
@@ -38,7 +36,8 @@ import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/type
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
 import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
-import { clearAuthSession } from '@/platform/auth/lib/auth-storage';
+import { clearAuthSession, saveAuthSession } from '@/platform/auth/lib/auth-storage';
+import { login } from '@/platform/auth/api/auth';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
 import type { AllocationsContext, MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
@@ -49,6 +48,15 @@ import {
   getActiveSuperAdminMerchantId,
   setActiveSuperAdminMerchantId,
 } from '@/shared/api/http';
+
+interface MerchantStaffUser {
+  id: number;
+  email: string;
+  username: string;
+  role: string;
+  shiftRole?: string | null;
+  collaboratorName?: string | null;
+}
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
@@ -332,10 +340,128 @@ export const MerchantFrame: React.FC = () => {
     return groups;
   }, [merchantsList]);
 
+  const [merchantUsers, setMerchantUsers] = useState<MerchantStaffUser[]>([]);
+  const [selectedUserEmail, setSelectedUserEmail] = useState<string>('');
+  const [isSwitchingUser, setIsSwitchingUser] = useState<boolean>(false);
+  const isImpersonating = Boolean(localStorage.getItem('x7_superadmin_impersonating'));
+
   const handleMerchantSwitch = (newMerchantId: string) => {
     setActiveMerchantId(newMerchantId);
     setActiveSuperAdminMerchantId(newMerchantId);
     window.location.reload();
+  };
+
+  useEffect(() => {
+    let ignore = false;
+    apiRequest<{ data: MerchantStaffUser[] }>(
+      `/users/merchant/${activeMerchantId}`,
+      { method: 'GET' },
+      'Failed to load merchant users',
+    )
+      .then((res) => {
+        if (!ignore && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setMerchantUsers(res.data);
+          setSelectedUserEmail((prev) => {
+            if (prev && res.data.some((u) => u.email === prev)) return prev;
+            return res.data[0].email;
+          });
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load merchant users:', err);
+        const fallbackUsers: Record<string, MerchantStaffUser[]> = {
+          '1': [
+            { id: 18, email: 'admin.mer1@x7pos.com', username: 'admin_mer1', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
+            { id: 19, email: 'manager.mer1@x7pos.com', username: 'manager_mer1', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mateo Manager' },
+            { id: 20, email: 'cashier.mer1@x7pos.com', username: 'cashier_mer1', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Camila Cajera' },
+            { id: 21, email: 'waiter.mer1@x7pos.com', username: 'waiter_mer1', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Manuel Mozo' },
+            { id: 22, email: 'cook.mer1@x7pos.com', username: 'cook_mer1', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristian Cocinero' },
+            { id: 23, email: 'delivery.mer1@x7pos.com', username: 'delivery_mer1', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'David Delivery' },
+          ],
+          '2': [
+            { id: 25, email: 'admin.mer2@x7pos.com', username: 'admin_mer2', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
+            { id: 26, email: 'manager.mer2@x7pos.com', username: 'manager_mer2', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcos Manager M2' },
+            { id: 27, email: 'cashier.mer2@x7pos.com', username: 'cashier_mer2', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carla Cashier M2' },
+            { id: 28, email: 'waiter.mer2@x7pos.com', username: 'waiter_mer2', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Walter Waiter M2' },
+            { id: 33, email: 'cook.mer2@x7pos.com', username: 'cook_mer2', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Claudio Chef M2' },
+            { id: 34, email: 'delivery.mer2@x7pos.com', username: 'delivery_mer2', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Diego Delivery M2' },
+          ],
+          '3': [
+            { id: 29, email: 'admin.mer1b@x7pos.com', username: 'admin_mer1b', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
+            { id: 35, email: 'manager.mer1b@x7pos.com', username: 'manager_mer1b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mariano Manager M1B' },
+            { id: 36, email: 'cashier.mer1b@x7pos.com', username: 'cashier_mer1b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carolina Cashier M1B' },
+            { id: 37, email: 'waiter.mer1b@x7pos.com', username: 'waiter_mer1b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'William Waiter M1B' },
+            { id: 38, email: 'cook.mer1b@x7pos.com', username: 'cook_mer1b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cesar Cook M1B' },
+          ],
+          '4': [
+            { id: 30, email: 'admin.mer2b@x7pos.com', username: 'admin_mer2b', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
+            { id: 39, email: 'manager.mer2b@x7pos.com', username: 'manager_mer2b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mauricio Manager M2B' },
+            { id: 40, email: 'cashier.mer2b@x7pos.com', username: 'cashier_mer2b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carmen Cashier M2B' },
+            { id: 41, email: 'waiter.mer2b@x7pos.com', username: 'waiter_mer2b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wendy Waiter M2B' },
+            { id: 42, email: 'cook.mer2b@x7pos.com', username: 'cook_mer2b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Camilo Cook M2B' },
+            { id: 43, email: 'delivery.mer2b@x7pos.com', username: 'delivery_mer2b', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Daniel Delivery M2B' },
+          ],
+          '5': [
+            { id: 31, email: 'admin.mer3a@x7pos.com', username: 'admin_mer3a', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
+            { id: 44, email: 'manager.mer3a@x7pos.com', username: 'manager_mer3a', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcelo Manager M3A' },
+            { id: 45, email: 'cashier.mer3a@x7pos.com', username: 'cashier_mer3a', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Clara Cashier M3A' },
+            { id: 46, email: 'waiter.mer3a@x7pos.com', username: 'waiter_mer3a', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Waldemar Waiter M3A' },
+            { id: 47, email: 'cook.mer3a@x7pos.com', username: 'cook_mer3a', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Carlos Chef M3A' },
+            { id: 48, email: 'delivery.mer3a@x7pos.com', username: 'delivery_mer3a', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Dario Delivery M3A' },
+          ],
+          '6': [
+            { id: 32, email: 'admin.mer3b@x7pos.com', username: 'admin_mer3b', role: 'merchant_admin', shiftRole: null, collaboratorName: 'Admin General' },
+            { id: 49, email: 'manager.mer3b@x7pos.com', username: 'manager_mer3b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Martin Manager M3B' },
+            { id: 50, email: 'cashier.mer3b@x7pos.com', username: 'cashier_mer3b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Cinthia Cashier M3B' },
+            { id: 51, email: 'waiter.mer3b@x7pos.com', username: 'waiter_mer3b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wenceslao Waiter M3B' },
+            { id: 52, email: 'bartender.mer3b@x7pos.com', username: 'bartender_mer3b', role: 'merchant_user', shiftRole: 'bartender', collaboratorName: 'Bernardo Bartender M3B' },
+            { id: 53, email: 'cook.mer3b@x7pos.com', username: 'cook_mer3b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristobal Cook M3B' },
+          ],
+        };
+        const fallback = fallbackUsers[String(activeMerchantId)] || [];
+        if (!ignore) {
+          setMerchantUsers(fallback);
+          if (fallback.length > 0) {
+            setSelectedUserEmail((prev) => {
+              if (prev && fallback.some((u) => u.email === prev)) return prev;
+              return fallback[0].email;
+            });
+          }
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [activeMerchantId]);
+
+  const handleSwitchToUser = async (targetEmail: string) => {
+    try {
+      setIsSwitchingUser(true);
+      const res = await login(targetEmail, 'softPassword');
+      saveAuthSession(res.access_token, res.refreshToken, res.user, true);
+      localStorage.setItem('x7_superadmin_impersonating', 'true');
+      setActiveSuperAdminMerchantId(res.user.merchant?.id || activeMerchantId);
+      window.location.href = '/dashboard';
+    } catch (err) {
+      console.error('Failed to impersonate user:', err);
+      alert(`Could not log in as ${targetEmail}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsSwitchingUser(false);
+    }
+  };
+
+  const handleReturnToSuperAdmin = async () => {
+    try {
+      setIsSwitchingUser(true);
+      const res = await login('su@su.com', 'softPassword');
+      saveAuthSession(res.access_token, res.refreshToken, res.user, true);
+      localStorage.removeItem('x7_superadmin_impersonating');
+      window.location.href = '/dashboard';
+    } catch (err) {
+      console.error('Failed to return to Super Admin:', err);
+    } finally {
+      setIsSwitchingUser(false);
+    }
   };
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
@@ -846,7 +972,8 @@ export const MerchantFrame: React.FC = () => {
       <LoginGatewayModal isOpen={false} onLoginSuccess={handleLoginSuccess} />
 
       {(profile?.role === 'super_admin' ||
-        profile?.role === 'Super Admin (All Access)') && (
+        profile?.role === 'Super Admin (All Access)' ||
+        isImpersonating) && (
         <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
           isSidebarCollapsed ? 'left-6' : 'left-[272px]'
         }`}>
@@ -869,7 +996,7 @@ export const MerchantFrame: React.FC = () => {
                 <span className="material-symbols-outlined text-[18px] text-[#d51f2c]">admin_panel_settings</span>
                 <div>
                   <h3 className="font-bold text-white text-xs leading-none">Super Admin Controls</h3>
-                  <p className="text-[10px] text-white/50 mt-0.5">Switch active store, role & plan</p>
+                  <p className="text-[10px] text-white/50 mt-0.5">Switch active store & merchant user</p>
                 </div>
               </div>
               <button
@@ -911,75 +1038,88 @@ export const MerchantFrame: React.FC = () => {
               </select>
             </div>
 
-            {/* Role & Platform Environment */}
-            <div className="border-t border-white/10 pt-2.5 space-y-1.5">
-              <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[15px] text-blue-400">badge</span>
-                Role & Platform Environment
-              </label>
-              <select
-                aria-label="Role & Platform Environment"
-                value={profile?.role || 'merchant_admin'}
-                onChange={(e) => {
-                  const role = e.target.value;
-                  setSimulationRole(role);
-                  if (
-                    role === 'portal_admin' ||
-                    role === 'portal_user' ||
-                    role === 'SaaS Owner'
-                  ) {
-                    setActiveCategory('saas');
-                    setActiveTab('saas-dashboard');
-                  } else if (
-                    role === 'super_admin' ||
-                    role === 'Super Admin (All Access)'
-                  ) {
-                    setActiveCategory('core');
-                    setActiveTab('dashboard');
-                  } else {
-                    setActiveCategory('core');
-                    setActiveTab('dashboard');
-                  }
-                  setRefreshTrigger((p) => p + 1);
-                }}
-                className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
-              >
-                <option value="super_admin">Super Admin (All Access)</option>
-                <option value="portal_admin">Portal Admin (Platform SaaS)</option>
-                <option value="portal_user">Portal User (SaaS Read-Only)</option>
-                <option value="merchant_admin">Merchant Admin (Store General Manager)</option>
-                <option value="merchant_user">Merchant User (Restaurant Staff)</option>
-              </select>
+            {/* Contracted Plan Info */}
+            <div className="bg-[#111111] border border-white/10 rounded-lg p-2.5 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Contracted Plan</p>
+                <p className="text-xs font-bold text-white">
+                  {Number(activeMerchantId) === 1 || Number(activeMerchantId) === 3
+                    ? 'Plan 1: Essential (15 Apps)'
+                    : Number(activeMerchantId) === 2 || Number(activeMerchantId) === 4
+                    ? 'Plan 2: Professional (26 Apps)'
+                    : 'Plan 3: Executive (28 Apps)'}
+                </p>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-white/10 text-amber-300 border border-amber-300/20">
+                {Number(activeMerchantId) === 1 || Number(activeMerchantId) === 3
+                  ? 'Essential'
+                  : Number(activeMerchantId) === 2 || Number(activeMerchantId) === 4
+                  ? 'Professional'
+                  : 'Executive'}
+              </span>
             </div>
 
-            {/* Simulated Plan */}
-            <div className="border-t border-white/10 pt-2.5 space-y-1.5">
-              <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[15px] text-purple-400">workspace_premium</span>
-                Simulated Plan (Tier)
-              </label>
+            {/* Merchant Staff Users Selector & Quick Switch */}
+            <div className="border-t border-white/10 pt-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[15px] text-purple-400">group</span>
+                  Merchant Users & Team
+                </label>
+                <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-white/70 rounded font-medium">
+                  {merchantUsers.length} users
+                </span>
+              </div>
               <select
-                aria-label="Simulated Plan (Tier)"
-                value={profile?.Plan_id || 2}
-                onChange={(e) => {
-                  const planId = parseInt(e.target.value);
-                  setSimulationPlanId(planId);
-                  if (planId === 1 && (activeCategory === 'finance' || activeCategory === 'growth')) {
-                    setActiveCategory('core');
-                    setActiveTab('dashboard');
-                  } else if (planId === 2 && activeCategory === 'growth') {
-                    setActiveCategory('core');
-                    setActiveTab('dashboard');
-                  }
-                  setRefreshTrigger((p) => p + 1);
-                }}
+                aria-label="Merchant Staff Users"
+                value={selectedUserEmail}
+                onChange={(e) => setSelectedUserEmail(e.target.value)}
                 className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
               >
-                <option value="1">Plan 1: Essential (Quick Service - 15 apps)</option>
-                <option value="2">Plan 2: Professional (Full Restaurant - 26 apps)</option>
-                <option value="3">Plan 3: Executive (Enterprise - 28 apps)</option>
+                {merchantUsers.map((u) => {
+                  const roleLabel = u.shiftRole
+                    ? u.shiftRole.toUpperCase()
+                    : u.role === 'merchant_admin'
+                    ? 'STORE ADMIN'
+                    : u.role.toUpperCase();
+                  const nameLabel = u.collaboratorName || u.username;
+                  return (
+                    <option key={u.id} value={u.email} className="bg-[#111111] text-white py-1">
+                      {nameLabel} [{roleLabel}] — {u.email}
+                    </option>
+                  );
+                })}
               </select>
+
+              <button
+                type="button"
+                disabled={isSwitchingUser || !selectedUserEmail}
+                onClick={() => handleSwitchToUser(selectedUserEmail)}
+                className="w-full py-2 px-3 text-center text-xs font-bold rounded-lg flex items-center justify-center gap-2 bg-[#d51f2c] hover:bg-[#ba1a1a] text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[15px]">switch_account</span>
+                <span>
+                  {isSwitchingUser
+                    ? 'Switching User...'
+                    : `Login as ${selectedUserEmail.split('@')[0] || 'User'}`}
+                </span>
+              </button>
             </div>
+
+            {/* Return to Super Admin option when impersonating */}
+            {isImpersonating && (
+              <div className="border-t border-white/10 pt-2.5">
+                <button
+                  type="button"
+                  disabled={isSwitchingUser}
+                  onClick={handleReturnToSuperAdmin}
+                  className="w-full py-2 px-3 text-center text-xs font-bold rounded-lg flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[15px]">admin_panel_settings</span>
+                  <span>Return to Super Admin (su@su.com)</span>
+                </button>
+              </div>
+            )}
 
             {/* Auth Session / 401 Testing */}
             <div className="border-t border-white/10 pt-2.5 space-y-1.5">
