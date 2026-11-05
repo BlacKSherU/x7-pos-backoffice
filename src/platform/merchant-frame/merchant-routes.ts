@@ -66,6 +66,8 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('inventory', 'stock-inventory', '/dashboard/stock-inventory', '/inventory/stocks', '/inventory/stock-balance', '/inventory/stock-inventory'),
   ...routes('inventory', 'stock-movements', '/dashboard/stock-movements', '/inventory/stock-movements'),
   ...routes('inventory', 'movements', '/inventory/movements'),
+  ...routes('inventory', 'locations', '/dashboard/locations', '/inventory/locations'),
+  ...routes('inventory', 'purchase-orders', '/dashboard/purchase-orders', '/inventory/purchase-orders'),
   ...routes('inventory', 'inventory-dashboard', '/inventory/dashboard', '/inventory/hub', '/dashboard/inventory'),
   ...routes('inventory', 'raw-materials-dashboard', '/inventory/raw-materials-dashboard', '/inventory/raw-materials/dashboard', '/dashboard/raw-materials-hub'),
 

@@ -96,7 +96,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
     try {
       // The backend scopes locations to the merchant in the JWT.
       const json = await apiRequest<MaybeEnvelopedList<Location>>(
-        '/locations',
+        '/locations?limit=100',
         { method: 'GET' },
         'Error loading inventory locations',
       );

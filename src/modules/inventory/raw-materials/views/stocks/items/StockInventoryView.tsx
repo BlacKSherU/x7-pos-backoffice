@@ -161,7 +161,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
       const locationsNameMap = new Map<string, Record<string, unknown>>();
       try {
         const lJson = await apiRequest<MaybeEnvelopedList<Record<string, unknown>>>(
-          '/locations',
+          '/locations?limit=100',
           { method: 'GET' },
           'Failed to load locations.',
         );
