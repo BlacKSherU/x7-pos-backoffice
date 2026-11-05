@@ -186,8 +186,12 @@ view('plan-features-mapping', (ctx) =>
     <PlanFeaturesPickPlanView onChoosePlan={() => ctx.navigateToFeature('sub-plans-core')} />
   ),
 );
-view(['merchant-directory', 'merchants-directory', 'merchants'], () => <MerchantDirectoryView />);
-view(['merchants-provisioning', 'global-merchants-directory'], () => <MerchantDirectoryView />);
+view(['merchant-directory', 'merchants-directory', 'merchants'], () => (
+  <MerchantDirectoryView scope="company" />
+));
+view(['merchants-provisioning', 'global-merchants-directory'], () => (
+  <MerchantDirectoryView scope="global" />
+));
 view(['user-management', 'users-directory', 'users'], () => <UserManagementView />);
 view(['users-auth-profiles', 'global-users-directory'], () => <GlobalUsersDirectoryView />);
 view('company-profile', () => <CompanyProfileView />);

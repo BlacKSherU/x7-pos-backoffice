@@ -42,6 +42,7 @@ import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
 } from '@/shared/components/StatusToggle';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 
 type ModalMode = 'add' | 'edit';
 
@@ -61,10 +62,13 @@ function userLabel(user: MerchantUser): string {
 
 export const UserManagementView: React.FC = () => {
   const navigate = useNavigate();
-  // The directory lists the whole company, but a merchant admin can only manage the users of
-  // its own branch (the backend answers "not found" for the rest): those rows are read-only.
+  // The directory lists the whole company; merchant admins manage users of their own branch,
+  // while super_admin and portal_admin have unrestricted management across all branches.
   const [currentMerchantId] = useState(getCurrentMerchantId);
-  const isOwnBranch = (user: MerchantUser) => user.merchantId === currentMerchantId;
+  const storedRole = getStoredUser()?.role;
+  const isSuperOrPortalAdmin = storedRole === 'super_admin' || storedRole === 'portal_admin';
+  const isOwnBranch = (user: MerchantUser) =>
+    isSuperOrPortalAdmin || user.merchantId === currentMerchantId;
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

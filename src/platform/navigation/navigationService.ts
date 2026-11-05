@@ -79,9 +79,11 @@ export interface NavCategory {
 }
 
 export const REPRESENTATIVE_NAV_ICONS: Record<string, string> = {
-  // Platform SaaS
+  // Platform SaaS & Merchant Portal
   'saas-dashboard': 'space_dashboard',
+  dashboard: 'space_dashboard',
   reports: 'bar_chart',
+  'companies-registry': 'domain',
   'company-profile': 'domain',
   'company-configurations': 'tune',
   'merchants-provisioning': 'add_business',
@@ -173,11 +175,14 @@ const SHORT_HUB_TITLES: Record<string, string> = {
   'tips': 'Tips & Gratuities',
   'hr': 'HR & Staff',
   'pos': 'Point of Sale',
-  'central-backoffice': 'Central Backoffice',
-  'client-backoffice': 'Restaurant Operations',
+  'central-backoffice': 'Platform SaaS Dashboard',
+  'client-backoffice': 'Merchant Dashboard',
   'companies': 'Company Administration',
+  'saas-companies': 'Global Companies',
   'merchants': 'Merchants & Branches',
+  'saas-merchants': 'Global Merchants',
   'users': 'Users Directory',
+  'saas-users': 'Global Users',
 };
 
 export function resolveShortHubTitle(code: string, rawName: string): string {

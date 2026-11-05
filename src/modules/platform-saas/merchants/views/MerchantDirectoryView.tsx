@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   createCompanyMerchant,
   deactivateCompanyMerchant,
+  getAllMerchants,
   getCompanyMerchants,
   getMerchantAdminSummary,
   updateCompanyMerchant,
@@ -51,7 +52,13 @@ function merchantToFormValues(merchant: CompanyMerchant): MerchantFormValues {
   };
 }
 
-export const MerchantDirectoryView: React.FC = () => {
+interface MerchantDirectoryViewProps {
+  scope?: 'company' | 'global';
+}
+
+export const MerchantDirectoryView: React.FC<MerchantDirectoryViewProps> = ({
+  scope = 'company',
+}) => {
   const navigate = useNavigate();
   const [merchants, setMerchants] = useState<CompanyMerchant[]>([]);
   const [companyId, setCompanyId] = useState<number | null>(null);
@@ -84,14 +91,20 @@ export const MerchantDirectoryView: React.FC = () => {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
-  const loadMerchants = async () => {
+  const loadMerchants = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const { merchants: data, meta } = await getCompanyMerchants();
-      setMerchants(data);
-      setCompanyId(meta.companyId);
+      if (scope === 'global') {
+        const data = await getAllMerchants();
+        setMerchants(data);
+        setCompanyId(data[0]?.companyId ?? 1);
+      } else {
+        const { merchants: data, meta } = await getCompanyMerchants();
+        setMerchants(data);
+        setCompanyId(meta.companyId);
+      }
     } catch (err) {
       const message =
         err instanceof Error
@@ -101,13 +114,13 @@ export const MerchantDirectoryView: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [scope]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
       void loadMerchants();
     });
-  }, []);
+  }, [loadMerchants]);
 
   useEffect(() => {
     if (!successMessage) return;
@@ -434,6 +447,9 @@ export const MerchantDirectoryView: React.FC = () => {
                             </p>
                             <p className="text-body-sm text-secondary">
                               ID: {merchant.id}
+                              {scope === 'global' && merchant.company?.name
+                                ? ` • ${merchant.company.name}`
+                                : ''}
                             </p>
                           </div>
                         </div>

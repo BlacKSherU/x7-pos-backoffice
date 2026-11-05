@@ -45,8 +45,7 @@ import { FeatureInDevelopmentView } from '@/shared/components/PlaceholderViews';
 import { MerchantHomeDashboard } from '@/modules/platform-saas/client-backoffice/views/dashboard/MerchantHomeDashboard';
 import {
   apiRequest,
-  getActiveSuperAdminMerchantId,
-  setActiveSuperAdminMerchantId,
+  getActiveSuperAdminMerchantId
 } from '@/shared/api/http';
 
 interface MerchantStaffUser {
@@ -722,10 +721,10 @@ export const MerchantFrame: React.FC = () => {
       profile?.role === 'portal_admin' ||
       profile?.role === 'portal_user'
     ) {
-      setActiveCategory('saas');
+      setActiveCategory('platform-saas');
       setActiveTab('saas-dashboard');
     } else {
-      setActiveCategory('core');
+      setActiveCategory('merchant-portal');
       setActiveTab('dashboard');
     }
     navigate('/dashboard');
@@ -962,11 +961,18 @@ export const MerchantFrame: React.FC = () => {
                           }
                         };
 
+                        const primaryTargetId =
+                          app.id === 'central-backoffice'
+                            ? 'saas-dashboard'
+                            : app.id === 'client-backoffice'
+                              ? 'dashboard'
+                              : hubId;
+
                         return (
                           <div
                             key={app.id}
                             onClick={() => {
-                              handleNavigateTarget(hubId);
+                              handleNavigateTarget(primaryTargetId);
                             }}
                             className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
                               isAppSelected
@@ -1144,10 +1150,10 @@ export const MerchantFrame: React.FC = () => {
                 <p className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Contracted Plan</p>
                 <p className="text-xs font-bold text-white">
                   {Number(activeMerchantId) === 1 || Number(activeMerchantId) === 3
-                    ? 'Plan 1: Essential (15 Apps)'
+                    ? 'Plan 1 (15 Apps)'
                     : Number(activeMerchantId) === 2 || Number(activeMerchantId) === 4
-                    ? 'Plan 2: Professional (26 Apps)'
-                    : 'Plan 3: Executive (28 Apps)'}
+                    ? 'Plan 2 (26 Apps)'
+                    : 'Plan 3 (28 Apps)'}
                 </p>
               </div>
               <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-white/10 text-amber-300 border border-amber-300/20">

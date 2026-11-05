@@ -20,9 +20,26 @@ export async function getCompanyMerchants(): Promise<{
   );
 
   return {
-    merchants: json.data ?? [],
+    merchants: (json.data ?? []).map((m) => ({
+      ...m,
+      rut: m.rut ?? m.tax_id ?? null,
+    })),
     meta: json.meta,
   };
+}
+
+export async function getAllMerchants(): Promise<CompanyMerchant[]> {
+  const json = await apiRequest<{ data?: CompanyMerchant[] }>(
+    '/merchants',
+    { method: 'GET' },
+    'Failed to load global merchants directory. Please try again.',
+  );
+
+  return (json.data ?? []).map((m) => ({
+    ...m,
+    rut: m.rut ?? m.tax_id ?? null,
+    companyId: m.companyId ?? m.company?.id ?? 1,
+  }));
 }
 
 export async function createCompanyMerchant(

@@ -298,11 +298,30 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   ];
 
   const saasTabs = [
+    'saas-dashboard',
+    'companies-registry',
+    'company-registry',
+    'merchants-provisioning',
+    'global-merchants-directory',
+    'users-auth-profiles',
+    'global-users-directory',
+    'apps-config',
+    'features-control',
+    'merchant-subs-link',
+    'plan-apps-rules',
+    'plan-features-mapping',
+    'sub-plans-core',
+    'sub-apps-mapping',
+    'sub-payments-billing',
+  ];
+
+  const merchantPortalTabs = [
+    'dashboard',
+    'reports',
     'merchant-directory',
     'user-management',
     'company-profile',
     'company-configurations',
-    'saas-dashboard',
   ];
 
   const onlineOrderingTabs = [
@@ -362,6 +381,11 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     categoryName = 'CORE';
   } else if (saasTabs.includes(activeTab)) {
     categoryName = 'Platform SaaS';
+  } else if (merchantPortalTabs.includes(activeTab)) {
+    categoryName = 'Merchant Portal';
+    if (activeTab === 'dashboard') {
+      activeFeatureName = 'Merchant Dashboard';
+    }
   } else if (onlineOrderingTabs.includes(activeTab)) {
     categoryName = 'Commerce';
     if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') activeFeatureName = 'Online Ordering';
@@ -382,9 +406,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     else if (activeTab === 'qr-code-deployments') activeFeatureName = 'QR Deployments';
     else if (activeTab === 'qr-code-orders') activeFeatureName = 'QR Code Orders';
     else if (activeTab === 'qr-order-items') activeFeatureName = 'QR Order Items';
-  } else if (activeTab === 'dashboard') {
-    categoryName = 'CORE';
-    activeFeatureName = 'Restaurant Dashboard';
   }
 
   // Fallbacks
@@ -422,7 +443,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   }
 
   if (activeTab === 'dashboard') {
-    friendlyTitle = 'Restaurant Dashboard';
+    friendlyTitle = 'Merchant Dashboard';
   } else if (activeTab === 'saas-dashboard') {
     friendlyTitle = 'Platform SaaS / Overview';
   } else if (activeTab === 'inventory-dashboard' || activeTab === 'products-inventory-hub') {
@@ -757,24 +778,24 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               <span className="hidden lg:inline text-[11px]">Time Clock</span>
             </button>
 
-            {/* Super Admin context switcher: Platform SaaS <-> Restaurant (same shell) */}
+            {/* Super Admin context switcher: Platform SaaS <-> Merchant (same shell) */}
             {(profile?.role === 'super_admin' ||
               profile?.role === 'Super Admin (All Access)') && (
               <button
                 type="button"
                 onClick={() =>
                   isSaasContext
-                    ? onSelectFeature?.('dashboard', 'core')
+                    ? onSelectFeature?.('dashboard', 'merchant-portal')
                     : onSelectFeature?.('saas-dashboard', 'platform-saas')
                 }
                 className="px-2.5 py-1 bg-[#222222] hover:bg-[#333333] text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-colors duration-200 border border-white/20 shadow-sm cursor-pointer"
-                title={isSaasContext ? 'Switch to Restaurant Dashboard' : 'Switch to SaaS Platform Portal'}
+                title={isSaasContext ? 'Switch to Merchant Dashboard' : 'Switch to SaaS Platform Portal'}
               >
                 <span className="material-symbols-outlined text-[16px] text-amber-400">
                   {isSaasContext ? 'storefront' : 'admin_panel_settings'}
                 </span>
                 <span className="hidden sm:inline text-[11px]">
-                  {isSaasContext ? 'Restaurant' : 'SaaS Portal'}
+                  {isSaasContext ? 'Merchant' : 'SaaS Portal'}
                 </span>
               </button>
             )}
