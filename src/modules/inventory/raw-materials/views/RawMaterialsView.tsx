@@ -7,6 +7,7 @@ import { EmergencySupportModal } from '@/shared/components/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
 import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
 import { apiRequest, unwrapList, type MaybeEnvelopedList } from '@/shared/api/http';
+import { UnitMultiSelectPill } from '../components/UnitMultiSelectPill';
 
 interface Category {
   id: number;
@@ -82,8 +83,8 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
-  const [purchaseUnitFilter, setPurchaseUnitFilter] = useState<string>('All');
-  const [consumptionUnitFilter, setConsumptionUnitFilter] = useState<string>('All');
+  const [purchaseUnitFilters, setPurchaseUnitFilters] = useState<string[]>([]);
+  const [consumptionUnitFilters, setConsumptionUnitFilters] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('All');
 
   // Canonical Unified Toolbar State
@@ -474,17 +475,19 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
         if (String(m.category_id) !== categoryFilter) return false;
       }
 
-      if (purchaseUnitFilter !== 'All') {
-        if ((m.purchase_unit || '').toUpperCase() !== purchaseUnitFilter.toUpperCase()) return false;
+      if (purchaseUnitFilters.length > 0) {
+        const u = (m.purchase_unit || '').toUpperCase();
+        if (!purchaseUnitFilters.includes(u)) return false;
       }
 
-      if (consumptionUnitFilter !== 'All') {
-        if ((m.consumption_unit || '').toUpperCase() !== consumptionUnitFilter.toUpperCase()) return false;
+      if (consumptionUnitFilters.length > 0) {
+        const u = (m.consumption_unit || '').toUpperCase();
+        if (!consumptionUnitFilters.includes(u)) return false;
       }
 
       return true;
     });
-  }, [materials, statusFilter, searchQuery, categoryFilter, purchaseUnitFilter, consumptionUnitFilter]);
+  }, [materials, statusFilter, searchQuery, categoryFilter, purchaseUnitFilters, consumptionUnitFilters]);
 
   const totalPages = Math.ceil(filteredMaterials.length / pageSize) || 1;
   const paginatedMaterials = filteredMaterials.slice(
@@ -593,113 +596,37 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
         {/* Row 2: Purchase & Consumption Pill Selectors on left, Status & Add Button on right */}
         <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
-          {/* Left: Purchase Units & Consumption Units Pill Selectors */}
+          {/* Left: Purchase Units & Consumption Units MultiSelect Pills */}
           <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap min-w-0">
-            {/* Purchase Units Pill Selector */}
-            <div
-              className={`flex items-center gap-1.5 h-[32px] px-3 rounded-full text-xs font-semibold transition-all duration-200 border shrink-0 ${
-                purchaseUnitFilter !== 'All'
-                  ? 'bg-blue-50 text-blue-900 border-blue-300 shadow-xs'
-                  : 'bg-white text-[#1d1c17] border-[#d5cfc4] hover:border-[#ae001a] shadow-xs'
-              }`}
-            >
-              <span
-                className={`material-symbols-outlined text-[15px] shrink-0 ${
-                  purchaseUnitFilter !== 'All' ? 'text-blue-700' : 'text-[#ae001a]'
-                }`}
-              >
-                inventory_2
-              </span>
-              <span className="text-[10px] uppercase font-bold text-[#5f5e5e] shrink-0">
-                Purchase:
-              </span>
-              <select
-                aria-label="Filter by purchase unit"
-                value={purchaseUnitFilter}
-                onChange={(e) => {
-                  setPurchaseUnitFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="bg-transparent text-xs font-bold text-[#1d1c17] focus:outline-none cursor-pointer pr-1 appearance-none"
-              >
-                <option value="All">All Units ({purchaseUnitCounts['All'] || 0})</option>
-                {topPurchaseUnits.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit} ({purchaseUnitCounts[unit] || 0})
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined text-[16px] text-[#5f5e5e] pointer-events-none -ml-1 shrink-0">
-                expand_more
-              </span>
-              {purchaseUnitFilter !== 'All' && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPurchaseUnitFilter('All');
-                    setCurrentPage(1);
-                  }}
-                  className="ml-0.5 text-blue-700 hover:text-red-600 font-bold text-[10px] cursor-pointer"
-                  title="Clear purchase unit filter"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            {/* Purchase Units MultiSelect Pill */}
+            <UnitMultiSelectPill
+              label="Purchase:"
+              icon="inventory_2"
+              selectedUnits={purchaseUnitFilters}
+              onChange={(units) => {
+                setPurchaseUnitFilters(units);
+                setCurrentPage(1);
+              }}
+              options={topPurchaseUnits}
+              counts={purchaseUnitCounts}
+              totalCount={materials.length}
+              theme="blue"
+            />
 
-            {/* Consumption Units Pill Selector */}
-            <div
-              className={`flex items-center gap-1.5 h-[32px] px-3 rounded-full text-xs font-semibold transition-all duration-200 border shrink-0 ${
-                consumptionUnitFilter !== 'All'
-                  ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-xs'
-                  : 'bg-white text-[#1d1c17] border-[#d5cfc4] hover:border-[#ae001a] shadow-xs'
-              }`}
-            >
-              <span
-                className={`material-symbols-outlined text-[15px] shrink-0 ${
-                  consumptionUnitFilter !== 'All' ? 'text-amber-700' : 'text-[#ae001a]'
-                }`}
-              >
-                straighten
-              </span>
-              <span className="text-[10px] uppercase font-bold text-[#5f5e5e] shrink-0">
-                Consumption:
-              </span>
-              <select
-                aria-label="Filter by consumption unit"
-                value={consumptionUnitFilter}
-                onChange={(e) => {
-                  setConsumptionUnitFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="bg-transparent text-xs font-bold text-[#1d1c17] focus:outline-none cursor-pointer pr-1 appearance-none"
-              >
-                <option value="All">All Units ({consumptionUnitCounts['All'] || 0})</option>
-                {topConsumptionUnits.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit} ({consumptionUnitCounts[unit] || 0})
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined text-[16px] text-[#5f5e5e] pointer-events-none -ml-1 shrink-0">
-                expand_more
-              </span>
-              {consumptionUnitFilter !== 'All' && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConsumptionUnitFilter('All');
-                    setCurrentPage(1);
-                  }}
-                  className="ml-0.5 text-amber-700 hover:text-red-600 font-bold text-[10px] cursor-pointer"
-                  title="Clear consumption unit filter"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            {/* Consumption Units MultiSelect Pill */}
+            <UnitMultiSelectPill
+              label="Consumption:"
+              icon="straighten"
+              selectedUnits={consumptionUnitFilters}
+              onChange={(units) => {
+                setConsumptionUnitFilters(units);
+                setCurrentPage(1);
+              }}
+              options={topConsumptionUnits}
+              counts={consumptionUnitCounts}
+              totalCount={materials.length}
+              theme="amber"
+            />
           </div>
 
           {/* Right: Status Filter & Primary Add Button */}
