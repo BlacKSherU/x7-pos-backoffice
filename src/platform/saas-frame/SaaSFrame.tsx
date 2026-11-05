@@ -55,6 +55,21 @@ export const SaaSFrame: React.FC = () => {
   const currentUser = getStoredUser();
   const isPortalUser = currentUser?.role === 'portal_user';
 
+  // Protect SaaS frame: redirect merchant/store roles back to store dashboard
+  useEffect(() => {
+    const role = currentUser?.role;
+    if (
+      role &&
+      role !== 'super_admin' &&
+      role !== 'Super Admin (All Access)' &&
+      role !== 'portal_admin' &&
+      role !== 'portal_user' &&
+      role !== 'SaaS Owner'
+    ) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [currentUser?.role, navigate]);
+
   // Derived indicator: user has typed but debounce period (300ms) has not settled yet
   const isSearching = Boolean(searchText && searchText !== debouncedSearchQuery);
 

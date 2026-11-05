@@ -122,8 +122,26 @@ export const MerchantFrame: React.FC = () => {
     setPrevRouteKey(currentRouteKey);
     const routeNav = getNavFromPath(location.pathname, location.state, profile?.role);
     if (routeNav) {
-      setActiveCategory(routeNav.category);
-      setActiveTab(routeNav.tab);
+      const isPlatformStaff =
+        profile?.role === 'super_admin' ||
+        profile?.role === 'Super Admin (All Access)' ||
+        profile?.role === 'portal_admin' ||
+        profile?.role === 'portal_user' ||
+        profile?.role === 'SaaS Owner';
+
+      const isSaaSCat =
+        routeNav.category === 'platformsaas' ||
+        routeNav.category === 'platform-saas' ||
+        routeNav.category === 'saas' ||
+        routeNav.tab === 'saas-dashboard';
+
+      if (isSaaSCat && !isPlatformStaff) {
+        setActiveCategory('core');
+        setActiveTab('dashboard');
+      } else {
+        setActiveCategory(routeNav.category);
+        setActiveTab(routeNav.tab);
+      }
     }
   }
 
@@ -217,7 +235,22 @@ export const MerchantFrame: React.FC = () => {
       .loadDynamicNavigation('merchant_web')
       .then((menu) => {
         if (!ignore) {
-          setNavCategories(menu);
+          const isPlatformAdmin =
+            profile?.role === 'super_admin' ||
+            profile?.role === 'Super Admin (All Access)' ||
+            profile?.role === 'portal_admin' ||
+            profile?.role === 'portal_user' ||
+            profile?.role === 'SaaS Owner';
+
+          const sanitizedMenu = isPlatformAdmin
+            ? menu
+            : menu.filter(
+                (cat) =>
+                  cat.id !== 'platform-saas' &&
+                  cat.id !== 'platformsaas' &&
+                  cat.name.toLowerCase() !== 'platform saas',
+              );
+          setNavCategories(sanitizedMenu);
           setNavError(null);
           setIsNavLoading(false);
         }
