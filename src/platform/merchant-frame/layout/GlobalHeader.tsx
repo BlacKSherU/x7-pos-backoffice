@@ -45,19 +45,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     };
   });
 
-  // True while the active screen belongs to the Platform SaaS category.
-  const isSaasContext =
-    activeTab === 'saas-dashboard' ||
-    navCategories.some(
-      (cat) =>
-        cat.id === 'platform-saas' &&
-        cat.applications.some(
-          (app) =>
-            app.features.some((f) => f.id === activeTab) ||
-            activeTab === `${app.id}-hub` ||
-            activeTab === app.id,
-        ),
-    );
   // State for expandable search magnifying glass in sidebar / header
   const [isMenuSearchOpen, setIsMenuSearchOpen] = useState<boolean>(false);
   const [menuSearchQuery, setMenuSearchQuery] = useState<string>('');
@@ -777,28 +764,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               <span className="material-symbols-outlined text-base">punch_clock</span>
               <span className="hidden lg:inline text-[11px]">Time Clock</span>
             </button>
-
-            {/* Super Admin context switcher: Platform SaaS <-> Merchant (same shell) */}
-            {(profile?.role === 'super_admin' ||
-              profile?.role === 'Super Admin (All Access)') && (
-              <button
-                type="button"
-                onClick={() =>
-                  isSaasContext
-                    ? onSelectFeature?.('dashboard', 'merchant-portal')
-                    : onSelectFeature?.('saas-dashboard', 'platform-saas')
-                }
-                className="px-2.5 py-1 bg-[#222222] hover:bg-[#333333] text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-colors duration-200 border border-white/20 shadow-sm cursor-pointer"
-                title={isSaasContext ? 'Switch to Merchant Dashboard' : 'Switch to SaaS Platform Portal'}
-              >
-                <span className="material-symbols-outlined text-[16px] text-amber-400">
-                  {isSaasContext ? 'storefront' : 'admin_panel_settings'}
-                </span>
-                <span className="hidden sm:inline text-[11px]">
-                  {isSaasContext ? 'Merchant' : 'SaaS Portal'}
-                </span>
-              </button>
-            )}
 
             {/* Help Center Utility */}
             <a

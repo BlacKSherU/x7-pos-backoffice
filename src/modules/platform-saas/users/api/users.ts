@@ -1,5 +1,5 @@
-import { apiRequest } from '@/shared/api/http';
-import { getActiveSuperAdminMerchantId, getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { apiRequest, getActiveSuperAdminMerchantId } from '@/shared/api/http';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { ApiError } from '@/shared/lib/api-error';
 import type {
   CreateUserPayload,
@@ -24,7 +24,7 @@ export function getCurrentMerchantId(): number | null {
       return activeMerchantId;
     }
   }
-  return stored?.merchant.id ?? null;
+  return stored?.merchant?.id ?? null;
 }
 
 export async function getMerchantUsers(): Promise<MerchantUser[]> {

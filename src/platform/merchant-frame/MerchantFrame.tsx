@@ -45,7 +45,8 @@ import { FeatureInDevelopmentView } from '@/shared/components/PlaceholderViews';
 import { MerchantHomeDashboard } from '@/modules/platform-saas/client-backoffice/views/dashboard/MerchantHomeDashboard';
 import {
   apiRequest,
-  getActiveSuperAdminMerchantId
+  getActiveSuperAdminMerchantId,
+  setActiveSuperAdminMerchantId,
 } from '@/shared/api/http';
 
 interface MerchantStaffUser {
@@ -109,6 +110,9 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter(null);
     setAllocationsContext(null);
     setActiveTab(featureId);
+    if (location.pathname !== '/dashboard') {
+      navigate('/dashboard', { state: { activeTab: featureId, activeCategory } });
+    }
     const mainEl = document.querySelector('main');
     if (mainEl) {
       mainEl.scrollTop = 0;
@@ -189,23 +193,27 @@ export const MerchantFrame: React.FC = () => {
     if (!activeTab || navCategories.length === 0) return;
     const featureHub = navHubForFeature(activeTab);
     const activeCommandHub = navHubById(activeTab);
-    for (const cat of navCategories) {
-      const isMatchingCategory =
-        cat.applications.some(
-          (app) =>
-            app.features.some((f) => f.id === activeTab) ||
-            app.id === featureHub?.appId ||
-            app.id === activeCommandHub?.appId ||
-            activeTab === `${app.id}-hub` ||
-            activeTab === app.id,
-        ) ||
-        cat.name.toLowerCase() === (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase();
+    const matchedByApp = navCategories.find((cat) =>
+      cat.applications.some(
+        (app) =>
+          app.features.some((f) => f.id === activeTab) ||
+          app.id === featureHub?.appId ||
+          app.id === activeCommandHub?.appId ||
+          activeTab === `${app.id}-hub` ||
+          activeTab === app.id,
+      ),
+    );
+    const matchedCat =
+      matchedByApp ??
+      navCategories.find(
+        (cat) =>
+          cat.name.toLowerCase() ===
+          (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase(),
+      );
 
-      if (isMatchingCategory) {
-        setExpandedCategories({ [cat.id]: true });
-        setActiveCategory(cat.id);
-        break;
-      }
+    if (matchedCat) {
+      setExpandedCategories({ [matchedCat.id]: true });
+      setActiveCategory(matchedCat.id);
     }
   }, [activeTab, navCategories]);
 
@@ -887,17 +895,22 @@ export const MerchantFrame: React.FC = () => {
               const activeCommandHub = navHubById(activeTab);
 
               // Active category is strictly determined by the active tab location; fallback to activeCategory only when no category matches activeTab
-              const activeMatchingCat = navCategories.find((c) =>
-                c.applications.some(
-                  (app) =>
-                    app.features.some((f) => f.id === activeTab) ||
-                    activeCommandHub?.appId === app.id ||
-                    featureHub?.appId === app.id ||
-                    activeTab === `${app.id}-hub` ||
-                    activeTab === app.id,
-                ) ||
-                c.name.toLowerCase() === (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase()
-              );
+              const activeMatchingCat =
+                navCategories.find((c) =>
+                  c.applications.some(
+                    (app) =>
+                      app.features.some((f) => f.id === activeTab) ||
+                      activeCommandHub?.appId === app.id ||
+                      featureHub?.appId === app.id ||
+                      activeTab === `${app.id}-hub` ||
+                      activeTab === app.id,
+                  ),
+                ) ??
+                navCategories.find(
+                  (c) =>
+                    c.name.toLowerCase() ===
+                    (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase(),
+                );
               const isCatActive = activeMatchingCat ? activeMatchingCat.id === cat.id : activeCategory === cat.id;
 
               return (
@@ -961,12 +974,20 @@ export const MerchantFrame: React.FC = () => {
                           }
                         };
 
+                        const DIRECT_APP_TARGETS: Record<string, string> = {
+                          'central-backoffice': 'saas-dashboard',
+                          'saas-companies': 'companies-registry',
+                          'saas-merchants': 'global-merchants-directory',
+                          'saas-users': 'users-auth-profiles',
+                          'client-backoffice': 'dashboard',
+                          companies: 'company-profile',
+                          merchants: 'merchant-directory',
+                          users: 'user-management',
+                        };
+
                         const primaryTargetId =
-                          app.id === 'central-backoffice'
-                            ? 'saas-dashboard'
-                            : app.id === 'client-backoffice'
-                              ? 'dashboard'
-                              : hubId;
+                          DIRECT_APP_TARGETS[app.id] ??
+                          (app.features.length === 1 ? app.features[0].id : hubId);
 
                         return (
                           <div

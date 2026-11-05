@@ -46,44 +46,77 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     ],
   },
   {
+    appId: 'saas-companies',
+    hubId: 'saas-companies-hub',
+    hubLabel: 'GLOBAL COMPANIES COMMAND HUB',
+    title: 'Global Companies Command Hub',
+    category: 'Platform SaaS',
+    icon: 'business',
+    description: 'Platform-wide commercial company accounts, corporate tax IDs, subscription tiers, and tenant allocations.',
+    items: [
+      { featureId: 'companies-registry', label: 'Global Companies Directory', icon: 'domain', live: true, description: 'Manage all commercial company accounts, corporate tax IDs, subscription tiers, and tenant allocations across the platform.' },
+    ],
+  },
+  {
     appId: 'companies',
     hubId: 'companies-hub',
     hubLabel: 'COMPANIES COMMAND HUB',
-    title: 'Companies Command Hub',
-    category: 'Platform SaaS',
+    title: 'Company Administration Command Hub',
+    category: 'Merchant Portal',
     icon: 'business',
-    description: 'Company corporate profiles, legal identity, workspace settings, and multi-tenant configurations.',
+    description: 'Company corporate profile, legal identity, workspace settings, and regional configurations.',
     items: [
       { featureId: 'company-profile', label: 'Company Legal Profile', icon: 'domain', live: true, description: 'Manage company legal registration details, corporate addresses, trade names, and invoice logos.' },
       { featureId: 'company-configurations', label: 'Company Configurations', icon: 'tune', live: true, description: 'Set fiscal year calendars, base operating currencies, timezone settings, and business profile preferences.' },
-      { featureId: 'companies', label: 'Company Master Registry', icon: 'corporate_fare', live: true, description: 'Manage commercial company accounts, corporate tax IDs, subscription tiers, and tenant allocations.' },
+    ],
+  },
+  {
+    appId: 'saas-merchants',
+    hubId: 'saas-merchants-hub',
+    hubLabel: 'GLOBAL MERCHANTS COMMAND HUB',
+    title: 'Global Merchants Command Hub',
+    category: 'Platform SaaS',
+    icon: 'storefront',
+    description: 'Platform-wide registry of all provisioned merchant locations and tenant provisioning across all companies.',
+    items: [
+      { featureId: 'global-merchants-directory', label: 'Global Merchants Directory', icon: 'store', live: true, description: 'Global registry of all provisioned merchant locations across all company accounts on the platform.' },
+      { featureId: 'merchants-provisioning', label: 'Merchants & Tenants Provisioning', icon: 'add_business', live: true, description: 'Provision new restaurant tenants, assign initial subscription quotas, and configure merchant branches.' },
     ],
   },
   {
     appId: 'merchants',
     hubId: 'merchants-hub',
     hubLabel: 'MERCHANTS COMMAND HUB',
-    title: 'Merchants Command Hub',
-    category: 'Platform SaaS',
+    title: 'Merchants & Branches Command Hub',
+    category: 'Merchant Portal',
     icon: 'storefront',
-    description: 'Restaurant locations, branch outlets, store profiles, and merchant provisioning.',
+    description: 'Company restaurant locations, branch outlets, store profiles, and operational status.',
     items: [
-      { featureId: 'merchant-directory', label: 'Company Merchants Directory', icon: 'storefront', live: true, description: 'Manage active branch outlets, physical locations, operating hours, and terminal deployments.' },
-      { featureId: 'merchants-provisioning', label: 'Merchants & Tenants Provisioning', icon: 'add_business', live: false, description: 'Provision new restaurant tenants, assign initial subscription quotas, and configure merchant branches.' },
-      { featureId: 'global-merchants-directory', label: 'Global Merchants Directory', icon: 'store', live: false, description: 'Global registry of all provisioned merchant locations across all company accounts on the platform.' },
+      { featureId: 'merchant-directory', label: 'Company Merchants Directory', icon: 'storefront', live: true, description: 'Manage active branch outlets, physical locations, operating hours, and terminal deployments for your company.' },
+    ],
+  },
+  {
+    appId: 'saas-users',
+    hubId: 'saas-users-hub',
+    hubLabel: 'GLOBAL USERS COMMAND HUB',
+    title: 'Global Users Command Hub',
+    category: 'Platform SaaS',
+    icon: 'manage_accounts',
+    description: 'Platform-wide user registry, administrative access control, authentication profiles, and audit log.',
+    items: [
+      { featureId: 'users-auth-profiles', label: 'Global Users Directory', icon: 'badge', live: true, description: 'Platform-wide user registry, administrative access control, authentication profiles, and audit log.' },
     ],
   },
   {
     appId: 'users',
     hubId: 'users-hub',
     hubLabel: 'USERS COMMAND HUB',
-    title: 'Users Command Hub',
-    category: 'Platform SaaS',
+    title: 'Company Users Command Hub',
+    category: 'Merchant Portal',
     icon: 'manage_accounts',
-    description: 'User accounts, role-based access control, security credentials, and platform collaborators.',
+    description: 'Company user accounts, role-based access control, security credentials, and branch collaborators.',
     items: [
       { featureId: 'user-management', label: 'Company Users Directory', icon: 'manage_accounts', live: true, description: 'Manage company staff users, assign granular roles and permissions, and audit security credentials.' },
-      { featureId: 'users-auth-profiles', label: 'Global Users Directory', icon: 'badge', live: true, description: 'Platform-wide user registry, administrative access control, authentication profiles, and audit log.' },
     ],
   },
   {
@@ -433,10 +466,17 @@ const DYNAMIC_HUB_BY_ID = new Map<string, ModuleNavHub>();
  * Registers dynamic command hubs generated from the navigation catalog (GET /api/me/navigation).
  */
 export function registerDynamicNavHubs(hubs: ModuleNavHub[]): void {
-  dynamicHubs = hubs;
+  const byHubId = new Map<string, ModuleNavHub>();
+  for (const existing of dynamicHubs) {
+    byHubId.set(existing.hubId, existing);
+  }
+  for (const incoming of hubs) {
+    byHubId.set(incoming.hubId, incoming);
+  }
+  dynamicHubs = Array.from(byHubId.values());
   DYNAMIC_HUB_BY_FEATURE.clear();
   DYNAMIC_HUB_BY_ID.clear();
-  for (const hub of hubs) {
+  for (const hub of dynamicHubs) {
     // Only register dynamic hubs if not already declared in static MODULE_NAV_HUBS
     const isStatic = MODULE_NAV_HUBS.some((s) => s.hubId === hub.hubId || s.appId === hub.appId);
     if (!isStatic) {

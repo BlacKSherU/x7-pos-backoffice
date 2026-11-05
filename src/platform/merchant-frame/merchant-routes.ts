@@ -29,10 +29,10 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('legal', 'terms-of-service', '/legal/terms-of-service'),
   ...routes('support', 'help-center', '/support/help-center'),
 
-  ...routes('platformsaas', 'merchant-directory', '/dashboard/merchants'),
-  ...routes('platformsaas', 'user-management', '/dashboard/users'),
-  ...routes('platformsaas', 'company-profile', '/dashboard/company-profile'),
-  ...routes('platformsaas', 'company-configurations', '/dashboard/company-configurations'),
+  ...routes('merchant-portal', 'merchant-directory', '/dashboard/merchants'),
+  ...routes('merchant-portal', 'user-management', '/dashboard/users'),
+  ...routes('merchant-portal', 'company-profile', '/dashboard/company-profile'),
+  ...routes('merchant-portal', 'company-configurations', '/dashboard/company-configurations'),
 
   ...routes('core', 'journal-entries', '/inventory/journal-entries'),
 
@@ -147,8 +147,8 @@ export function getNavFromPath(
       profileRole === 'SaaS Owner' ||
       profileRole === 'portal_admin' ||
       profileRole === 'portal_user'
-        ? { category: 'saas', tab: 'saas-dashboard' }
-        : { category: 'core', tab: 'dashboard' };
+        ? { category: 'platform-saas', tab: 'saas-dashboard' }
+        : { category: 'merchant-portal', tab: 'dashboard' };
     return {
       category: locationState?.activeCategory || fallback.category,
       tab: locationState?.activeTab || fallback.tab,
