@@ -453,7 +453,7 @@ export const MerchantFrame: React.FC = () => {
   const handleReturnToSuperAdmin = async () => {
     try {
       setIsSwitchingUser(true);
-      const res = await login('su@su.com', 'softPassword');
+      const res = await login('superadmin@x7pos.com', 'softPassword');
       saveAuthSession(res.access_token, res.refreshToken, res.user, true);
       localStorage.removeItem('x7_superadmin_impersonating');
       window.location.href = '/dashboard';
@@ -1116,7 +1116,7 @@ export const MerchantFrame: React.FC = () => {
                   className="w-full py-2 px-3 text-center text-xs font-bold rounded-lg flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-[15px]">admin_panel_settings</span>
-                  <span>Return to Super Admin (su@su.com)</span>
+                  <span>Return to Super Admin (superadmin@x7pos.com)</span>
                 </button>
               </div>
             )}
