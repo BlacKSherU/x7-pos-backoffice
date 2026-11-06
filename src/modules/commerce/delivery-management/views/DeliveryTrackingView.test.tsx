@@ -256,11 +256,13 @@ describe('DeliveryTrackingView', () => {
   it('draws vehicle markers styled by telemetry status', async () => {
     render(<DeliveryTrackingView />);
     await screen.findByTestId('tracking-card-7');
+    await waitFor(() => expect(markerFor(7)).toBeDefined());
     const active = markerFor(7)!;
     expect(active.html).toContain('two_wheeler');
     expect(active.html).toContain('#10b981');
     expect(active.html).toContain('animate-ping');
     expect(active.html).toContain('motion-reduce:animate-none');
+    await waitFor(() => expect(markerFor(9)).toBeDefined());
     const stale = markerFor(9)!;
     expect(stale.html).toContain('pedal_bike');
     expect(stale.html).toContain('#f59e0b');
