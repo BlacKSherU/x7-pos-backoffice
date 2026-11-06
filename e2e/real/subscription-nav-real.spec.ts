@@ -11,26 +11,29 @@ const SHOTS = process.env.E2E_SHOTS ?? 'test-results/delivery-real';
 const RED = 'rgb(174, 0, 26)';
 
 const LABELS = [
-  'APPLICATIONS',
-  'FEATURES',
-  'MERCHANT SUBSCRIPTIONS',
-  'PLAN APPLICATIONS',
-  'PLAN FEATURES',
-  'SUBSCRIPTION PLANS',
-  'SUBSCRIPTION APPLICATIONS',
-  'SUBSCRIPTION PAYMENTS',
+  'Platform Applications Catalog',
+  'Feature Flags & Entitlements',
+  'Merchant Subscriptions Directory',
+  'Plan Application Inclusions',
+  'Plan Feature Capabilities Mapping',
+  'Software Subscription Plans',
+  'Active Merchant Applications',
+  'Subscription Billing Invoices',
 ];
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 test.skip(!REAL, 'E2E real: exporta E2E_REAL=1 con el backend y la base de pruebas levantados');
 
-const bar = (page: Page) => page.getByRole('navigation', { name: /Subscription System module navigation/i });
+const bar = (page: Page) =>
+  page.getByRole('navigation', { name: /Subscription System module navigation/i });
 
 const expectBar = async (page: Page, active?: string) => {
   for (const label of LABELS) {
     await expect(bar(page).getByRole('button', { name: label, exact: true })).toBeVisible();
   }
-  await expect(bar(page).getByRole('button', { name: 'SUBSCRIPTION SYSTEM COMMAND HUB' })).toBeVisible();
+  await expect(
+    bar(page).getByRole('button', { name: 'SUBSCRIPTION SYSTEM COMMAND HUB' }),
+  ).toBeVisible();
   if (active) {
     const current = bar(page).getByRole('button', { name: active, exact: true });
     await expect(current).toHaveAttribute('aria-current', 'page');
@@ -46,28 +49,37 @@ test('panel SaaS: barra con las 8 opciones, opción activa y regreso al hub', as
   await page.fill('input[type=email]', PORTAL_EMAIL);
   await page.fill('input[type=password]', PASSWORD);
   await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: 'Subscription Plans' }).first().click();
-  await expectBar(page, 'SUBSCRIPTION PLANS');
+  await page.getByRole('button', { name: 'Software Subscription Plans' }).first().click();
+  await expectBar(page, 'Software Subscription Plans');
   // El botón flotante "+" de la vista no puede tapar la barra.
   const fab = page.locator('button.fixed.rounded-full').first();
   const fabBox = await fab.boundingBox();
   const barTop = Math.min(
-    ...(await bar(page).getByRole('button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top))),
+    ...(await bar(page)
+      .getByRole('button')
+      .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top))),
   );
-  expect(fabBox && fabBox.y + fabBox.height, 'el botón flotante queda por encima de la barra').toBeLessThanOrEqual(barTop);
+  expect(
+    fabBox && fabBox.y + fabBox.height,
+    'el botón flotante queda por encima de la barra',
+  ).toBeLessThanOrEqual(barTop);
   await page.screenshot({ path: `${SHOTS}/30-saas-subscription-plans.png`, fullPage: true });
 
-  await bar(page).getByRole('button', { name: 'APPLICATIONS', exact: true }).click();
-  await expectBar(page, 'APPLICATIONS');
+  await bar(page).getByRole('button', { name: 'Platform Applications Catalog', exact: true }).click();
+  await expectBar(page, 'Platform Applications Catalog');
 
-  // Sin plan elegido, PLAN FEATURES pide elegir uno (no cae en una pantalla vacía).
-  await bar(page).getByRole('button', { name: 'PLAN FEATURES', exact: true }).click();
-  await expectBar(page, 'PLAN FEATURES');
+  // Sin plan elegido, Plan Feature Capabilities Mapping pide elegir uno (no cae en una pantalla vacía).
+  await bar(page)
+    .getByRole('button', { name: 'Plan Feature Capabilities Mapping', exact: true })
+    .click();
+  await expectBar(page, 'Plan Feature Capabilities Mapping');
   await expect(page.getByRole('button', { name: /choose a plan/i })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/31-saas-plan-features-choose.png`, fullPage: true });
 
-  await bar(page).getByRole('button', { name: 'MERCHANT SUBSCRIPTIONS', exact: true }).click();
-  await expectBar(page, 'MERCHANT SUBSCRIPTIONS');
+  await bar(page)
+    .getByRole('button', { name: 'Merchant Subscriptions Directory', exact: true })
+    .click();
+  await expectBar(page, 'Merchant Subscriptions Directory');
   await expect(page.getByText(/In Development/i).first()).toBeVisible();
 
   await bar(page).getByRole('button', { name: 'SUBSCRIPTION SYSTEM COMMAND HUB' }).click();
@@ -88,13 +100,17 @@ test('workspace de comercio: misma barra al entrar por el menú lateral', async 
   const aside = page.locator('aside');
   await aside.getByText('Platform SaaS').first().click();
   await aside.getByText('Subscription System').first().click();
-  await aside.getByText('Merchant Subscriptions Link').first().click();
-  await expectBar(page, 'MERCHANT SUBSCRIPTIONS');
+  await aside.getByText('Merchant Subscriptions Directory').first().click();
+  await expectBar(page, 'Merchant Subscriptions Directory');
   // Desde la barra se llega a cualquier opción del módulo.
-  await bar(page).getByRole('button', { name: 'SUBSCRIPTION PAYMENTS', exact: true }).click();
-  await expectBar(page, 'SUBSCRIPTION PAYMENTS');
-  await bar(page).getByRole('button', { name: 'FEATURES', exact: true }).click();
-  await expectBar(page, 'FEATURES');
+  await bar(page)
+    .getByRole('button', { name: 'Subscription Billing Invoices', exact: true })
+    .click();
+  await expectBar(page, 'Subscription Billing Invoices');
+  await bar(page)
+    .getByRole('button', { name: 'Feature Flags & Entitlements', exact: true })
+    .click();
+  await expectBar(page, 'Feature Flags & Entitlements');
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS}/33-merchant-subscription-features.png`, fullPage: true });
 });

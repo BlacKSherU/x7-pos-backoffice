@@ -38,6 +38,7 @@ const toForm = (s: CompanySubscription): SubscriptionForm => ({
 });
 
 /** Only the fields that changed: the backend keeps everything else as it is. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function toUpdateDto(
   original: CompanySubscription,
   form: SubscriptionForm,

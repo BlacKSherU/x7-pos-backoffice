@@ -2,6 +2,7 @@ import React from 'react';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
 
 /** "Essential ($69)"; a custom-priced plan shows its price label instead of "$null". */
+// eslint-disable-next-line react-refresh/only-export-components
 export function planOptionLabel(plan: SubscriptionPlan): string {
   const price = plan.price === null ? plan.priceLabel || 'Custom pricing' : `$${plan.price}`;
   return `${plan.name} (${price})`;

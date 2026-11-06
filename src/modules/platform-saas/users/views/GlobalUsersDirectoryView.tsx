@@ -75,6 +75,7 @@ export const GlobalUsersDirectoryView: React.FC = () => {
     void Promise.resolve().then(() => {
       loadDirectory();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

@@ -598,6 +598,7 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger, profile?.role, selectedPreviewUser]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
