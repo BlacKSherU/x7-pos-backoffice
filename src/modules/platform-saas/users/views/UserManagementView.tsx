@@ -15,8 +15,6 @@ import { USER_QUICK_LAUNCH_TARGETS } from '@/modules/platform-saas/users/lib/use
 import {
   ALL_ROLES,
   ALL_SCOPES,
-  SCOPE_OPTIONS,
-  USER_ROLE_OPTIONS,
   filterUsers,
   formatEnumLabel,
   getUserStatusBadgeClass,
@@ -42,7 +40,11 @@ import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
 } from '@/shared/components/StatusToggle';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
+
+const MERCHANT_ROLE_OPTIONS = ['merchant_admin', 'merchant_user'];
+const MERCHANT_SCOPE_OPTIONS = ['merchant_web', 'merchant_mobile'];
+const PLATFORM_STAFF_ROLES = new Set(['super_admin', 'portal_admin', 'portal_user']);
 
 type ModalMode = 'add' | 'edit';
 
@@ -65,10 +67,12 @@ export const UserManagementView: React.FC = () => {
   // The directory lists the whole company; merchant admins manage users of their own branch,
   // while super_admin and portal_admin have unrestricted management across all branches.
   const [currentMerchantId] = useState(getCurrentMerchantId);
-  const storedRole = getStoredUser()?.role;
-  const isSuperOrPortalAdmin = storedRole === 'super_admin' || storedRole === 'portal_admin';
+  const effectiveRole = getEffectiveUserRole();
+  const isSuperOrPortalAdmin =
+    effectiveRole === 'super_admin' || effectiveRole === 'portal_admin';
   const isOwnBranch = (user: MerchantUser) =>
-    isSuperOrPortalAdmin || user.merchantId === currentMerchantId;
+    !PLATFORM_STAFF_ROLES.has(user.role ?? '') &&
+    (isSuperOrPortalAdmin || user.merchantId === currentMerchantId);
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +110,10 @@ export const UserManagementView: React.FC = () => {
 
     try {
       const data = await getCompanyUsers();
-      setUsers(data);
+      const merchantOnly = data.filter(
+        (u) => !PLATFORM_STAFF_ROLES.has(u.role ?? '') && u.scope !== 'admin_portal',
+      );
+      setUsers(merchantOnly);
     } catch (err) {
       const message =
         err instanceof Error
@@ -336,7 +343,7 @@ export const UserManagementView: React.FC = () => {
             className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[170px]"
           >
             <option value={ALL_ROLES}>{ALL_ROLES}</option>
-            {USER_ROLE_OPTIONS.map((role) => (
+            {MERCHANT_ROLE_OPTIONS.map((role) => (
               <option key={role} value={role}>
                 {formatEnumLabel(role)}
               </option>
@@ -349,7 +356,7 @@ export const UserManagementView: React.FC = () => {
             className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[170px]"
           >
             <option value={ALL_SCOPES}>{ALL_SCOPES}</option>
-            {SCOPE_OPTIONS.map((scope) => (
+            {MERCHANT_SCOPE_OPTIONS.map((scope) => (
               <option key={scope} value={scope}>
                 {formatEnumLabel(scope)}
               </option>
@@ -523,17 +530,28 @@ export const UserManagementView: React.FC = () => {
                                 edit
                               </span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setOverridesTargetUser(user)}
-                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
-                              title="Permissions & Overrides"
-                              aria-label={`Permissions & Overrides for ${userLabel(user)}`}
-                            >
-                              <span className="material-symbols-outlined text-[20px]">
-                                shield_person
+                            {user.role === 'merchant_user' ? (
+                              <button
+                                type="button"
+                                onClick={() => setOverridesTargetUser(user)}
+                                className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                title="Permissions & Overrides"
+                                aria-label={`Permissions & Overrides for ${userLabel(user)}`}
+                              >
+                                <span className="material-symbols-outlined text-[20px]">
+                                  shield_person
+                                </span>
+                              </button>
+                            ) : (
+                              <span
+                                className="p-1 text-zinc-300 cursor-not-allowed inline-flex items-center"
+                                title="Merchant Admins automatically inherit all features in the company's contracted plan"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">
+                                  shield_person
+                                </span>
                               </span>
-                            </button>
+                            )}
                             <StatusToggleButton
                               status={user.isActive ? 'active' : 'inactive'}
                               entityLabel={userLabel(user)}
@@ -613,6 +631,8 @@ export const UserManagementView: React.FC = () => {
           isSubmitting={isSubmitting}
           isResettingPassword={isResettingPassword}
           resetNotice={resetNotice}
+          roleOptions={MERCHANT_ROLE_OPTIONS}
+          scopeOptions={MERCHANT_SCOPE_OPTIONS}
           onClose={closeFormModal}
           onSubmit={(event) => void handleFormSubmit(event)}
           onFieldChange={updateField}

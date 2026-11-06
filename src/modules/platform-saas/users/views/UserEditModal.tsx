@@ -72,6 +72,8 @@ type UserEditModalProps = {
   isSubmitting: boolean;
   isResettingPassword?: boolean;
   resetNotice?: string | null;
+  roleOptions?: string[];
+  scopeOptions?: string[];
   onClose: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onFieldChange: (field: keyof UserFormValues, value: string) => void;
@@ -86,6 +88,8 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
   isSubmitting,
   isResettingPassword = false,
   resetNotice = null,
+  roleOptions = USER_ROLE_OPTIONS,
+  scopeOptions = SCOPE_OPTIONS,
   onClose,
   onSubmit,
   onFieldChange,
@@ -175,7 +179,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
             id="user-role"
             label="Security Role"
             value={formValues.role}
-            options={USER_ROLE_OPTIONS}
+            options={roleOptions}
             placeholder="Select a role…"
             error={fieldErrors.role}
             onChange={(value) => onFieldChange('role', value)}
@@ -184,7 +188,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
             id="user-scope"
             label="Access Scope"
             value={formValues.scope}
-            options={SCOPE_OPTIONS}
+            options={scopeOptions}
             placeholder="Select a scope…"
             error={fieldErrors.scope}
             onChange={(value) => onFieldChange('scope', value)}
