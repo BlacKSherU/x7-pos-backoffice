@@ -4,7 +4,7 @@ import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas
 import type { PlanFeature, SubscriptionPlan, PlatformFeature } from '@/modules/platform-saas/subscription-system/types/subscription';
 import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/components/StatusToggle';
 import { SubscriptionPlanSelect } from '@/modules/platform-saas/subscription-system/views/SubscriptionPlanSelect';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 function isValidLimitValue(raw: string): boolean {
   return /^\d+(\.\d{1,2})?$/.test(raw.trim()) && Number(raw) > 0;
@@ -274,7 +274,7 @@ interface PlanFeaturesViewProps {
 }
 
 export const PlanFeaturesView: React.FC<PlanFeaturesViewProps> = ({ plan, onNavigate }) => {
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(plan ?? null);
   const [planFeatures, setPlanFeatures] = useState<PlanFeature[]>([]);

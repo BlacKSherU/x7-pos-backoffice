@@ -16,7 +16,7 @@ import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
 } from '@/shared/components/StatusToggle';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 export const ALL_COMPANIES = 'all';
 
@@ -30,7 +30,7 @@ const SELECT_CLASS =
  * con su compañía y comercio. El directorio de cada compañía vive en el MerchantFrame.
  */
 export const GlobalUsersDirectoryView: React.FC = () => {
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [companies, setCompanies] = useState<CompanyRegistryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -214,10 +214,17 @@ export const navigationService = {
    * Loads the dynamic navigation tree directly from backend API (GET /api/me/navigation).
    * Generates dynamic ModuleNavHub instances and registers them in module-nav-hubs.
    */
-  async loadDynamicNavigation(surface: string = 'merchant_web'): Promise<NavCategory[]> {
+  async loadDynamicNavigation(
+    surface: string = 'merchant_web',
+    previewUserId?: number,
+  ): Promise<NavCategory[]> {
     try {
+      const userParam =
+        previewUserId && Number.isInteger(previewUserId) && previewUserId > 0
+          ? `&userId=${encodeURIComponent(String(previewUserId))}`
+          : '';
       const res = await apiRequest<NavigationTreeResponse>(
-        `/me/navigation?surface=${encodeURIComponent(surface)}`,
+        `/me/navigation?surface=${encodeURIComponent(surface)}${userParam}`,
         { method: 'GET' },
         'Failed to load dynamic navigation',
       );

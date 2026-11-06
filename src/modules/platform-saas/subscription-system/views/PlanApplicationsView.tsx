@@ -4,7 +4,7 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { PlanApplication, SubscriptionPlan, Application } from '@/modules/platform-saas/subscription-system/types/subscription';
 import { SubscriptionPlanSelect } from '@/modules/platform-saas/subscription-system/views/SubscriptionPlanSelect';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 interface EditPlanApplicationDialogProps {
   pa: PlanApplication;
@@ -267,7 +267,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
   plan,
   onNavigate,
 }) => {
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanState, setSelectedPlanState] = useState<SubscriptionPlan | null>(plan || null);
   const [loadingPlans, setLoadingPlans] = useState<boolean>(!plan);

@@ -11,7 +11,7 @@ import {
   ModalFormError,
   ModalFormFooter,
 } from '@/shared/components/AppModal';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 const ALL = 'all';
 const HEADER_CLASS =
@@ -68,7 +68,7 @@ function statusBadge(s: CompanySubscription): { label: string; className: string
  * its plan.
  */
 export const CompanySubscriptionsView: React.FC = () => {
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [subscriptions, setSubscriptions] = useState<CompanySubscription[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);

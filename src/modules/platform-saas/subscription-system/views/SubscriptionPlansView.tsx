@@ -4,7 +4,7 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { normalizeStatus } from '@/shared/components/statusToggleHelpers';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { SubscriptionPlan, CreateSubscriptionPlanDto } from '@/modules/platform-saas/subscription-system/types/subscription';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 const BILLING_CYCLES: CreateSubscriptionPlanDto['billingCycle'][] = [
   'daily',
@@ -32,7 +32,7 @@ interface SubscriptionPlansViewProps {
 }
 
 export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ onNavigate }) => {
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

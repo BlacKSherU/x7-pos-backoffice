@@ -34,7 +34,7 @@ import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
 } from '@/shared/components/StatusToggle';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 type ModalMode = 'add' | 'edit';
 
@@ -184,7 +184,7 @@ const CompanyFormModal: React.FC<{
 export const CompanyRegistryView: React.FC<CompanyRegistryViewProps> = ({
   onNavigate,
 }) => {
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [companies, setCompanies] = useState<CompanyRegistryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);

@@ -36,8 +36,7 @@ import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/type
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
 import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
-import { clearAuthSession, getStoredUser, saveAuthSession } from '@/platform/auth/lib/auth-storage';
-import { login } from '@/platform/auth/api/auth';
+import { clearAuthSession, getStoredUser, setPreviewUserRole } from '@/platform/auth/lib/auth-storage';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
 import type { AllocationsContext, MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
@@ -57,8 +56,6 @@ interface MerchantStaffUser {
   shiftRole?: string | null;
   collaboratorName?: string | null;
 }
-
-const PLATFORM_ROLES: readonly string[] = ['super_admin', 'portal_admin', 'portal_user'];
 
 const PLATFORM_FALLBACK_USERS: MerchantStaffUser[] = [
   { id: 14, email: 'superadmin@x7pos.com', username: 'superadmin', role: 'super_admin' },
@@ -249,89 +246,6 @@ export const MerchantFrame: React.FC = () => {
   const [isNavLoading, setIsNavLoading] = useState<boolean>(true);
   const [navError, setNavError] = useState<string | null>(null);
 
-  // Platform SaaS lives inside this same shell: portal staff only see the Platform SaaS
-  // category (saas_web); the super admin sees it together with the merchant categories;
-  // every other role gets the merchant menu with the SaaS category hidden.
-  useEffect(() => {
-    const role = profile?.role ?? getStoredUser()?.role;
-    const isPortalStaff = role === 'portal_admin' || role === 'portal_user';
-    const isSuperAdmin = role === 'super_admin' || role === 'Super Admin (All Access)';
-    let ignore = false;
-    setIsNavLoading(true);
-    setNavError(null);
-
-    const loadWithRetry = async (
-      surface: 'merchant_web' | 'saas_web',
-      attempts = 3,
-    ): Promise<NavCategory[]> => {
-      for (let attempt = 1; attempt <= attempts; attempt++) {
-        try {
-          return await navigationService.loadDynamicNavigation(surface);
-        } catch (err) {
-          const status =
-            typeof err === 'object' && err !== null && 'status' in err
-              ? (err as { status?: number }).status
-              : undefined;
-          const isTransient = status === 502 || status === 503 || status === 504 || err instanceof TypeError;
-          if (!isTransient || attempt === attempts) {
-            throw err;
-          }
-          await new Promise((resolve) => setTimeout(resolve, attempt * 700));
-        }
-      }
-      return [];
-    };
-
-    const loadMenu = async (): Promise<NavCategory[]> => {
-      if (isPortalStaff) {
-        return loadWithRetry('saas_web');
-      }
-      const merchantMenu = await loadWithRetry('merchant_web');
-      if (!isSuperAdmin) {
-        return merchantMenu.filter(
-          (cat) =>
-            cat.id !== 'platform-saas' &&
-            cat.id !== 'platformsaas' &&
-            cat.name.toLowerCase() !== 'platform saas',
-        );
-      }
-      try {
-        const saasMenu = await loadWithRetry('saas_web');
-        const merchantOnly = merchantMenu.filter((cat) => !saasMenu.some((s) => s.id === cat.id));
-        return [...saasMenu, ...merchantOnly];
-      } catch (err) {
-        console.warn('Could not load saas_web menu for super_admin, falling back to merchant_web:', err);
-        return merchantMenu;
-      }
-    };
-
-    loadMenu()
-      .then((menu) => {
-        if (!ignore) {
-          setNavCategories(menu);
-          setNavError(null);
-          setIsNavLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        console.error('Error loading dynamic navigation menu', err);
-        if (!ignore) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : typeof err === 'object' && err !== null && 'message' in err
-                ? String((err as { message: unknown }).message)
-                : 'Failed to load navigation menu';
-          setNavError(message);
-          setIsNavLoading(false);
-        }
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [refreshTrigger, profile?.role]);
-
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
   const [demo401Toggle, setDemo401Toggle] = useState<boolean>(getSimulate401());
@@ -391,8 +305,7 @@ export const MerchantFrame: React.FC = () => {
   const [merchantUsers, setMerchantUsers] = useState<MerchantStaffUser[]>([]);
   const [platformUsers, setPlatformUsers] = useState<MerchantStaffUser[]>(PLATFORM_FALLBACK_USERS);
 
-  // Platform staff (super admin + portal admin/user). Only a super admin can list them;
-  // while impersonating another role the static list keeps the switcher usable.
+  // Platform staff (super admin + portal admin/user). Only a super admin can list them.
   useEffect(() => {
     const role = profile?.role ?? getStoredUser()?.role;
     if (role !== 'super_admin') return;
@@ -414,10 +327,28 @@ export const MerchantFrame: React.FC = () => {
       ignore = true;
     };
   }, [profile?.role, refreshTrigger]);
+
   const [selectedUserEmail, setSelectedUserEmail] = useState<string>(
-    () => getStoredUser()?.email || 'superadmin@x7pos.com',
+    () =>
+      sessionStorage.getItem('x7_superadmin_preview_email') ||
+      getStoredUser()?.email ||
+      'superadmin@x7pos.com',
   );
-  const [isSwitchingUser, setIsSwitchingUser] = useState<boolean>(false);
+
+  const handleSelectPreviewUser = (email: string) => {
+    setSelectedUserEmail(email);
+    sessionStorage.setItem('x7_superadmin_preview_email', email);
+  };
+
+  const selectedPreviewUser = useMemo(
+    () => [...platformUsers, ...merchantUsers].find((u) => u.email === selectedUserEmail) ?? null,
+    [platformUsers, merchantUsers, selectedUserEmail],
+  );
+
+  const actualUserRole = profile?.role ?? getStoredUser()?.role;
+  const isActualSuperAdmin =
+    actualUserRole === 'super_admin' || actualUserRole === 'Super Admin (All Access)';
+  setPreviewUserRole(isActualSuperAdmin ? (selectedPreviewUser?.role ?? null) : null);
 
   const handleMerchantSwitch = (newMerchantId: string) => {
     setActiveMerchantId(newMerchantId);
@@ -490,7 +421,9 @@ export const MerchantFrame: React.FC = () => {
             users.some((u) => u.email === prev) ||
             PLATFORM_FALLBACK_USERS.some((u) => u.email === prev);
           if (prev && isKnown) return prev;
-          return users[0].email;
+          const fallbackEmail = users[0].email;
+          sessionStorage.setItem('x7_superadmin_preview_email', fallbackEmail);
+          return fallbackEmail;
         });
       }
     };
@@ -517,24 +450,144 @@ export const MerchantFrame: React.FC = () => {
     };
   }, [activeMerchantId, refreshTrigger, profile?.role]);
 
-  const handleSwitchToUser = async (targetEmail: string) => {
-    try {
-      setIsSwitchingUser(true);
-      const res = await login(targetEmail, 'softPassword');
-      saveAuthSession(res.access_token, res.refreshToken, res.user, true);
-      localStorage.removeItem('x7_superadmin_impersonating');
-      // Platform accounts keep the store the super admin was working on.
-      if (!PLATFORM_ROLES.includes(res.user.role)) {
-        setActiveSuperAdminMerchantId(res.user.merchant?.id || activeMerchantId);
+  // Platform SaaS lives inside this same shell: portal staff only see the Platform SaaS
+  // category (saas_web); the super admin sees it together with the merchant categories;
+  // every other role gets the merchant menu with the SaaS category hidden.
+  useEffect(() => {
+    const baseRole = profile?.role ?? getStoredUser()?.role;
+    const isRealSuperAdmin =
+      baseRole === 'super_admin' || baseRole === 'Super Admin (All Access)';
+    const effectiveRole =
+      isRealSuperAdmin && selectedPreviewUser ? selectedPreviewUser.role : baseRole;
+    const previewUserId =
+      isRealSuperAdmin && selectedPreviewUser ? selectedPreviewUser.id : undefined;
+
+    const isPortalStaff = effectiveRole === 'portal_admin' || effectiveRole === 'portal_user';
+    const isSuperAdmin =
+      effectiveRole === 'super_admin' || effectiveRole === 'Super Admin (All Access)';
+    let ignore = false;
+    setIsNavLoading(true);
+    setNavError(null);
+
+    const loadWithRetry = async (
+      surface: 'merchant_web' | 'saas_web',
+      attempts = 3,
+      targetUserId?: number,
+    ): Promise<NavCategory[]> => {
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          return await navigationService.loadDynamicNavigation(surface, targetUserId);
+        } catch (err) {
+          const status =
+            typeof err === 'object' && err !== null && 'status' in err
+              ? (err as { status?: number }).status
+              : undefined;
+          const isTransient = status === 502 || status === 503 || status === 504 || err instanceof TypeError;
+          if (!isTransient || attempt === attempts) {
+            throw err;
+          }
+          await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+        }
       }
-      window.location.href = '/dashboard';
-    } catch (err) {
-      console.error('Failed to impersonate user:', err);
-      alert(`Could not log in as ${targetEmail}: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsSwitchingUser(false);
-    }
-  };
+      return [];
+    };
+
+    const loadMenu = async (): Promise<NavCategory[]> => {
+      if (isPortalStaff) {
+        return loadWithRetry('saas_web', 3, previewUserId);
+      }
+      const merchantMenu = await loadWithRetry(
+        'merchant_web',
+        3,
+        isSuperAdmin ? undefined : previewUserId,
+      );
+      if (!isSuperAdmin) {
+        return merchantMenu.filter(
+          (cat) =>
+            cat.id !== 'platform-saas' &&
+            cat.id !== 'platformsaas' &&
+            cat.name.toLowerCase() !== 'platform saas',
+        );
+      }
+      try {
+        const saasMenu = await loadWithRetry('saas_web');
+        const merchantOnly = merchantMenu.filter((cat) => !saasMenu.some((s) => s.id === cat.id));
+        return [...saasMenu, ...merchantOnly];
+      } catch (err) {
+        console.warn('Could not load saas_web menu for super_admin, falling back to merchant_web:', err);
+        return merchantMenu;
+      }
+    };
+
+    loadMenu()
+      .then((menu) => {
+        if (!ignore) {
+          setNavCategories(menu);
+          setNavError(null);
+          setIsNavLoading(false);
+
+          if (menu.length > 0) {
+            const directTargets: Record<string, string> = {
+              'central-backoffice': 'saas-dashboard',
+              'saas-companies': 'companies-registry',
+              'saas-merchants': 'global-merchants-directory',
+              'saas-users': 'users-auth-profiles',
+              'client-backoffice': 'dashboard',
+              companies: 'company-profile',
+              merchants: 'merchant-directory',
+              users: 'user-management',
+            };
+            const featureHub = navHubForFeature(activeTab);
+            const activeCommandHub = navHubById(activeTab);
+            const isTabAllowed = menu.some((cat) =>
+              cat.applications.some(
+                (app) =>
+                  app.features.some((f) => f.id === activeTab) ||
+                  directTargets[app.id] === activeTab ||
+                  app.id === featureHub?.appId ||
+                  app.id === activeCommandHub?.appId ||
+                  activeTab === `${app.id}-hub` ||
+                  activeTab === app.id,
+              ),
+            );
+
+            if (!isTabAllowed) {
+              const firstCat = menu[0];
+              const firstApp = firstCat.applications[0];
+              const nextTab =
+                (firstApp && directTargets[firstApp.id]) ||
+                firstApp?.features[0]?.id ||
+                (isPortalStaff ? 'saas-dashboard' : 'dashboard');
+              setActiveCategory(firstCat.id);
+              setActiveTab(nextTab);
+              setExpandedCategories({ [firstCat.id]: true });
+              if (location.pathname !== '/dashboard') {
+                navigate('/dashboard', {
+                  state: { activeTab: nextTab, activeCategory: firstCat.id },
+                });
+              }
+            }
+          }
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('Error loading dynamic navigation menu', err);
+        if (!ignore) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : typeof err === 'object' && err !== null && 'message' in err
+                ? String((err as { message: unknown }).message)
+                : 'Failed to load navigation menu';
+          setNavError(message);
+          setIsNavLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [refreshTrigger, profile?.role, selectedPreviewUser]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   const [isReservationOpen, setIsReservationOpen] = useState<boolean>(false);
@@ -1166,7 +1219,7 @@ export const MerchantFrame: React.FC = () => {
               <select
                 aria-label="Platform and Merchant Users"
                 value={selectedUserEmail}
-                onChange={(e) => setSelectedUserEmail(e.target.value)}
+                onChange={(e) => handleSelectPreviewUser(e.target.value)}
                 className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
               >
                 <optgroup label="Platform Team (SaaS)" className="bg-[#111111] text-white/60">
@@ -1195,20 +1248,6 @@ export const MerchantFrame: React.FC = () => {
                   })}
                 </optgroup>
               </select>
-
-              <button
-                type="button"
-                disabled={isSwitchingUser || !selectedUserEmail}
-                onClick={() => handleSwitchToUser(selectedUserEmail)}
-                className="w-full py-2 px-3 text-center text-xs font-bold rounded-lg flex items-center justify-center gap-2 bg-[#d51f2c] hover:bg-[#ba1a1a] text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-[15px]">switch_account</span>
-                <span>
-                  {isSwitchingUser
-                    ? 'Switching User...'
-                    : `Login as ${selectedUserEmail.split('@')[0] || 'User'}`}
-                </span>
-              </button>
             </div>
 
             {/* Auth Session / 401 Testing */}

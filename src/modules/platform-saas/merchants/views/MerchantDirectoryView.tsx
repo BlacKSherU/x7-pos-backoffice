@@ -9,7 +9,7 @@ import {
   updateCompanyMerchant,
 } from '@/modules/platform-saas/merchants/api/merchants';
 import { ApiError } from '@/shared/lib/api-error';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 import {
   MERCHANT_BRANCH_ACTION_TARGETS,
   MERCHANT_QUICK_LAUNCH_TARGETS,
@@ -61,7 +61,7 @@ export const MerchantDirectoryView: React.FC<MerchantDirectoryViewProps> = ({
   scope = 'company',
 }) => {
   const navigate = useNavigate();
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [merchants, setMerchants] = useState<CompanyMerchant[]>([]);
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);

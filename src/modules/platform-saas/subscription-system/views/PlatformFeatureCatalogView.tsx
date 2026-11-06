@@ -4,7 +4,7 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { normalizeStatus } from '@/shared/components/statusToggleHelpers';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { PlatformFeature } from '@/modules/platform-saas/subscription-system/types/subscription';
-import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 interface PlatformFeatureCatalogViewProps {
   onNavigate?: (view: string) => void;
@@ -279,7 +279,7 @@ function fuzzyMatch(query: string, target: string): boolean {
 }
 
 export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProps> = ({ onNavigate }) => {
-  const isReadOnly = getStoredUser()?.role === 'portal_user';
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [features, setFeatures] = useState<PlatformFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
