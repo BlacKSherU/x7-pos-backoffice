@@ -79,7 +79,13 @@ const expectPillHover = async (l: Locator) => {
 const expectNavHub = async (active: string) => {
   // El <nav> mide 0×0 (su barra es position: fixed): la visibilidad se mira en los botones.
   const nav = page.getByRole('navigation', { name: /Delivery Management module navigation/i });
-  for (const label of ['DELIVERY ASSIGNMENTS', 'DELIVERY DRIVERS', 'DELIVERY FEES', 'DELIVERY TRACKING', 'DELIVERY ZONES']) {
+  for (const label of [
+    'Driver Delivery Assignments',
+    'Delivery Courier Fleet Directory',
+    'Delivery Fee Structure & Rates',
+    'Live Delivery GPS Tracking',
+    'Delivery Zones & Geofencing',
+  ]) {
     await expect(nav.getByRole('button', { name: label })).toBeVisible();
   }
   const current = nav.getByRole('button', { name: active });
@@ -112,7 +118,7 @@ test('login real y entrada al épico por URL', async () => {
   await page.waitForURL(/dashboard|delivery/);
   await page.goto('/delivery/zones');
   await expect(page.getByRole('heading', { name: 'DELIVERY ZONES', exact: true })).toBeVisible();
-  await expectNavHub('DELIVERY ZONES');
+  await expectNavHub('Delivery Zones & Geofencing');
   await shot('zones-empty');
 });
 
@@ -166,8 +172,8 @@ test('zonas: crear con la herramienta de radio, chip de vértices, KPI y geocerc
 });
 
 test('tarifas: KPI de zonas sin tarifa, validaciones, alta y calculadora', async () => {
-  await goTo('DELIVERY FEES');
-  await expectNavHub('DELIVERY FEES');
+  await goTo('Delivery Fee Structure & Rates');
+  await expectNavHub('Delivery Fee Structure & Rates');
   await expect(page.getByText(/Centro, Zona Norte/).first()).toBeVisible(); // aviso de zona sin tarifa
   await shot('fees-missing-rule-alert');
 
@@ -216,8 +222,8 @@ test('tarifas: KPI de zonas sin tarifa, validaciones, alta y calculadora', async
 });
 
 test('repartidores: alta con límites, tel:, vehículo, turno y KPI', async () => {
-  await goTo('DELIVERY DRIVERS');
-  await expectNavHub('DELIVERY DRIVERS');
+  await goTo('Delivery Courier Fleet Directory');
+  await expectNavHub('Delivery Courier Fleet Directory');
   await shot('drivers-empty');
 
   const create = async (name: string, phone: string, vehicle: string) => {
@@ -257,8 +263,8 @@ test('repartidores: alta con límites, tel:, vehículo, turno y KPI', async () =
 });
 
 test('asignaciones: despacho propio, sólo repartidores disponibles, ciclo de vida y terceros', async () => {
-  await goTo('DELIVERY ASSIGNMENTS');
-  await expectNavHub('DELIVERY ASSIGNMENTS');
+  await goTo('Driver Delivery Assignments');
+  await expectNavHub('Driver Delivery Assignments');
   await shot('assignments-empty');
 
   // Alta propia: el desplegable no ofrece a Luis (fuera de turno).
@@ -326,8 +332,8 @@ test('seguimiento en vivo: pings reales, socket, recorrido y KPI', async ({ requ
   ];
   await api(request, 'post', '/delivery-tracking', { deliveryAssignment: 1, latitude: points[0][0], longitude: points[0][1] });
 
-  await goTo('DELIVERY TRACKING');
-  await expectNavHub('DELIVERY TRACKING');
+  await goTo('Live Delivery GPS Tracking');
+  await expectNavHub('Live Delivery GPS Tracking');
   const card = page.getByTestId('tracking-card-1');
   await expect(card).toContainText('#ASN-1');
   await expect(page.getByTestId('card-trk-1')).toContainText('#TRK-1');
@@ -355,7 +361,7 @@ test('seguimiento en vivo: pings reales, socket, recorrido y KPI', async ({ requ
 });
 
 test('cierre: entregado libera al repartidor y el hub del épico', async ({ request }) => {
-  await goTo('DELIVERY ASSIGNMENTS');
+  await goTo('Driver Delivery Assignments');
   await page.getByTestId('assignment-card-1').getByRole('button', { name: /Mark delivered/i }).click();
   const deliveredPill = page.getByTestId('assignment-card-1').getByTestId('status-pill');
   await expect(deliveredPill).toHaveText(/Delivered/i);
@@ -368,7 +374,7 @@ test('cierre: entregado libera al repartidor y el hub del épico', async ({ requ
   const live = await api(request, 'get', '/delivery-assignment/summary');
   expect(live.data.avg_completion_minutes).not.toBeNull();
 
-  await goTo('DELIVERY DRIVERS');
+  await goTo('Delivery Courier Fleet Directory');
   await expect(page.locator('tr, [data-testid^="driver-row"]').filter({ hasText: 'Mario López' }).getByText(/Available/i).first()).toBeVisible();
   await shot('drivers-after-delivery');
 

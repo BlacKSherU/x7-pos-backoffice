@@ -78,7 +78,7 @@ async function gotoCreditNotes(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('Accounts Payable').click();
-  await page.getByText('Supplier Credit Notes').click();
+  await page.getByText('Supplier Credit Notes').first().click();
   await expect(page.getByText('CN-SEED-1')).toBeVisible();
 }
 

@@ -1,5 +1,6 @@
 import { apiRequest } from '@/shared/api/http';
 import {
+  MODULE_NAV_HUBS,
   registerDynamicNavHubs,
   type ModuleNavHub,
   type ModuleNavItem,
@@ -209,6 +210,104 @@ export function toTitleCaseLabel(text: string): string {
   return text;
 }
 
+const FALLBACK_APP_NAMES: Record<string, string> = {
+  'subscription-system': 'Subscription System',
+  'saas-companies': 'Companies',
+  companies: 'Companies',
+  'saas-merchants': 'Merchants',
+  merchants: 'Merchants',
+  'saas-users': 'Users',
+  users: 'Users',
+  hr: 'HR',
+  'dining-system': 'Dining System',
+  reservations: 'Reservations',
+  'accounts-payable': 'Accounts Payable',
+  payrolls: 'Payrolls',
+  pos: 'POS',
+  'cash-drawers': 'Cash Drawers',
+  'delivery-management': 'Delivery Management',
+  shifts: 'Shifts',
+  tips: 'Tips',
+  configuration: 'Configuration',
+  'billing-transactions': 'Billing & Transactions',
+  'financial-engine': 'Financial Engine',
+  'business-partners': 'Business Partners',
+  'qr-code': 'QR Code System',
+  'online-ordering': 'Online Ordering',
+  'kitchen-display-system': 'Kitchen Display System',
+  'food-costing': 'Food Costing',
+  'loyalty-system': 'Loyalty System',
+  'marketing-system': 'Marketing System',
+  'table-turnover': 'Table Turnover',
+};
+
+const FALLBACK_CATEGORY_META: Record<
+  string,
+  { id: string; name: string; icon: string; sortOrder: number }
+> = {
+  'Platform SaaS': { id: 'platform-saas', name: 'Platform SaaS', icon: 'grid_view', sortOrder: 1 },
+  'Merchant Portal': { id: 'merchant-portal', name: 'Merchant Portal', icon: 'storefront', sortOrder: 1 },
+  CORE: { id: 'core', name: 'CORE', icon: 'settings_applications', sortOrder: 2 },
+  'Finance & HR': { id: 'finance-hr', name: 'Finance & HR', icon: 'payments', sortOrder: 3 },
+  'Inventory & Supplies': { id: 'inventory', name: 'Inventory', icon: 'inventory_2', sortOrder: 4 },
+  'Restaurant Operations': { id: 'restaurant-operations', name: 'Restaurant Operations', icon: 'restaurant', sortOrder: 5 },
+  Commerce: { id: 'commerce', name: 'Commerce', icon: 'storefront', sortOrder: 6 },
+  Growth: { id: 'growth', name: 'Growth', icon: 'trending_up', sortOrder: 7 },
+};
+
+function buildFallbackNavigation(surface: string): NavCategory[] {
+  const isSaaS = surface === 'saas_web';
+  const byCat = new Map<string, NavCategory>();
+
+  for (const hub of MODULE_NAV_HUBS) {
+    const isHubSaaS = hub.category === 'Platform SaaS';
+    if (isSaaS !== isHubSaaS) continue;
+
+    const meta = FALLBACK_CATEGORY_META[hub.category] ?? {
+      id: hub.category.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      name: hub.category,
+      icon: hub.icon,
+      sortOrder: 99,
+    };
+
+    let cat = byCat.get(meta.id);
+    if (!cat) {
+      cat = {
+        id: meta.id,
+        name: meta.name,
+        icon: meta.icon,
+        sortOrder: meta.sortOrder,
+        applications: [],
+      };
+      byCat.set(meta.id, cat);
+    }
+
+    cat.applications.push({
+      id: hub.appId,
+      name: FALLBACK_APP_NAMES[hub.appId] || hub.title.replace(/\s+Command\s+Hub$/i, ''),
+      categoryName: cat.name,
+      categoryIcon: cat.icon,
+      categorySortOrder: cat.sortOrder,
+      icon: hub.icon,
+      sortOrder: cat.applications.length + 1,
+      features: hub.items.map((item, idx) => ({
+        id: item.featureId,
+        name: item.label,
+        applicationId: hub.appId,
+        planId: 1,
+        isSaaS,
+        icon: item.icon,
+        kind: 'screen',
+        status: item.live ? 'live' : 'in_development',
+        description: item.description,
+        sortOrder: idx + 1,
+      })),
+    });
+  }
+
+  return Array.from(byCat.values()).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
 export const navigationService = {
   /**
    * Loads the dynamic navigation tree directly from backend API (GET /api/me/navigation).
@@ -230,7 +329,7 @@ export const navigationService = {
       );
 
       if (!res || !Array.isArray(res.categories)) {
-        return [];
+        return buildFallbackNavigation(surface);
       }
 
       const dynamicHubs: ModuleNavHub[] = [];

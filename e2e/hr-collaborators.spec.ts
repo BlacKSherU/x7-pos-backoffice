@@ -157,7 +157,7 @@ async function gotoCollaborators(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('HR', { exact: true }).click();
-  await page.getByText('Collaborators Database').click();
+  await page.getByText('Staff Collaborator Directory').first().click();
   await expect(
     page.getByRole('main').getByRole('heading', { name: 'Collaborators Database', exact: true }),
   ).toBeVisible();

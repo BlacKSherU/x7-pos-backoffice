@@ -198,7 +198,7 @@ async function gotoFloorPlans(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Restaurant Operations').click();
   await page.getByText('Dining System', { exact: true }).click();
-  await page.getByText('Floor plans designer').click();
+  await page.getByText('Dining Room Floor Plans').first().click();
   await expect(page.getByTestId('floor-plan-row-1')).toBeVisible();
 }
 

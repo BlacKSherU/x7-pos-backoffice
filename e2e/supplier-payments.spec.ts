@@ -78,7 +78,7 @@ async function gotoPayments(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('Accounts Payable').click();
-  await page.getByText('Supplier Payments Hub').click();
+  await page.getByText('Supplier Payment Vouchers').first().click();
   await expect(page.getByText('PAY-SEED-1')).toBeVisible();
 }
 

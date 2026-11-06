@@ -82,7 +82,7 @@ async function gotoPaymentItems(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('Accounts Payable').click();
-  await page.getByText('Supplier Payment Items Ledger').click();
+  await page.getByText('Payment Breakdown Details').first().click();
   await expect(page.getByText('INV-A-001')).toBeVisible();
 }
 
