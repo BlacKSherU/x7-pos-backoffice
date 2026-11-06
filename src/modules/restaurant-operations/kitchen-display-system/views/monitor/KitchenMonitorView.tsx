@@ -13,20 +13,20 @@ import {
   type PreparationStatus,
   type RawKitchenOrder,
   type TicketItem,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
-import { formatCountdown, getCourseTheme, getPriorityBadge } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-display';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
+import { formatCountdown, getCourseTheme, getPriorityBadge } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-display';
 import { playKitchenFireChime } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-chime';
-import { KdsAllDayPrepBar } from '@/modules/restaurant-operations/kitchen-display-system/views/KdsAllDayPrepBar';
-import { KdsSummaryBatchView } from '@/modules/restaurant-operations/kitchen-display-system/views/KdsSummaryBatchView';
-import { KdsPacingSettingsDrawer } from '@/modules/restaurant-operations/kitchen-display-system/views/KdsPacingSettingsDrawer';
-import { KdsAllergyDetailModal, type AllergyDetail } from '@/modules/restaurant-operations/kitchen-display-system/views/KdsAllergyDetailModal';
+import { KdsAllDayPrepBar } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/KdsAllDayPrepBar';
+import { KdsSummaryBatchView } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/KdsSummaryBatchView';
+import { KdsPacingSettingsDrawer } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/KdsPacingSettingsDrawer';
+import { KdsAllergyDetailModal, type AllergyDetail } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/KdsAllergyDetailModal';
 import { useKdsCriticalSla } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-sla-config';
-import { KitchenRecallTray, type BumpedOrderRecord } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenRecallTray';
+import { KitchenRecallTray, type BumpedOrderRecord } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/KitchenRecallTray';
 
 const devToolModules = import.meta.glob<{
   KitchenDevResetButton?: React.ComponentType<{ onResetComplete?: () => void }>;
-}>('./KitchenDevResetButton.tsx', { eager: true });
-const KitchenDevResetButton = devToolModules['./KitchenDevResetButton.tsx']?.KitchenDevResetButton;
+}>('../hub/KitchenDevResetButton.tsx', { eager: true });
+const KitchenDevResetButton = devToolModules['../hub/KitchenDevResetButton.tsx']?.KitchenDevResetButton;
 import {
   enqueueOfflineAction,
   getQueuedActions,
@@ -42,11 +42,11 @@ import { ApiError } from '@/shared/lib/api-error';
 import {
   StationRerouteModal,
   type StationRerouteStatus,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/StationRerouteModal';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/stations/StationRerouteModal';
 import {
   ThermalTicketModal,
   type ThermalTicketPayload,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/ThermalTicketModal';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/orders/ThermalTicketModal';
 import {
   type KDSLanguage,
   detectAllergies,
@@ -57,7 +57,7 @@ import {
   setDeviceLanguage,
   extractCleanKitchenInstruction,
   getLocalizedStationName,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/kdsLocalization';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kdsLocalization';
 
 export type { CourseType, PreparationStatus, TicketItem, KitchenTicket, KdsView };
 

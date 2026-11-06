@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { StockQuickLinks } from '@/modules/inventory/raw-materials/views/stocks/StockQuickLinks';
@@ -41,6 +41,10 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
   // Filtros
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
+
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Table options state
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
@@ -102,6 +106,7 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
     setError(null);
     try {
       const json = await apiRequest<MaybeEnvelopedList<RawCategory>>(
@@ -126,6 +131,7 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
       setError('Could not load categories. Please check connection with server.');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -137,6 +143,22 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
       fetchData(true);
     });
   }, [fetchData]);
+
+  // Canonical auto refresh interval effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      void fetchData(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchData]);
+
+  const categoryStatusCounts = useMemo(() => {
+    const all = categories.length;
+    const active = categories.filter((c) => c.isActive).length;
+    const inactive = all - active;
+    return { all, active, inactive };
+  }, [categories]);
 
   const handleOpenAdd = () => {
     if (!isInventorySpecialist) return;
@@ -224,16 +246,18 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
     }
   };
 
-  const filteredCategories = categories.filter((c) => {
-    if (statusFilter === 'Active' && !c.isActive) return false;
-    if (statusFilter === 'Inactive' && c.isActive) return false;
+  const filteredCategories = useMemo(() => {
+    return categories.filter((c) => {
+      if (statusFilter === 'Active' && !c.isActive) return false;
+      if (statusFilter === 'Inactive' && c.isActive) return false;
 
-    const matchSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    return matchSearch;
-  });
+      const matchSearch =
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      return matchSearch;
+    });
+  }, [categories, statusFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredCategories.length / pageSize) || 1;
   const paginatedCategories = filteredCategories.slice(
@@ -258,47 +282,150 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
         </p>
       </div>
 
-      {/* Search panel and actions */}
-      <div className="bg-white border border-[#e8e2d8] rounded p-6 shadow-sm space-y-4">
-        {/* Fila 1: Buscador a ancho completo */}
-        <div className="relative w-full">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search raw material categories by name, description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-md font-sans outline-none focus:border-[#ae001a]"
-          />
-        </div>
-
-        {/* Row 2: Filters on the left, Buttons on the right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Auto Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search categories by name, description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search raw material categories"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchData(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh categories now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: STATUS Pills Strip on left, Primary Add Button on right */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: STATUS Pills Strip */}
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 no-scrollbar">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Status:
+            </span>
+
+            {/* All Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter('All')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'All'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
+            >
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {categoryStatusCounts.all}
+              </span>
+            </button>
+
+            {/* Active Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'Active' ? 'All' : 'Active')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Active'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>ACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {categoryStatusCounts.active}
+              </span>
+            </button>
+
+            {/* Inactive Pill */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'Inactive' ? 'All' : 'Inactive')}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Inactive'
+                  ? 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
+                  : 'bg-white text-zinc-700 border-zinc-300 hover:bg-zinc-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">block</span>
+              <span>INACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Inactive' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-700'
+                }`}
+              >
+                {categoryStatusCounts.inactive}
+              </span>
+            </button>
+          </div>
+
+          {/* Right: Primary Add Button */}
+          <div className="flex items-center gap-2 shrink-0">
             {isInventorySpecialist && (
               <button
+                type="button"
                 onClick={handleOpenAdd}
-                className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+                className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
               >
-                <span className="material-symbols-outlined text-sm">add</span>
-                <span>ADD CATEGORY</span>
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                ADD CATEGORY
               </button>
             )}
-
           </div>
         </div>
       </div>
@@ -672,16 +799,16 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
             onClick: () => onNavigate?.('purchase-orders'),
           },
           {
-            id: 'stock-movements',
-            label: 'STOCK LEVELS',
+            id: 'stock-inventory',
+            label: 'STOCK & BALANCE',
             icon: 'table_rows',
-            onClick: () => onNavigate?.('stock-movements'),
+            onClick: () => onNavigate?.('stock-inventory'),
           },
           {
-            id: 'movements',
+            id: 'stock-movements',
             label: 'MOVEMENTS',
             icon: 'swap_vert',
-            onClick: () => onNavigate?.('movements'),
+            onClick: () => onNavigate?.('stock-movements'),
           },
           {
             id: 'locations',

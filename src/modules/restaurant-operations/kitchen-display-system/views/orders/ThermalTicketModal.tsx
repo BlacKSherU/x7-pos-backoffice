@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import type { KitchenTicket } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
-import { detectAllergies } from '@/modules/restaurant-operations/kitchen-display-system/views/kdsLocalization';
+import type { KitchenTicket } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
+import { detectAllergies } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kdsLocalization';
 
 export interface ThermalTicketPayload {
   stationName: string;

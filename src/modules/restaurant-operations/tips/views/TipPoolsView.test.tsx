@@ -246,7 +246,7 @@ describe('Tip Pools Directory Management Workspace', () => {
       render(<TipPoolsView companyId="cmp-01" merchantId="mch-01" onNavigate={onNavigateMock} />);
 
       await waitFor(() => {
-        const ledgerShortcut = screen.getByText('TIPS LEDGER');
+        const ledgerShortcut = screen.getByTestId('nav-link-tips-ledger');
         expect(ledgerShortcut).toBeInTheDocument();
         fireEvent.click(ledgerShortcut);
         expect(onNavigateMock).toHaveBeenCalledWith('/tips/ledger');

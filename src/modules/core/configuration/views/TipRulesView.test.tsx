@@ -264,7 +264,7 @@ describe('TipRulesView — quick links navigation', () => {
     await screen.findByText('Standard Percentage Split');
 
     const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
-    const activeAnchor = within(nav).getByText('TIPS MANAGEMENT');
+    const activeAnchor = within(nav).getByText(/tips management/i);
     expect(activeAnchor.closest('[aria-current="page"]')).toBeInTheDocument();
   });
 
@@ -276,7 +276,7 @@ describe('TipRulesView — quick links navigation', () => {
     await screen.findByText('Standard Percentage Split');
 
     const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
-    await user.click(within(nav).getByText('TAX RULES'));
+    await user.click(within(nav).getByText(/tax rules/i));
 
     expect(onNavigate).toHaveBeenCalledWith('merchant-tax-rules');
   });

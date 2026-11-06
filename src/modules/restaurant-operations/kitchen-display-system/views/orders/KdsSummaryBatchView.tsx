@@ -1,12 +1,12 @@
 import React from 'react';
-import type { AggregatedSummaryItem, PreparationStatus } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
-import { getCourseTheme } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-display';
+import type { AggregatedSummaryItem, PreparationStatus } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
+import { getCourseTheme } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-display';
 import {
   type KDSLanguage,
   getLocalizedDishName,
   getLocalizedCourse,
   getLocalizedVariantName,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/kdsLocalization';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kdsLocalization';
 
 interface KdsSummaryBatchViewProps {
   batches: AggregatedSummaryItem[];

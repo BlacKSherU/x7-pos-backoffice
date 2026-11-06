@@ -5,16 +5,16 @@ import { HeaderQuickTabs } from '@/shared/components/HeaderQuickTabs';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
 import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
 import { AppModal } from '@/shared/components/AppModal';
-import type { KitchenStationType } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenStationsView';
-import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenQuickLinks';
+import type { KitchenStationType } from '@/modules/restaurant-operations/kitchen-display-system/views/stations/kdsStations';
+import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/hub/KitchenQuickLinks';
 import { useKdsCriticalSla } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-sla-config';
-import { KitchenSlaConfigModal } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenSlaConfigModal';
-import { KitchenAllergyModifierPicker } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenAllergyModifierPicker';
+import { KitchenSlaConfigModal } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/KitchenSlaConfigModal';
+import { KitchenAllergyModifierPicker } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/KitchenAllergyModifierPicker';
 
 const devToolModules = import.meta.glob<{
   KitchenDevResetButton?: React.ComponentType<{ onResetComplete?: () => void }>;
-}>('./KitchenDevResetButton.tsx', { eager: true });
-const KitchenDevResetButton = devToolModules['./KitchenDevResetButton.tsx']?.KitchenDevResetButton;
+}>('../hub/KitchenDevResetButton.tsx', { eager: true });
+const KitchenDevResetButton = devToolModules['../hub/KitchenDevResetButton.tsx']?.KitchenDevResetButton;
 import {
   enqueueOfflineAction,
   flushOfflineQueue,
@@ -1732,7 +1732,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
         </div>
 
         {/* ROW 2: Date & Time Range Controls + Presets (Single Row Layout) */}
-        <div className="flex items-center gap-3 pt-3 border-t border-[#f0ede6] overflow-x-auto scrollbar-none">
+        <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-[#f0ede6] no-scrollbar">
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="material-symbols-outlined text-sm text-[#5f5e5e]">calendar_today</span>
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#5f5e5e]">
@@ -1822,7 +1822,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
         </div>
 
         {/* ROW 3: Status Multi-Select Pills (Left) & Action Buttons (Right) */}
-        <div className="flex items-center justify-between gap-4 pt-3 border-t border-[#f0ede6] overflow-x-auto scrollbar-none py-0.5">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 pt-3 border-t border-[#f0ede6] no-scrollbar py-0.5">
           {/* Left: Status Filter Pills */}
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
@@ -3520,4 +3520,5 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     </div>
   );
 };
+export const KdsOrders = KitchenOrdersView;
 export default KitchenOrdersView;

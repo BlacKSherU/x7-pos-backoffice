@@ -104,8 +104,10 @@ export const ReservationsView: React.FC<ReservationsViewProps> = ({ merchantId }
   const [overrideSubmitting, setOverrideSubmitting] = useState(false);
   const [overrideError, setOverrideError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Only the manager can edit capacity and shifts (the backend requires this as well with a 403).
-  const canManageCapacity = getStoredUser()?.role === 'merchant_admin';
+  // Only the manager or super_admin can edit capacity and shifts (the backend requires this as well with a 403).
+  const currentUserRole = getStoredUser()?.role;
+  const canManageCapacity =
+    currentUserRole === 'merchant_admin' || currentUserRole === 'super_admin';
   const [toast, setToast] = useState<ToastState | null>(null);
 
   useEffect(() => {

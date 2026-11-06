@@ -193,7 +193,7 @@ async function gotoTimeEntries(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('HR', { exact: true }).click();
-  await page.getByText('Collaborators Time Entries Control').click();
+  await page.getByText('Collaborator Time & Attendance').first().click();
   await expect(
     page.getByRole('main').getByRole('heading', { name: 'Time Entries Control', exact: true }),
   ).toBeVisible();

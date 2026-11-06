@@ -9,7 +9,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   detectAllergies,
   parseItemModifiers,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/kdsLocalization';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kdsLocalization';
 
 export interface KitchenAllergyModifierPickerProps {
   notes: string;

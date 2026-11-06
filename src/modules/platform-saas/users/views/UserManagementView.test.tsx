@@ -138,4 +138,23 @@ describe('UserManagementView', () => {
     expect(screen.getByLabelText(/security role/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/access scope/i)).toBeInTheDocument();
   });
+
+  it('excludes platform-level staff roles from the merchant user directory', async () => {
+    vi.mocked(getCompanyUsers).mockResolvedValueOnce([
+      ...MOCK_USERS,
+      {
+        id: 99,
+        username: 'superadmin_root',
+        email: 'root@x7pos.com',
+        role: 'super_admin',
+        scope: 'portal',
+        isActive: true,
+        merchantId: 5,
+        merchant: DOWNTOWN,
+      },
+    ]);
+    renderView();
+    expect(await screen.findByText('jdoe')).toBeInTheDocument();
+    expect(screen.queryByText('superadmin_root')).not.toBeInTheDocument();
+  });
 });

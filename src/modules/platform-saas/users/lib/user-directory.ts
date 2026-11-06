@@ -7,7 +7,10 @@ export const USER_ROLE_OPTIONS: string[] = Object.values(UserRole);
 export const SCOPE_OPTIONS: string[] = Object.values(Scope);
 
 /** Turns an enum value like `merchant_admin` into `Merchant Admin`. */
-export function formatEnumLabel(value: string): string {
+export function formatEnumLabel(value?: string | null): string {
+  if (!value) {
+    return '—';
+  }
   return value
     .split('_')
     .filter(Boolean)

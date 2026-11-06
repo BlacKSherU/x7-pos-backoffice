@@ -1,4 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import {
+  isFeatureAuthorized,
+  subscribeAuthorizedFeatures,
+} from '@/platform/navigation/module-nav-hubs';
 
 export type QuickLaunchAction = {
   id?: string;
@@ -22,6 +26,12 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
   actions,
   className = '',
 }) => {
+  const [, setAuthTick] = useState(0);
+  useEffect(() => subscribeAuthorizedFeatures(() => setAuthTick((t) => t + 1)), []);
+
+  const authorizedActions = actions.filter((action) => isFeatureAuthorized(action.id));
+  const visibleActions = authorizedActions.length > 0 ? authorizedActions : actions;
+
   return (
     <div
       className={`bg-[#2a2a2a] rounded-xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 ${className}`.trim()}
@@ -32,7 +42,7 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
       </div>
 
       <div className="flex flex-wrap justify-center md:justify-end gap-3 items-center">
-        {actions.map((action) => {
+        {visibleActions.map((action) => {
           if (action.active) {
             return (
               <span

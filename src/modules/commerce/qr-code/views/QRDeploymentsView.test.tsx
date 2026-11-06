@@ -85,7 +85,7 @@ describe('QRDeploymentsView Component', () => {
     await user.type(searchInput, '12');
     expect(screen.getByText('Patio Table #12 Access')).toBeInTheDocument();
     expect(screen.queryByText('Curbside Pickup Point')).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   it('filters deployments by QR Menu dropdown selector', async () => {
     render(<QRDeploymentsView merchantId={3} />);

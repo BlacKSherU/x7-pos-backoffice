@@ -21,7 +21,7 @@ describe('NavHubBar — scroll reset timers', () => {
       <NavHubBar items={[{ id: 'orders', label: 'ORDERS', onClick }]} isSidebarCollapsed />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'ORDERS' }));
+    fireEvent.click(screen.getByRole('button', { name: /orders/i }));
     expect(onClick).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
@@ -33,7 +33,7 @@ describe('NavHubBar — scroll reset timers', () => {
     render(
       <NavHubBar items={[{ id: 'orders', label: 'ORDERS', onClick: vi.fn() }]} isSidebarCollapsed />,
     );
-    const button = screen.getByRole('button', { name: 'ORDERS' });
+    const button = screen.getByRole('button', { name: /orders/i });
     fireEvent.click(button);
     const afterFirstClick = vi.getTimerCount();
 

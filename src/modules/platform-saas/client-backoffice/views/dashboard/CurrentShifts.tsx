@@ -95,7 +95,7 @@ export const CurrentShifts: React.FC<CurrentShiftsProps> = ({ refreshTrigger }) 
   }
 
   return (
-    <div className="bg-white border border-[#e8e2d8] flex flex-col h-[400px]">
+    <div className="bg-white border border-[#e8e2d8] flex flex-col h-[400px] select-none">
       <div className="p-4 border-b border-[#e8e2d8] flex justify-between items-center bg-[#f9f7f4]">
         <span className="font-label-caps text-label-caps text-[#222222]">CURRENT SHIFTS</span>
         <button

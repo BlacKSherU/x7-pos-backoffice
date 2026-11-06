@@ -4,8 +4,8 @@ import {
   detectAllergies,
   getLocalizedDishName,
   getLocalizedVariantName,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/kdsLocalization';
-import type { AllDayAggregatedItem } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kdsLocalization';
+import type { AllDayAggregatedItem } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
 
 interface KdsAllDayPrepBarProps {
   summary: { items: AllDayAggregatedItem[]; totalNeededCount: number };

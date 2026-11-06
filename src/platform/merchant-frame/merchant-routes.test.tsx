@@ -81,13 +81,13 @@ describe('getNavFromPath', () => {
   });
 
   it('uses the navigation state on /dashboard, falling back per field', () => {
-    expect(getNavFromPath('/dashboard')).toEqual({ category: 'core', tab: 'dashboard' });
-    expect(getNavFromPath('/dashboard', null, 'SaaS Owner')).toEqual({ category: 'saas', tab: 'saas-dashboard' });
+    expect(getNavFromPath('/dashboard')).toEqual({ category: 'merchant-portal', tab: 'dashboard' });
+    expect(getNavFromPath('/dashboard', null, 'SaaS Owner')).toEqual({ category: 'platform-saas', tab: 'saas-dashboard' });
     expect(getNavFromPath('/dashboard', { activeTab: 'kds-dashboard', activeCategory: 'kitchen' })).toEqual({
       category: 'kitchen',
       tab: 'kds-dashboard',
     });
-    expect(getNavFromPath('/dashboard', { activeTab: 'shifts-hub' })).toEqual({ category: 'core', tab: 'shifts-hub' });
+    expect(getNavFromPath('/dashboard', { activeTab: 'shifts-hub' })).toEqual({ category: 'merchant-portal', tab: 'shifts-hub' });
   });
 
   it('returns null for section URLs without a specific tab', () => {

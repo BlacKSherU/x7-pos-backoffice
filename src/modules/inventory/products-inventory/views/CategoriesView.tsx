@@ -360,9 +360,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
         </div>
 
         {/* Row 2: TYPES Pills Strip on left, Status Dropdown & Primary Add Button on right */}
-        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
           {/* Left: TYPES Pills Strip */}
-          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 no-scrollbar">
             <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
               Types:
             </span>

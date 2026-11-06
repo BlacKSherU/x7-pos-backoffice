@@ -469,12 +469,12 @@ describe('Tips Ledger Directory Workspace', () => {
       render(<TipsLedgerView companyId="cmp-01" merchantId="mch-01" />);
 
       await waitFor(() => {
-        expect(screen.getByText('TIPS LEDGER')).toBeInTheDocument();
-        expect(screen.getByText('TIP POOLS')).toBeInTheDocument();
-        expect(screen.getByText('POOL MEMBERS')).toBeInTheDocument();
-        expect(screen.getByText('TIP ALLOCATIONS')).toBeInTheDocument();
-        expect(screen.getByText('TIP SETTLEMENTS')).toBeInTheDocument();
-        expect(screen.getByText('CASH TIP MOVEMENTS')).toBeInTheDocument();
+        expect(screen.getByTestId('nav-link-tips-ledger')).toBeInTheDocument();
+        expect(screen.getByTestId('nav-link-tips-pools')).toBeInTheDocument();
+        expect(screen.getByTestId('nav-link-tips-pool-members')).toBeInTheDocument();
+        expect(screen.getByTestId('nav-link-tips-allocations')).toBeInTheDocument();
+        expect(screen.getByTestId('nav-link-tips-settlements')).toBeInTheDocument();
+        expect(screen.getByTestId('nav-link-tips-cash-movements')).toBeInTheDocument();
       });
     });
 
@@ -485,10 +485,10 @@ describe('Tips Ledger Directory Workspace', () => {
       render(<TipsLedgerView companyId="cmp-01" merchantId="mch-01" onNavigate={onNavigateMock} />);
 
       await waitFor(() => {
-        expect(screen.getByText('TIP POOLS')).toBeInTheDocument();
+        expect(screen.getByText(/tip pools/i)).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('TIP POOLS'));
+      fireEvent.click(screen.getByText(/tip pools/i));
 
       expect(onNavigateMock).toHaveBeenCalledWith('/tips/pools');
     });

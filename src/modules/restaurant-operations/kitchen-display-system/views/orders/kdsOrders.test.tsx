@@ -4,7 +4,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KitchenOrdersView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenOrdersView';
+import { KitchenOrdersView } from '@/modules/restaurant-operations/kitchen-display-system/views/orders/kdsOrders';
 import { calledRoutes, fakeBackend, jsonResponse } from '@/test/fetch';
 import { enqueueOfflineAction, flushOfflineQueue, getQueuedActions } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-offline-sync';
 

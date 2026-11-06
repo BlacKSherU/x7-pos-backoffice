@@ -7,7 +7,7 @@ import {
   mapKitchenStation,
   type KitchenTicket,
   type TicketItem,
-} from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
+} from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
 
 const NOW = Date.parse('2026-10-22T12:00:00Z');
 

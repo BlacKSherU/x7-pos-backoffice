@@ -4,6 +4,7 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { PlanApplication, SubscriptionPlan, Application } from '@/modules/platform-saas/subscription-system/types/subscription';
 import { SubscriptionPlanSelect } from '@/modules/platform-saas/subscription-system/views/SubscriptionPlanSelect';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 interface EditPlanApplicationDialogProps {
   pa: PlanApplication;
@@ -266,6 +267,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
   plan,
   onNavigate,
 }) => {
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanState, setSelectedPlanState] = useState<SubscriptionPlan | null>(plan || null);
   const [loadingPlans, setLoadingPlans] = useState<boolean>(!plan);
@@ -555,14 +557,16 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
-              <button
-                type="button"
-                onClick={openAssociateModal}
-                className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
-              >
-                <span className="material-symbols-outlined text-base">add_link</span>
-                ASSOCIATE APPLICATION
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={openAssociateModal}
+                  className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                  <span className="material-symbols-outlined text-base">add_link</span>
+                  ASSOCIATE APPLICATION
+                </button>
+              )}
             </div>
           )}
 
@@ -657,21 +661,25 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                             )}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <div className="flex justify-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                aria-label={`Edit ${pa.application.name}`}
-                                onClick={() => setEditingPA(pa)}
-                                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors"
-                              >
-                                <span className="material-symbols-outlined text-[20px]">edit</span>
-                              </button>
-                              <StatusToggleButton
-                                status={pa.status}
-                                entityLabel={pa.application.name}
-                                onClick={() => setTogglingPA(pa)}
-                              />
-                            </div>
+                            {isReadOnly ? (
+                              <span className="text-[11px] text-[#5f5e5e] font-medium">Read-only</span>
+                            ) : (
+                              <div className="flex justify-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  aria-label={`Edit ${pa.application.name}`}
+                                  onClick={() => setEditingPA(pa)}
+                                  className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <StatusToggleButton
+                                  status={pa.status}
+                                  entityLabel={pa.application.name}
+                                  onClick={() => setTogglingPA(pa)}
+                                />
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}

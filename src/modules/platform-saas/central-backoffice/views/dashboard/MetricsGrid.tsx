@@ -143,7 +143,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ refreshTrigger }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start select-none cursor-default">
       {/* Total Merchants Card */}
       <div className="bg-white border border-[#e8e2d8] p-6 flex flex-col justify-between min-h-[144px]">
         <div>

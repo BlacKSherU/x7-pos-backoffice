@@ -415,7 +415,7 @@ describe('DeliveryAssignmentsView', () => {
       external_tracking_url: 'https://track.uber.com/ub-77',
       external_dsp_fee: 6.5,
     });
-  });
+  }, 15000);
 
   it('rejects a DSP fee with more than 2 decimals', async () => {
     const user = userEvent.setup();

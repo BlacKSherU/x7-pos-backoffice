@@ -83,13 +83,34 @@ export function postJson<T>(
   );
 }
 
+export const SUPER_ADMIN_MERCHANT_KEY = 'x7_superadmin_merchant_id';
+
+export function getActiveSuperAdminMerchantId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(SUPER_ADMIN_MERCHANT_KEY);
+}
+
+export function setActiveSuperAdminMerchantId(merchantId: number | string | null): void {
+  if (typeof window === 'undefined') return;
+  if (!merchantId) {
+    localStorage.removeItem(SUPER_ADMIN_MERCHANT_KEY);
+  } else {
+    localStorage.setItem(SUPER_ADMIN_MERCHANT_KEY, String(merchantId));
+  }
+  window.dispatchEvent(
+    new CustomEvent('x7-superadmin-merchant-changed', { detail: { merchantId } }),
+  );
+}
+
 /** Cabeceras de una petición autenticada (Bearer del usuario en sesión). */
 export function authHeaders(includeJson = false): Record<string, string> {
   const token = getAccessToken();
+  const superAdminMerchantId = getActiveSuperAdminMerchantId();
   return {
     Accept: 'application/json',
     ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(superAdminMerchantId ? { 'x-merchant-id': superAdminMerchantId } : {}),
   };
 }
 
@@ -144,7 +165,9 @@ export async function saasRequest<T>(
   init: RequestInit,
   fallbackMessage: string,
 ): Promise<T> {
-  const token = getSaasToken();
+  // Platform staff sign in once through the regular login; the dedicated SaaS token is
+  // only an override, so fall back to the session's access token.
+  const token = getSaasToken() ?? getAccessToken();
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {

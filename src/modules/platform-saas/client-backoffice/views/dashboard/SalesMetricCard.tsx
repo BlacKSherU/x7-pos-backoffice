@@ -93,7 +93,7 @@ export const SalesMetricCard: React.FC<SalesMetricCardProps> = ({ refreshTrigger
   const maxSales = Math.max(...salesData.hourlyData.map((d) => d.sales)) || 1;
 
   return (
-    <div className="col-span-12 lg:col-span-8 bg-white border border-[#e8e2d8] p-6 relative overflow-hidden">
+    <div className="col-span-12 lg:col-span-8 bg-white border border-[#e8e2d8] p-6 relative overflow-hidden select-none">
       <div className="absolute top-0 right-0 w-32 h-32 opacity-5 pointer-events-none">
         <img
           className="w-full h-full object-cover"

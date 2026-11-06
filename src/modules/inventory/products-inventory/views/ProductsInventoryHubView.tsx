@@ -70,7 +70,6 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       subtitle: uncategorizedCount > 0 ? `${uncategorizedCount} need category` : 'Active saleable items',
       icon: 'inventory_2',
       variant: 'red',
-      onClick: () => onNavigate?.('products'),
     },
     {
       title: 'Active Categories',
@@ -78,7 +77,6 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       subtitle: 'Menu taxonomy tree',
       icon: 'category',
       variant: 'blue',
-      onClick: () => onNavigate?.('categories'),
     },
     {
       title: 'Product Variants',
@@ -86,7 +84,6 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       subtitle: 'Portion & sizing matrix',
       icon: 'style',
       variant: 'emerald',
-      onClick: () => onNavigate?.('variants'),
     },
     {
       title: 'Custom Modifiers',
@@ -94,16 +91,15 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
       subtitle: 'Add-on & choice groups',
       icon: 'tune',
       variant: 'amber',
-      onClick: () => onNavigate?.('modifiers'),
     },
   ];
 
   const modules: DashboardModuleItem[] = [
     {
       id: 'categories',
-      title: 'Category Management',
-      subtitle: 'Taxonomy & Families',
-      description: 'Organize menu and store catalog into structured departments, groups, and categories.',
+      title: 'Product Categories Hierarchy',
+      subtitle: 'Taxonomy & Category Families',
+      description: 'Organize menu items and retail products into structured departments, parent groups, and sub-categories.',
       icon: 'category',
       badge: `${categoriesCount || 'Live'} Categories`,
       badgeVariant: 'emerald',
@@ -111,19 +107,19 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
     },
     {
       id: 'products',
-      title: 'Product Management',
-      subtitle: 'Catalog & Retail Matrix',
+      title: 'Finished Products Catalog',
+      subtitle: 'Saleable Goods & POS Matrix',
       description: 'Manage saleable dishes and retail goods, pricing rules, tax rates, and kitchen display routing.',
       icon: 'inventory_2',
       badge: `${productsCount || 'Live'} Products`,
-      badgeVariant: 'rose',
+      badgeVariant: 'blue',
       actionText: 'Manage Products',
     },
     {
       id: 'variants',
-      title: 'Variants Management',
-      subtitle: 'Portions, Sizes & Pricing',
-      description: 'Define product variations such as sizing, colors, portions, and custom SKUs.',
+      title: 'Product Variants & Sizing',
+      subtitle: 'Portions, Sizes & Pricing Matrix',
+      description: 'Define product variations such as sizing, portions, combo choices, and SKU-level price overrides.',
       icon: 'style',
       badge: `${variantsCount || 'Matrix'} Variations`,
       badgeVariant: 'zinc',
@@ -131,9 +127,9 @@ export const ProductsInventoryHubView: React.FC<ProductsInventoryHubViewProps> =
     },
     {
       id: 'modifiers',
-      title: 'Modifiers Management',
-      subtitle: 'Options & Customizations',
-      description: 'Configure ingredient add-ons, removals, portion choices, and upcharge pricing rules.',
+      title: 'Custom Modifiers & Add-ons',
+      subtitle: 'Options, Toppings & Choices',
+      description: 'Configure ingredient add-ons, removals, portion choices, customer requests, and upcharge pricing rules.',
       icon: 'tune',
       badge: `${modifiersCount || 'Configured'} Groups`,
       badgeVariant: 'amber',

@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   createCompanyMerchant,
   deactivateCompanyMerchant,
+  getAllMerchants,
   getCompanyMerchants,
   getMerchantAdminSummary,
   updateCompanyMerchant,
 } from '@/modules/platform-saas/merchants/api/merchants';
 import { ApiError } from '@/shared/lib/api-error';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 import {
   MERCHANT_BRANCH_ACTION_TARGETS,
   MERCHANT_QUICK_LAUNCH_TARGETS,
@@ -51,8 +53,15 @@ function merchantToFormValues(merchant: CompanyMerchant): MerchantFormValues {
   };
 }
 
-export const MerchantDirectoryView: React.FC = () => {
+interface MerchantDirectoryViewProps {
+  scope?: 'company' | 'global';
+}
+
+export const MerchantDirectoryView: React.FC<MerchantDirectoryViewProps> = ({
+  scope = 'company',
+}) => {
   const navigate = useNavigate();
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [merchants, setMerchants] = useState<CompanyMerchant[]>([]);
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,14 +93,20 @@ export const MerchantDirectoryView: React.FC = () => {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
-  const loadMerchants = async () => {
+  const loadMerchants = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const { merchants: data, meta } = await getCompanyMerchants();
-      setMerchants(data);
-      setCompanyId(meta.companyId);
+      if (scope === 'global') {
+        const data = await getAllMerchants();
+        setMerchants(data);
+        setCompanyId(data[0]?.companyId ?? 1);
+      } else {
+        const { merchants: data, meta } = await getCompanyMerchants();
+        setMerchants(data);
+        setCompanyId(meta.companyId);
+      }
     } catch (err) {
       const message =
         err instanceof Error
@@ -101,13 +116,13 @@ export const MerchantDirectoryView: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [scope]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
       void loadMerchants();
     });
-  }, []);
+  }, [loadMerchants]);
 
   useEffect(() => {
     if (!successMessage) return;
@@ -306,14 +321,16 @@ export const MerchantDirectoryView: React.FC = () => {
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            ADD MERCHANT
-          </button>
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD MERCHANT
+            </button>
+          )}
         </div>
       </div>
 
@@ -434,6 +451,9 @@ export const MerchantDirectoryView: React.FC = () => {
                             </p>
                             <p className="text-body-sm text-secondary">
                               ID: {merchant.id}
+                              {scope === 'global' && merchant.company?.name
+                                ? ` • ${merchant.company.name}`
+                                : ''}
                             </p>
                           </div>
                         </div>
@@ -461,29 +481,35 @@ export const MerchantDirectoryView: React.FC = () => {
                         className="px-6 py-4 text-right"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <div className="flex justify-end gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(merchant)}
-                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
-                            title="Edit merchant"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">
-                              edit
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeactivateTarget(merchant)}
-                            disabled={merchant.status === 'inactive'}
-                            className="p-1 text-[#1d1c17] hover:text-[#ba1a1a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            title="Deactivate merchant"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">
-                              block
-                            </span>
-                          </button>
-                        </div>
+                        {isReadOnly ? (
+                          <span className="text-[11px] text-[#5f5e5e] font-medium">
+                            Read-only
+                          </span>
+                        ) : (
+                          <div className="flex justify-end gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(merchant)}
+                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                              title="Edit merchant"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">
+                                edit
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeactivateTarget(merchant)}
+                              disabled={merchant.status === 'inactive'}
+                              className="p-1 text-[#1d1c17] hover:text-[#ba1a1a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="Deactivate merchant"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">
+                                block
+                              </span>
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))

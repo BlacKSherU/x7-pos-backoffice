@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StockQuickLinks } from '@/modules/inventory/raw-materials/views/stocks/StockQuickLinks';
 import { NavHubBar } from '@/shared/components/NavHubBar';
 import { createPortal } from 'react-dom';
@@ -84,6 +84,10 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
     return urlParams.get('itemId') || '';
   });
 
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
   // Modal Record Movement
   const [isRecordOpen, setIsRecordOpen] = useState<boolean>(false);
   const [formSupplyId, setFormSupplyId] = useState<string>('');
@@ -140,6 +144,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
 
   const fetchMovements = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
     setError(null);
     try {
       const limitParam = pageSize === 9999 ? 500 : pageSize;
@@ -194,8 +199,27 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
       setError(msg);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [page, pageSize, itemNameFilter, itemIdFilter, movementTypeFilter]);
+
+  // Canonical auto refresh interval effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      void fetchMovements(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchMovements]);
+
+  const movementTypeCounts = useMemo(() => {
+    const all = totalItems > 0 ? totalItems : movements.length;
+    const receipts = movements.filter(m => (m.movementType || m.type) === 'PURCHASE_RECEIPT').length;
+    const transfers = movements.filter(m => (m.movementType || m.type) === 'TRANSFER').length;
+    const adjustments = movements.filter(m => (m.movementType || m.type) === 'ADJUSTMENT').length;
+    const depletions = movements.filter(m => (m.movementType || m.type) === 'POS_DEPLETION').length;
+    return { all, receipts, transfers, adjustments, depletions };
+  }, [movements, totalItems]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -342,56 +366,75 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
         </p>
       </div>
 
-      {/* Search panel and actions */}
-      <div className="bg-white border border-[#e8e2d8] rounded p-6 shadow-sm space-y-4">
-        {/* Fila 1: Buscador a ancho completo */}
-        <div className="relative w-full">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search stock movements by raw material name..."
-            value={itemNameFilter}
-            onChange={(e) => {
-              setItemNameFilter(e.target.value);
-              setPage(1);
-            }}
-            className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-md font-sans outline-none focus:border-[#ae001a]"
-          />
-        </div>
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Movement Type Selector, Auto Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search movements by material name..."
+                value={itemNameFilter}
+                onChange={(e) => {
+                  setItemNameFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search movements"
+              />
+              {itemNameFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setItemNameFilter('');
+                    setPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-        {/* Row 2: Filters on the left, Buttons on the right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Movement Type Filter */}
-            <select
-              value={movementTypeFilter}
-              onChange={(e) => {
-                setMovementTypeFilter(e.target.value);
-                setPage(1);
-              }}
-              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer font-bold"
-            >
-              <option value="ALL">All Movement Types</option>
-              <option value="PURCHASE_RECEIPT">Purchase Receipt</option>
-              <option value="PURCHASE_RECEIPT_CORRECTION">Purchase Correction</option>
-              <option value="POS_DEPLETION">POS Depletion</option>
-              <option value="ADJUSTMENT">Adjustment</option>
-              <option value="WASTE">Waste</option>
-              <option value="TRANSFER">Transfer</option>
-            </select>
+            {/* Movement Type Dropdown Selector */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">tune</span>
+              <select
+                value={movementTypeFilter}
+                onChange={(e) => {
+                  setMovementTypeFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[210px] transition-colors duration-200 font-semibold"
+                aria-label="Filter by movement type"
+              >
+                <option value="ALL">All Movement Types</option>
+                <option value="PURCHASE_RECEIPT">Purchase Receipt</option>
+                <option value="PURCHASE_RECEIPT_CORRECTION">Purchase Correction</option>
+                <option value="POS_DEPLETION">POS Depletion</option>
+                <option value="ADJUSTMENT">Adjustment</option>
+                <option value="WASTE">Waste</option>
+                <option value="TRANSFER">Transfer</option>
+              </select>
+            </div>
 
             {itemIdFilter && (
-              <div className="flex items-center gap-2 bg-[#fef9f1] border border-[#ae001a]/30 px-3 py-2 rounded text-xs font-bold text-[#ae001a] whitespace-nowrap">
-                <span>Filtered by Item #{itemIdFilter}</span>
+              <div className="flex items-center gap-1.5 bg-[#fef9f1] border border-[#ae001a]/30 px-2.5 py-1 rounded-lg text-xs font-bold text-[#ae001a] whitespace-nowrap h-[34px]">
+                <span>Item #{itemIdFilter}</span>
                 <button
                   onClick={() => {
                     setItemIdFilter('');
                     window.history.pushState({}, '', '/inventory/movements');
                     setPage(1);
                   }}
-                  className="text-zinc-500 hover:text-[#ae001a] font-bold cursor-pointer ml-1 text-sm"
+                  className="text-zinc-500 hover:text-[#ae001a] font-bold cursor-pointer ml-0.5 text-xs"
                   title="Clear item filter"
                 >
                   ✕
@@ -400,13 +443,172 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchMovements(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh movements log now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Operation Type Pills Strip on left, Primary Add Button on right */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: Operation Type Pills Strip */}
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 no-scrollbar">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Type:
+            </span>
+
+            {/* All Pill */}
             <button
-              onClick={() => setIsRecordOpen(true)}
-              className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+              type="button"
+              onClick={() => {
+                setMovementTypeFilter('ALL');
+                setPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                movementTypeFilter === 'ALL'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
             >
-              <span className="material-symbols-outlined text-sm">add</span>
-              <span>NEW MOVEMENT / ADJUSTMENT</span>
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  movementTypeFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {movementTypeCounts.all}
+              </span>
+            </button>
+
+            {/* Receipts Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setMovementTypeFilter(movementTypeFilter === 'PURCHASE_RECEIPT' ? 'ALL' : 'PURCHASE_RECEIPT');
+                setPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                movementTypeFilter === 'PURCHASE_RECEIPT'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">input</span>
+              <span>RECEIPTS</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  movementTypeFilter === 'PURCHASE_RECEIPT' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {movementTypeCounts.receipts}
+              </span>
+            </button>
+
+            {/* Transfers Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setMovementTypeFilter(movementTypeFilter === 'TRANSFER' ? 'ALL' : 'TRANSFER');
+                setPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                movementTypeFilter === 'TRANSFER'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-white text-blue-800 border-blue-200 hover:bg-blue-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">sync_alt</span>
+              <span>TRANSFERS</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  movementTypeFilter === 'TRANSFER' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                }`}
+              >
+                {movementTypeCounts.transfers}
+              </span>
+            </button>
+
+            {/* Adjustments Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setMovementTypeFilter(movementTypeFilter === 'ADJUSTMENT' ? 'ALL' : 'ADJUSTMENT');
+                setPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                movementTypeFilter === 'ADJUSTMENT'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">tune</span>
+              <span>ADJUSTMENTS</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  movementTypeFilter === 'ADJUSTMENT' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {movementTypeCounts.adjustments}
+              </span>
+            </button>
+
+            {/* Depletions Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setMovementTypeFilter(movementTypeFilter === 'POS_DEPLETION' ? 'ALL' : 'POS_DEPLETION');
+                setPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                movementTypeFilter === 'POS_DEPLETION'
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                  : 'bg-white text-purple-800 border-purple-200 hover:bg-purple-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">output</span>
+              <span>DEPLETIONS</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  movementTypeFilter === 'POS_DEPLETION' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'
+                }`}
+              >
+                {movementTypeCounts.depletions}
+              </span>
+            </button>
+          </div>
+
+          {/* Right: Primary Add Button & Reload */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsRecordOpen(true)}
+              className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              RECORD MOVEMENT
             </button>
           </div>
         </div>
@@ -905,14 +1107,14 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
       )}
 
       {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
-      <StockQuickLinks current="movements" onNavigate={onNavigate} />
+      <StockQuickLinks current="stock-movements" onNavigate={onNavigate} />
 
       {/* Persistent Raw Materials Navigation Hub Bar */}
       <NavHubBar
         title="RAW MATERIALS COMMAND HUB"
         titleIcon="inventory_2"
         subtitle="Purchase Orders, Stock Balances, Raw Materials &amp; Locations"
-        activeModuleId="movements"
+        activeModuleId="stock-movements"
         onBackToDashboard={() => onNavigate?.('raw-materials-dashboard')}
         backToDashboardLabel="RAW MATERIALS COMMAND HUB"
         items={[
@@ -935,17 +1137,17 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
             onClick: () => onNavigate?.('purchase-orders'),
           },
           {
-            id: 'stock-movements',
-            label: 'STOCK LEVELS',
+            id: 'stock-inventory',
+            label: 'STOCK & BALANCE',
             icon: 'table_rows',
-            onClick: () => onNavigate?.('stock-movements'),
+            onClick: () => onNavigate?.('stock-inventory'),
           },
           {
-            id: 'movements',
+            id: 'stock-movements',
             label: 'MOVEMENTS',
             icon: 'swap_vert',
             active: true,
-            onClick: () => onNavigate?.('movements'),
+            onClick: () => onNavigate?.('stock-movements'),
           },
           {
             id: 'locations',

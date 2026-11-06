@@ -16,18 +16,19 @@ export const KitchenDevResetButton: React.FC<KitchenDevResetButtonProps> = ({ on
     if (typeof window === 'undefined') return false;
     const user = getStoredUser();
     return Boolean(
-      import.meta.env.DEV ||
-      user?.role === 'merchant_admin' ||
       user?.role === 'super_admin' ||
-      user?.role === 'portal_admin' ||
-      user?.email?.includes('admin') ||
-      localStorage.getItem('x7_kds_dev_tools') === 'true'
+      user?.role === 'Super Admin (All Access)'
     );
   });
 
   useEffect(() => {
-    // Secret keyboard shortcut: Ctrl + Shift + D to toggle visibility
+    // Secret keyboard shortcut: Ctrl + Shift + D to toggle visibility (Super Admin only)
     const handleKeyDown = (e: KeyboardEvent) => {
+      const user = getStoredUser();
+      const isSuperAdmin =
+        user?.role === 'super_admin' || user?.role === 'Super Admin (All Access)';
+      if (!isSuperAdmin) return;
+
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         setIsVisible((prev) => {
@@ -42,7 +43,11 @@ export const KitchenDevResetButton: React.FC<KitchenDevResetButtonProps> = ({ on
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (!isVisible) return null;
+  const user = getStoredUser();
+  const isSuperAdmin =
+    user?.role === 'super_admin' || user?.role === 'Super Admin (All Access)';
+
+  if (!isSuperAdmin || !isVisible) return null;
 
   const handleAction = async (mode: 'seed' | 'clear' | 'simple' | 'multi' | 'multi2' | 'allergy') => {
     setLoading(true);

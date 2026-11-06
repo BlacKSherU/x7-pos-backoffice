@@ -97,7 +97,7 @@ export const TopSellingItems: React.FC<TopSellingItemsProps> = ({ refreshTrigger
   }
 
   return (
-    <div className="bg-white border border-[#e8e2d8] flex flex-col h-[400px]">
+    <div className="bg-white border border-[#e8e2d8] flex flex-col h-[400px] select-none">
       <div className="p-4 bg-[#222222] flex justify-between items-center">
         <span className="font-label-caps text-label-caps text-white">TOP SELLING ITEMS</span>
         <button

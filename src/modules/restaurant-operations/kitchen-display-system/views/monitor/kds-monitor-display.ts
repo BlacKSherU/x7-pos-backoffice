@@ -1,5 +1,5 @@
-import type { KDSLanguage } from '@/modules/restaurant-operations/kitchen-display-system/views/kdsLocalization';
-import type { CourseType, KitchenTicket } from '@/modules/restaurant-operations/kitchen-display-system/views/kds-monitor-model';
+import type { KDSLanguage } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kdsLocalization';
+import type { CourseType, KitchenTicket } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kds-monitor-model';
 
 // Presentación del monitor KDS: cuenta atrás, colores por prioridad y textos por tiempo de servicio.
 

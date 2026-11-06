@@ -4,6 +4,7 @@ import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas
 import type { PlanFeature, SubscriptionPlan, PlatformFeature } from '@/modules/platform-saas/subscription-system/types/subscription';
 import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/components/StatusToggle';
 import { SubscriptionPlanSelect } from '@/modules/platform-saas/subscription-system/views/SubscriptionPlanSelect';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 function isValidLimitValue(raw: string): boolean {
   return /^\d+(\.\d{1,2})?$/.test(raw.trim()) && Number(raw) > 0;
@@ -273,6 +274,7 @@ interface PlanFeaturesViewProps {
 }
 
 export const PlanFeaturesView: React.FC<PlanFeaturesViewProps> = ({ plan, onNavigate }) => {
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(plan ?? null);
   const [planFeatures, setPlanFeatures] = useState<PlanFeature[]>([]);
@@ -567,14 +569,16 @@ export const PlanFeaturesView: React.FC<PlanFeaturesViewProps> = ({ plan, onNavi
                   <option value="inactive">Inactive only</option>
                 </select>
               </div>
-              <button
-                type="button"
-                onClick={openMapModal}
-                className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
-              >
-                <span className="material-symbols-outlined text-base">add_link</span>
-                MAP FEATURE
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={openMapModal}
+                  className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                  <span className="material-symbols-outlined text-base">add_link</span>
+                  MAP FEATURE
+                </button>
+              )}
             </div>
           )}
 
@@ -665,21 +669,25 @@ export const PlanFeaturesView: React.FC<PlanFeaturesViewProps> = ({ plan, onNavi
                             )}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <div className="flex justify-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                aria-label={`Edit ${pf.feature.name}`}
-                                onClick={() => setEditingPF(pf)}
-                                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors"
-                              >
-                                <span className="material-symbols-outlined text-[20px]">edit</span>
-                              </button>
-                              <StatusToggleButton
-                                status={pf.status}
-                                entityLabel={pf.feature.name}
-                                onClick={() => setTogglingPF(pf)}
-                              />
-                            </div>
+                            {isReadOnly ? (
+                              <span className="text-[11px] text-[#5f5e5e] font-medium">Read-only</span>
+                            ) : (
+                              <div className="flex justify-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  aria-label={`Edit ${pf.feature.name}`}
+                                  onClick={() => setEditingPF(pf)}
+                                  className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <StatusToggleButton
+                                  status={pf.status}
+                                  entityLabel={pf.feature.name}
+                                  onClick={() => setTogglingPF(pf)}
+                                />
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}

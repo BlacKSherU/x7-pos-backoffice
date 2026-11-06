@@ -275,7 +275,7 @@ async function gotoContracts(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('HR', { exact: true }).click();
-  await page.getByText('Collaborators Contracts').click();
+  await page.getByText('Employment Contracts').first().click();
   await expect(
     page
       .getByRole('main')
