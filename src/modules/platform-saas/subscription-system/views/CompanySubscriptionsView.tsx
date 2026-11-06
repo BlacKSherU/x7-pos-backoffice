@@ -11,6 +11,7 @@ import {
   ModalFormError,
   ModalFormFooter,
 } from '@/shared/components/AppModal';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 
 const ALL = 'all';
 const HEADER_CLASS =
@@ -67,6 +68,7 @@ function statusBadge(s: CompanySubscription): { label: string; className: string
  * its plan.
  */
 export const CompanySubscriptionsView: React.FC = () => {
+  const isReadOnly = getStoredUser()?.role === 'portal_user';
   const [subscriptions, setSubscriptions] = useState<CompanySubscription[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -293,14 +295,18 @@ export const CompanySubscriptionsView: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(s)}
-                          aria-label={`Edit subscription of ${s.company.name}`}
-                          className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">edit</span>
-                        </button>
+                        {isReadOnly ? (
+                          <span className="text-[11px] text-[#5f5e5e] font-medium">Read-only</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(s)}
+                            aria-label={`Edit subscription of ${s.company.name}`}
+                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">edit</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

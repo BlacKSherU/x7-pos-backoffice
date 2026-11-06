@@ -4,6 +4,7 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { normalizeStatus } from '@/shared/components/statusToggleHelpers';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { Application } from '@/modules/platform-saas/subscription-system/types/subscription';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 
 interface PlatformApplicationsViewProps {
   onNavigate?: (view: string) => void;
@@ -278,6 +279,7 @@ function fuzzyMatch(query: string, target: string): boolean {
 }
 
 export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> = ({ onNavigate }) => {
+  const isReadOnly = getStoredUser()?.role === 'portal_user';
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -467,15 +469,17 @@ export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> =
           >
             Clear filters
           </button>
-          <button
-            type="button"
-            aria-label="Register Application"
-            onClick={() => setIsCreating(true)}
-            className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-base">add</span>
-            Register Application
-          </button>
+          {!isReadOnly && (
+            <button
+              type="button"
+              aria-label="Register Application"
+              onClick={() => setIsCreating(true)}
+              className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-base">add</span>
+              Register Application
+            </button>
+          )}
         </div>
       </div>
 
@@ -590,21 +594,25 @@ export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> =
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          aria-label={`Edit ${app.name}`}
-                          onClick={() => setEditingApp(app)}
-                          className="p-1 transition-colors hover:text-[#ae001a]"
-                        >
-                          <span className="material-symbols-outlined text-xl">edit</span>
-                        </button>
-                        <StatusToggleButton
-                          status={app.status}
-                          entityLabel={app.name}
-                          onClick={() => setTogglingApp(app)}
-                        />
-                      </div>
+                      {isReadOnly ? (
+                        <span className="text-[11px] text-[#5f5e5e] font-medium">Read-only</span>
+                      ) : (
+                        <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${app.name}`}
+                            onClick={() => setEditingApp(app)}
+                            className="p-1 transition-colors hover:text-[#ae001a]"
+                          >
+                            <span className="material-symbols-outlined text-xl">edit</span>
+                          </button>
+                          <StatusToggleButton
+                            status={app.status}
+                            entityLabel={app.name}
+                            onClick={() => setTogglingApp(app)}
+                          />
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))

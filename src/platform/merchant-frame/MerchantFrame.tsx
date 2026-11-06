@@ -418,7 +418,6 @@ export const MerchantFrame: React.FC = () => {
     () => getStoredUser()?.email || 'superadmin@x7pos.com',
   );
   const [isSwitchingUser, setIsSwitchingUser] = useState<boolean>(false);
-  const isImpersonating = Boolean(localStorage.getItem('x7_superadmin_impersonating'));
 
   const handleMerchantSwitch = (newMerchantId: string) => {
     setActiveMerchantId(newMerchantId);
@@ -430,8 +429,7 @@ export const MerchantFrame: React.FC = () => {
     const role = profile?.role ?? getStoredUser()?.role;
     const canSwitchUsers =
       role === 'super_admin' ||
-      role === 'Super Admin (All Access)' ||
-      isImpersonating;
+      role === 'Super Admin (All Access)';
     if (!canSwitchUsers) return;
 
     const fallbackUsers: Record<string, MerchantStaffUser[]> = {
@@ -497,19 +495,6 @@ export const MerchantFrame: React.FC = () => {
       }
     };
 
-    // Only super_admin, portal_admin, portal_user, or merchant_admin (of the same merchant)
-    // can call GET /users/merchant/:merchantId; impersonated staff roles use the preloaded list directly.
-    const canFetchFromApi =
-      role === 'super_admin' ||
-      role === 'portal_admin' ||
-      role === 'portal_user' ||
-      role === 'merchant_admin';
-
-    if (!canFetchFromApi) {
-      applyUsersList(fallbackUsers[String(activeMerchantId)] || []);
-      return;
-    }
-
     let ignore = false;
     apiRequest<{ data: MerchantStaffUser[] }>(
       `/users/merchant/${activeMerchantId}`,
@@ -530,18 +515,14 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [activeMerchantId, refreshTrigger, profile?.role, isImpersonating]);
+  }, [activeMerchantId, refreshTrigger, profile?.role]);
 
   const handleSwitchToUser = async (targetEmail: string) => {
     try {
       setIsSwitchingUser(true);
       const res = await login(targetEmail, 'softPassword');
       saveAuthSession(res.access_token, res.refreshToken, res.user, true);
-      if (res.user.role === 'super_admin') {
-        localStorage.removeItem('x7_superadmin_impersonating');
-      } else {
-        localStorage.setItem('x7_superadmin_impersonating', 'true');
-      }
+      localStorage.removeItem('x7_superadmin_impersonating');
       // Platform accounts keep the store the super admin was working on.
       if (!PLATFORM_ROLES.includes(res.user.role)) {
         setActiveSuperAdminMerchantId(res.user.merchant?.id || activeMerchantId);
@@ -550,20 +531,6 @@ export const MerchantFrame: React.FC = () => {
     } catch (err) {
       console.error('Failed to impersonate user:', err);
       alert(`Could not log in as ${targetEmail}: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsSwitchingUser(false);
-    }
-  };
-
-  const handleReturnToSuperAdmin = async () => {
-    try {
-      setIsSwitchingUser(true);
-      const res = await login('superadmin@x7pos.com', 'softPassword');
-      saveAuthSession(res.access_token, res.refreshToken, res.user, true);
-      localStorage.removeItem('x7_superadmin_impersonating');
-      window.location.href = '/dashboard';
-    } catch (err) {
-      console.error('Failed to return to Super Admin:', err);
     } finally {
       setIsSwitchingUser(false);
     }
@@ -1099,8 +1066,7 @@ export const MerchantFrame: React.FC = () => {
       <LoginGatewayModal isOpen={false} onLoginSuccess={handleLoginSuccess} />
 
       {(profile?.role === 'super_admin' ||
-        profile?.role === 'Super Admin (All Access)' ||
-        isImpersonating) && (
+        profile?.role === 'Super Admin (All Access)') && (
         <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
           isSidebarCollapsed ? 'left-6' : 'left-[272px]'
         }`}>
@@ -1244,21 +1210,6 @@ export const MerchantFrame: React.FC = () => {
                 </span>
               </button>
             </div>
-
-            {/* Return to Super Admin option when impersonating */}
-            {isImpersonating && (
-              <div className="border-t border-white/10 pt-2.5">
-                <button
-                  type="button"
-                  disabled={isSwitchingUser}
-                  onClick={handleReturnToSuperAdmin}
-                  className="w-full py-2 px-3 text-center text-xs font-bold rounded-lg flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[15px]">admin_panel_settings</span>
-                  <span>Return to Super Admin (superadmin@x7pos.com)</span>
-                </button>
-              </div>
-            )}
 
             {/* Auth Session / 401 Testing */}
             <div className="border-t border-white/10 pt-2.5 space-y-1.5">

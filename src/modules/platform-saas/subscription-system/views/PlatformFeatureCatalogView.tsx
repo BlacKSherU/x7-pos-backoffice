@@ -4,6 +4,7 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { normalizeStatus } from '@/shared/components/statusToggleHelpers';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { PlatformFeature } from '@/modules/platform-saas/subscription-system/types/subscription';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 
 interface PlatformFeatureCatalogViewProps {
   onNavigate?: (view: string) => void;
@@ -278,6 +279,7 @@ function fuzzyMatch(query: string, target: string): boolean {
 }
 
 export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProps> = ({ onNavigate }) => {
+  const isReadOnly = getStoredUser()?.role === 'portal_user';
   const [features, setFeatures] = useState<PlatformFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -453,7 +455,7 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
               Clear Filters
             </button>
           )}
-          {!isCreating && (
+          {!isCreating && !isReadOnly && (
             <button
               type="button"
               aria-label="Create Feature"
@@ -580,22 +582,26 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            aria-label={`Edit ${feature.name}`}
-                            onClick={() => setEditingFeature(feature)}
-                            className="p-1 transition-colors hover:text-[#ae001a]"
-                          >
-                            <span className="material-symbols-outlined text-xl">edit</span>
-                          </button>
-                          <StatusToggleButton
-                            status={feature.status}
-                            entityLabel={feature.name}
-                            onClick={() => setTogglingFeature(feature)}
-                          />
-                        </div>
+                      <td className="px-6 py-4 text-center">
+                        {isReadOnly ? (
+                          <span className="text-[11px] text-[#5f5e5e] font-medium">Read-only</span>
+                        ) : (
+                          <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              aria-label={`Edit ${feature.name}`}
+                              onClick={() => setEditingFeature(feature)}
+                              className="p-1 transition-colors hover:text-[#ae001a]"
+                            >
+                              <span className="material-symbols-outlined text-xl">edit</span>
+                            </button>
+                            <StatusToggleButton
+                              status={feature.status}
+                              entityLabel={feature.name}
+                              onClick={() => setTogglingFeature(feature)}
+                            />
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))

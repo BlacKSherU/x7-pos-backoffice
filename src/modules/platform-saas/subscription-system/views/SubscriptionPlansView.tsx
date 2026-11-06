@@ -4,6 +4,7 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { normalizeStatus } from '@/shared/components/statusToggleHelpers';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { SubscriptionPlan, CreateSubscriptionPlanDto } from '@/modules/platform-saas/subscription-system/types/subscription';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 
 const BILLING_CYCLES: CreateSubscriptionPlanDto['billingCycle'][] = [
   'daily',
@@ -31,6 +32,7 @@ interface SubscriptionPlansViewProps {
 }
 
 export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ onNavigate }) => {
+  const isReadOnly = getStoredUser()?.role === 'portal_user';
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -324,14 +326,16 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
             <option value="active">active</option>
             <option value="inactive">inactive</option>
           </select>
-          <button
-            type="button"
-            onClick={openModal}
-            className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl flex items-center gap-1.5 hover:bg-[#930015] transition-colors"
-          >
-            <span className="material-symbols-outlined text-lg">add</span>
-            ADD PLAN
-          </button>
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={openModal}
+              className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl flex items-center gap-1.5 hover:bg-[#930015] transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+              ADD PLAN
+            </button>
+          )}
         </div>
       </div>
 
@@ -468,19 +472,23 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
                         >
                           <span className="material-symbols-outlined text-xl">tune</span>
                         </button>
-                        <button
-                          type="button"
-                          aria-label={`Edit ${plan.name}`}
-                          onClick={() => openEditModal(plan)}
-                          className="p-1 transition-colors hover:text-[#ae001a]"
-                        >
-                          <span className="material-symbols-outlined text-xl">edit</span>
-                        </button>
-                        <StatusToggleButton
-                          status={plan.status}
-                          entityLabel={plan.name}
-                          onClick={() => setTogglingPlan(plan)}
-                        />
+                        {!isReadOnly && (
+                          <>
+                            <button
+                              type="button"
+                              aria-label={`Edit ${plan.name}`}
+                              onClick={() => openEditModal(plan)}
+                              className="p-1 transition-colors hover:text-[#ae001a]"
+                            >
+                              <span className="material-symbols-outlined text-xl">edit</span>
+                            </button>
+                            <StatusToggleButton
+                              status={plan.status}
+                              entityLabel={plan.name}
+                              onClick={() => setTogglingPlan(plan)}
+                            />
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -534,14 +542,16 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
       </footer>
 
       {/* FAB */}
-      <button
-        type="button"
-        onClick={openModal}
-        className="fixed bottom-32 right-8 w-14 h-14 bg-[#ae001a] text-white rounded-full flex items-center justify-center shadow-xl hover:bg-[#930015] transition-all hover:scale-110 active:scale-95 z-50"
-        title="New Plan"
-      >
-        <span className="material-symbols-outlined text-2xl">add</span>
-      </button>
+      {!isReadOnly && (
+        <button
+          type="button"
+          onClick={openModal}
+          className="fixed bottom-32 right-8 w-14 h-14 bg-[#ae001a] text-white rounded-full flex items-center justify-center shadow-xl hover:bg-[#930015] transition-all hover:scale-110 active:scale-95 z-50"
+          title="New Plan"
+        >
+          <span className="material-symbols-outlined text-2xl">add</span>
+        </button>
+      )}
 
       {/* Add Plan Modal */}
       {showModal && (

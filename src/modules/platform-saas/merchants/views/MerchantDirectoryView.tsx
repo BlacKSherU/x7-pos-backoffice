@@ -9,6 +9,7 @@ import {
   updateCompanyMerchant,
 } from '@/modules/platform-saas/merchants/api/merchants';
 import { ApiError } from '@/shared/lib/api-error';
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import {
   MERCHANT_BRANCH_ACTION_TARGETS,
   MERCHANT_QUICK_LAUNCH_TARGETS,
@@ -60,6 +61,7 @@ export const MerchantDirectoryView: React.FC<MerchantDirectoryViewProps> = ({
   scope = 'company',
 }) => {
   const navigate = useNavigate();
+  const isReadOnly = getStoredUser()?.role === 'portal_user';
   const [merchants, setMerchants] = useState<CompanyMerchant[]>([]);
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -319,14 +321,16 @@ export const MerchantDirectoryView: React.FC<MerchantDirectoryViewProps> = ({
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            ADD MERCHANT
-          </button>
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD MERCHANT
+            </button>
+          )}
         </div>
       </div>
 
@@ -477,29 +481,35 @@ export const MerchantDirectoryView: React.FC<MerchantDirectoryViewProps> = ({
                         className="px-6 py-4 text-right"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <div className="flex justify-end gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(merchant)}
-                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
-                            title="Edit merchant"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">
-                              edit
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeactivateTarget(merchant)}
-                            disabled={merchant.status === 'inactive'}
-                            className="p-1 text-[#1d1c17] hover:text-[#ba1a1a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            title="Deactivate merchant"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">
-                              block
-                            </span>
-                          </button>
-                        </div>
+                        {isReadOnly ? (
+                          <span className="text-[11px] text-[#5f5e5e] font-medium">
+                            Read-only
+                          </span>
+                        ) : (
+                          <div className="flex justify-end gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(merchant)}
+                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                              title="Edit merchant"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">
+                                edit
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeactivateTarget(merchant)}
+                              disabled={merchant.status === 'inactive'}
+                              className="p-1 text-[#1d1c17] hover:text-[#ba1a1a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="Deactivate merchant"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">
+                                block
+                              </span>
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))
