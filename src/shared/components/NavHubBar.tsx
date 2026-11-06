@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  isFeatureAuthorized,
+  subscribeAuthorizedFeatures,
+} from '@/platform/navigation/module-nav-hubs';
 
 export interface NavHubItem {
   id: string;
@@ -482,6 +486,12 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
   backToDashboardLabel,
 }) => {
   const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [, setAuthTick] = useState(0);
+  useEffect(() => subscribeAuthorizedFeatures(() => setAuthTick((t) => t + 1)), []);
+
+  const authorizedItems = items.filter((item) => isFeatureAuthorized(item.id));
+  const visibleItems = authorizedItems.length > 0 ? authorizedItems : items;
+
   const handleBack = onBackToDashboard || onBack;
   // Deferred scroll resets from scrollToPageTop. Cancelled on unmount: a pending
   // timer that fires after the page (or a test's jsdom) is gone throws
@@ -601,7 +611,7 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
 
         {/* Center Slot: Navigation Buttons Array (Spaced & Centered in 1 Single Line) */}
         <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = item.active || (activeModuleId ? item.id === activeModuleId : false);
             const displayLabel = formatNavHubLabel(item.label, item.id);
             return (

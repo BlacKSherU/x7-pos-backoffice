@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import {
+  isFeatureAuthorized,
+  subscribeAuthorizedFeatures,
+} from '@/platform/navigation/module-nav-hubs';
 
 export type DashboardKPIVariant = 'red' | 'blue' | 'amber' | 'emerald' | 'purple' | 'zinc';
 export type DashboardBadgeVariant = 'emerald' | 'blue' | 'amber' | 'purple' | 'zinc' | 'rose';
@@ -123,6 +127,12 @@ export const StandardDashboardHub: React.FC<StandardDashboardHubProps> = ({
   onModuleClick,
   children,
 }) => {
+  const [, setAuthTick] = useState(0);
+  useEffect(() => subscribeAuthorizedFeatures(() => setAuthTick((t) => t + 1)), []);
+
+  const authorizedModules = modules.filter((mod) => isFeatureAuthorized(mod.id));
+  const visibleModules = authorizedModules.length > 0 ? authorizedModules : modules;
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-sans pb-12 w-full">
       {/* 1. Header Card Hub */}
@@ -220,18 +230,18 @@ export const StandardDashboardHub: React.FC<StandardDashboardHubProps> = ({
 
       {/* 3. Sub-Module Command Cards Grid (3 cards per row; centered if bottom row has fewer than 3) */}
       <div className="dashboard-hub-grid grid grid-cols-1 md:grid-cols-6 gap-4 mt-2 w-full">
-        {modules.map((mod, idx) => {
-          const remainder = modules.length % 3;
+        {visibleModules.map((mod, idx) => {
+          const remainder = visibleModules.length % 3;
           let positioningClass = 'dashboard-card-span md:col-span-2';
 
-          if (remainder === 1 && idx === modules.length - 1) {
+          if (remainder === 1 && idx === visibleModules.length - 1) {
             // If 1 card on the last row: centered aligned with second card (cols 3 and 4)
             positioningClass = 'dashboard-card-single-center md:col-start-3 md:col-span-2';
           } else if (remainder === 2) {
-            if (idx === modules.length - 2) {
+            if (idx === visibleModules.length - 2) {
               // If there are 2: the 1st is placed between the 1st and 2nd square (cols 2 and 3)
               positioningClass = 'dashboard-card-pair-first md:col-start-2 md:col-span-2';
-            } else if (idx === modules.length - 1) {
+            } else if (idx === visibleModules.length - 1) {
               // If there are 2: the 2nd is placed between the 2nd and 3rd square (cols 4 and 5)
               positioningClass = 'dashboard-card-pair-second md:col-start-4 md:col-span-2';
             }

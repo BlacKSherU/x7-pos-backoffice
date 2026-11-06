@@ -462,6 +462,55 @@ let dynamicHubs: ModuleNavHub[] = [];
 const DYNAMIC_HUB_BY_FEATURE = new Map<string, ModuleNavHub>();
 const DYNAMIC_HUB_BY_ID = new Map<string, ModuleNavHub>();
 
+let authorizedFeatureCodes: Set<string> | null = null;
+const authorizedFeatureListeners = new Set<() => void>();
+
+/**
+ * Updates the active set of authorized feature codes for the current session / user preview.
+ * Pass null to allow all features without filtering.
+ */
+export function setAuthorizedFeatures(codes: Iterable<string> | null): void {
+  authorizedFeatureCodes = codes ? new Set(codes) : null;
+  for (const listener of authorizedFeatureListeners) {
+    listener();
+  }
+}
+
+/**
+ * Subscribes a listener to changes in authorized feature codes.
+ */
+export function subscribeAuthorizedFeatures(listener: () => void): () => void {
+  authorizedFeatureListeners.add(listener);
+  return () => {
+    authorizedFeatureListeners.delete(listener);
+  };
+}
+
+/**
+ * Checks whether a given feature code is authorized in the current navigation tree.
+ * Non-navigation action IDs (not present in any static or dynamic hub) are allowed by default.
+ */
+export function isFeatureAuthorized(featureId?: string | null): boolean {
+  if (!featureId || !authorizedFeatureCodes) return true;
+  if (authorizedFeatureCodes.has(featureId)) return true;
+  const isKnownNavFeature =
+    HUB_BY_FEATURE.has(featureId) || DYNAMIC_HUB_BY_FEATURE.has(featureId);
+  if (!isKnownNavFeature) return true;
+  return false;
+}
+
+function filterHubItems(hub: ModuleNavHub | null): ModuleNavHub | null {
+  if (!hub) return null;
+  if (!authorizedFeatureCodes) return hub;
+  const filteredItems = hub.items.filter((item) =>
+    isFeatureAuthorized(item.featureId),
+  );
+  return {
+    ...hub,
+    items: filteredItems.length > 0 ? filteredItems : hub.items,
+  };
+}
+
 /**
  * Registers dynamic command hubs generated from the navigation catalog (GET /api/me/navigation).
  */
@@ -498,20 +547,22 @@ export function getDynamicNavHubs(): ModuleNavHub[] {
 
 /** Module to which a featureId belongs (to mount its bar), or null. */
 export const navHubForFeature = (featureId: string): ModuleNavHub | null =>
-  HUB_BY_FEATURE.get(featureId) ?? DYNAMIC_HUB_BY_FEATURE.get(featureId) ?? null;
+  filterHubItems(
+    HUB_BY_FEATURE.get(featureId) ?? DYNAMIC_HUB_BY_FEATURE.get(featureId) ?? null,
+  );
 
 /** Module whose Command Hub is this synthetic featureId (`<appId>-hub`), or null. */
 export const navHubById = (hubId: string): ModuleNavHub | null => {
   const staticByHubId = MODULE_NAV_HUBS.find((hub) => hub.hubId === hubId);
-  if (staticByHubId) return staticByHubId;
+  if (staticByHubId) return filterHubItems(staticByHubId);
 
   const staticByAppId = MODULE_NAV_HUBS.find((hub) => hub.appId === hubId);
   if (staticByAppId && !staticByAppId.items.some((item) => item.featureId === hubId)) {
-    return staticByAppId;
+    return filterHubItems(staticByAppId);
   }
 
   const dynamic = DYNAMIC_HUB_BY_ID.get(hubId);
-  if (dynamic) return dynamic;
+  if (dynamic) return filterHubItems(dynamic);
 
   return null;
 };

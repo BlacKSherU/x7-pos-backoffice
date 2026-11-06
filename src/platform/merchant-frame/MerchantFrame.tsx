@@ -33,7 +33,7 @@ import {
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
 import type { JournalEntry } from '@/modules/core/financial-engine/types/accounting';
 import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/types/accounts-payable';
-import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
+import { navHubById, navHubForFeature, setAuthorizedFeatures } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
 import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
 import { clearAuthSession, getStoredUser, setPreviewUserRole } from '@/platform/auth/lib/auth-storage';
@@ -522,6 +522,17 @@ export const MerchantFrame: React.FC = () => {
     loadMenu()
       .then((menu) => {
         if (!ignore) {
+          const allowedCodes = new Set<string>();
+          for (const cat of menu) {
+            for (const app of cat.applications) {
+              allowedCodes.add(app.id);
+              allowedCodes.add(`${app.id}-hub`);
+              for (const feat of app.features) {
+                allowedCodes.add(feat.id);
+              }
+            }
+          }
+          setAuthorizedFeatures(allowedCodes);
           setNavCategories(menu);
           setNavError(null);
           setIsNavLoading(false);
