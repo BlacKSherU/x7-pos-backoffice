@@ -22,17 +22,17 @@ describe('ModuleNavHubBar', () => {
     });
 
     for (const label of [
-      'Staff Collaborator Directory',
-      'Employment Contracts',
-      'Collaborator Time & Attendance',
+      'Collaborators',
+      'Contracts',
+      'Time Entries',
     ]) {
       expect(within(nav).getByRole('button', { name: label })).toBeInTheDocument();
     }
     expect(
-      within(nav).getByRole('button', { name: 'Employment Contracts' }),
+      within(nav).getByRole('button', { name: 'Contracts' }),
     ).toHaveAttribute('aria-current', 'page');
     expect(
-      within(nav).getByRole('button', { name: 'Staff Collaborator Directory' }),
+      within(nav).getByRole('button', { name: 'Collaborators' }),
     ).not.toHaveAttribute('aria-current');
   });
 
@@ -63,7 +63,7 @@ describe('ModuleNavHubBar', () => {
     );
 
     await user.click(
-      screen.getByRole('button', { name: 'Collaborator Time & Attendance' }),
+      screen.getByRole('button', { name: 'Time Entries' }),
     );
     expect(onNavigate).toHaveBeenCalledWith('collaborators-time-entries');
   });

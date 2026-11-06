@@ -107,7 +107,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
       setLocations(dataList);
     } catch (err: unknown) {
       console.error(err);
-      if (!silent) setError('Failed to load inventory locations. Please check if the backend is running.');
+      setError('Failed to load inventory locations. Please check if the backend is running.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -116,7 +116,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     void Promise.resolve().then(() => {
-      fetchLocations(true);
+      fetchLocations();
     });
   }, [fetchLocations]);
 

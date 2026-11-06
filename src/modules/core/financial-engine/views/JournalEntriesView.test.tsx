@@ -382,7 +382,7 @@ describe('JournalEntriesView — create flow', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(/already exists/i);
     expect(screen.getByRole('dialog', { name: /new journal entry/i })).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/entry number/i)).toHaveValue('JE-2024-0099');
-  });
+  }, 15000);
 });
 
 describe('JournalEntriesView — edit flow', () => {

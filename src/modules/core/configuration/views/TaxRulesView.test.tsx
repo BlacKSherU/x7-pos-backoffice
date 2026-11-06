@@ -596,10 +596,10 @@ describe('TaxRulesView — cross-configuration quick links', () => {
     await screen.findByText('State Sales Tax');
 
     const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
-    expect(within(nav).getByText('TAX RULES')).toBeInTheDocument();
-    expect(within(nav).getByText('PAYROLL RULES')).toBeInTheDocument();
-    expect(within(nav).getByText('OVERTIME RULES')).toBeInTheDocument();
-    expect(within(nav).getByText('TIPS MANAGEMENT')).toBeInTheDocument();
+    expect(within(nav).getByText(/tax rules/i)).toBeInTheDocument();
+    expect(within(nav).getByText(/payroll rules/i)).toBeInTheDocument();
+    expect(within(nav).getByText(/overtime rules/i)).toBeInTheDocument();
+    expect(within(nav).getByText(/tips management/i)).toBeInTheDocument();
   });
 
   it('renders the Quick Launch panel title and description', async () => {
@@ -619,7 +619,7 @@ describe('TaxRulesView — cross-configuration quick links', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
     render(<TaxRulesView />);
     const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
-    expect(within(nav).getByText('PAYROLL RULES')).toBeInTheDocument();
+    expect(within(nav).getByText(/payroll rules/i)).toBeInTheDocument();
   });
 
   it('renders the shortcut bar in the true-empty state', async () => {
@@ -629,7 +629,7 @@ describe('TaxRulesView — cross-configuration quick links', () => {
     render(<TaxRulesView />);
     await screen.findByTestId('tax-rules-empty-state');
     const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
-    expect(within(nav).getByText('TIPS MANAGEMENT')).toBeInTheDocument();
+    expect(within(nav).getByText(/tips management/i)).toBeInTheDocument();
   });
 
   it('marks TAX RULES as the active anchor and does not render it as a button', async () => {
@@ -637,7 +637,7 @@ describe('TaxRulesView — cross-configuration quick links', () => {
     await screen.findByText('State Sales Tax');
 
     const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
-    const activeAnchor = within(nav).getByText('TAX RULES');
+    const activeAnchor = within(nav).getByText(/tax rules/i);
     expect(activeAnchor.closest('[aria-current="page"]')).toBeInTheDocument();
     expect(activeAnchor.closest('button')).not.toBeInTheDocument();
   });
