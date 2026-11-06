@@ -533,9 +533,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   friendlyTitle = friendlyTitle.replace(/\s+(Command\s+)?Hub$/i, '').trim();
 
   // Initials fallback for user avatar when portraitUrl is missing
-  const getInitials = (name: string) => {
-    return name
+  const getInitials = (name?: string | null) => {
+    return (name || 'U')
       .split(' ')
+      .filter(Boolean)
       .map(n => n[0])
       .join('')
       .toUpperCase();
