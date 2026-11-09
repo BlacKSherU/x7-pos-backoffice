@@ -5,6 +5,7 @@ import type {
   SubscriptionPayment,
   ProvisionedApplication,
   SubscriptionLifecycleStatus,
+  SubscriptionPlan,
 } from '@/modules/platform-saas/subscription-system/types/subscription';
 import type { CompanyRegistryItem } from '@/modules/platform-saas/companies/types/company-registry';
 import { NavHubBar } from '@/shared/components/NavHubBar';
@@ -16,7 +17,7 @@ const SELECT_CLASS =
 
 export interface CompanySubscriptionViewProps {
   companyId?: number;
-  onNavigate?: (view: string, plan?: any, companyId?: number) => void;
+  onNavigate?: (view: string, plan?: SubscriptionPlan, companyId?: number) => void;
 }
 
 export function normalizeLifecycleStatus(

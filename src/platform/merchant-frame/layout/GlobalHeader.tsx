@@ -220,12 +220,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     }
   }
 
-  // Features belonging to a Module Command Hub (e.g. subscription-system) inherit its category
-  const featureHub = navHubForFeature(activeTab);
-  if (featureHub && !categoryName) {
-    categoryName = featureHub.category;
-  }
-
   // Domain tabs list to map Breadcrumbs accurately and immune to accordion clicks
   const restaurantOpsTabs = [
     'kitchen-stations',
