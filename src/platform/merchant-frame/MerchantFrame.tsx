@@ -191,6 +191,7 @@ export const MerchantFrame: React.FC = () => {
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
 
   // Auto-expand category strictly when activeTab changes (single accordion model)
@@ -1005,6 +1006,10 @@ export const MerchantFrame: React.FC = () => {
                           featureHub?.hubId === hubId ||
                           activeTab === hubId ||
                           activeTab === app.id;
+                        const isAppExpanded =
+                          sidebarSearchQuery.trim() !== '' ||
+                          Boolean(expandedApps[app.id]) ||
+                          isAppSelected;
 
                         const handleNavigateTarget = (targetId: string, route?: string) => {
                           setActiveCategory(cat.id);
