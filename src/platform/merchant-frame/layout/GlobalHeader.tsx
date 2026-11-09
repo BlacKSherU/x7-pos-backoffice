@@ -205,7 +205,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   const commandHub = navHubById(activeTab);
   if (commandHub && !commandHub.items.some((item) => item.featureId === activeTab)) {
     categoryName = commandHub.category;
-    activeFeatureName = commandHub.title.replace(/\s+(Command\s+)?Hub$/i, '').trim();
+    activeFeatureName = commandHub.title;
   }
 
   // 2. If activeTab is a feature inside a module hub, resolve its category and label
@@ -625,7 +625,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   }
 
   // Top Global Header should always have concise titles without redundant "Command Hub" suffix
-  friendlyTitle = friendlyTitle.replace(/\s+(Command\s+)?Hub$/i, '').trim();
+  if (activeTab !== 'subscription-system-hub' && activeTab !== 'subscription-hub') {
+    friendlyTitle = friendlyTitle.replace(/\s+(Command\s+)?Hub$/i, '').trim();
+  }
 
   // Initials fallback for user avatar when portraitUrl is missing
   const getInitials = (name?: string | null) => {
