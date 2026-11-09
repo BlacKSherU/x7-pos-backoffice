@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SubscriptionPlansView } from '@/modules/platform-saas/subscription-system/views/SubscriptionPlansView';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
+import type { SaaSMetrics } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
 
 vi.mock('@/modules/platform-saas/central-backoffice/api/saas-service', () => ({
@@ -569,7 +570,7 @@ describe('SubscriptionPlansView — Secondary Header, KPIs & Navigation Hub', ()
       quickService: { count: 1120, terminals: 4480 },
       fullRestaurant: { count: 942, terminals: 7536 },
       enterprise: { count: 780, terminals: 15600 },
-    } as any);
+    } as unknown as SaaSMetrics);
   });
 
   afterEach(() => {

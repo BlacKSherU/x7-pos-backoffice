@@ -1,12 +1,12 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CompanySubscriptionView } from './CompanySubscriptionView';
 import {
-  CompanySubscriptionView,
   normalizeLifecycleStatus,
   statusBadge,
   paymentStatusBadge,
-} from './CompanySubscriptionView';
+} from './company-subscription-helpers';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type {
   CompanySubscriptionDetail,

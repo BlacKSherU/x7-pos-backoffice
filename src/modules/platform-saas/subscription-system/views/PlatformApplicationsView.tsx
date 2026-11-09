@@ -278,7 +278,7 @@ function fuzzyMatch(query: string, target: string): boolean {
   return qi === q.length;
 }
 
-export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> = ({ onNavigate }) => {
+export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> = () => {
   const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);

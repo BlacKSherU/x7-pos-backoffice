@@ -3,7 +3,6 @@ import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas
 import type {
   MerchantSubscription,
   SubscriptionPlan,
-  UpdateMerchantSubscriptionDto,
 } from '@/modules/platform-saas/subscription-system/types/subscription';
 import {
   AppModal,
@@ -12,46 +11,17 @@ import {
   ModalFormFooter,
 } from '@/shared/components/AppModal';
 
+import {
+  toForm,
+  toUpdateMerchantDto,
+  type SubscriptionForm,
+} from '../lib/merchant-subscriptions';
+
 const ALL = 'all';
 const HEADER_CLASS =
   'px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]';
 const SELECT_CLASS =
   'text-sm border border-[#e8e2d8] bg-white text-[#1d1c17] px-3 py-2 focus:outline-none focus:border-[#ae001a]';
-
-interface SubscriptionForm {
-  planId: string;
-  status: 'active' | 'inactive';
-  startDate: string;
-  endDate: string;
-  renewalDate: string;
-  paymentMethod: string;
-}
-
-const toForm = (s: MerchantSubscription): SubscriptionForm => ({
-  planId: String(s.plan.id),
-  status: s.status,
-  startDate: s.startDate ? s.startDate.split('T')[0] : '',
-  endDate: s.endDate ? s.endDate.split('T')[0] : '',
-  renewalDate: s.renewalDate ? s.renewalDate.split('T')[0] : '',
-  paymentMethod: s.paymentMethod || '',
-});
-
-export function toUpdateMerchantDto(
-  original: MerchantSubscription,
-  form: SubscriptionForm,
-): UpdateMerchantSubscriptionDto {
-  const before = toForm(original);
-  const dto: UpdateMerchantSubscriptionDto = {};
-  if (form.planId !== before.planId) dto.planId = Number(form.planId);
-  if (form.status !== before.status) dto.status = form.status;
-  if (form.startDate !== before.startDate) dto.startDate = form.startDate;
-  if (form.endDate !== before.endDate) dto.endDate = form.endDate || null;
-  if (form.renewalDate !== before.renewalDate) dto.renewalDate = form.renewalDate || null;
-  if (form.paymentMethod.trim() !== before.paymentMethod) {
-    dto.paymentMethod = form.paymentMethod.trim();
-  }
-  return dto;
-}
 
 function statusBadge(s: MerchantSubscription): { label: string; className: string } {
   if (s.isExpired) return { label: 'Expired', className: 'bg-[#ae001a]/10 text-[#ae001a]' };

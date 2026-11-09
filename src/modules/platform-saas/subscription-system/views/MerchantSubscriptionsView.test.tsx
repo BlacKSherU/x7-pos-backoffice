@@ -1,10 +1,8 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  MerchantSubscriptionsView,
-  toUpdateMerchantDto,
-} from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
+import { MerchantSubscriptionsView } from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
+import { toUpdateMerchantDto } from '../lib/merchant-subscriptions';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type {
   MerchantSubscription,
