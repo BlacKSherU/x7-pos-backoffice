@@ -1,5 +1,25 @@
 //src/services/saasService.ts
-import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto, UpdatePlanApplicationDto, PlanFeature, CreatePlanFeatureDto, UpdatePlanFeatureDto, CompanySubscription, UpdateCompanySubscriptionDto } from '@/modules/platform-saas/subscription-system/types/subscription';
+import type {
+  SubscriptionPlan,
+  CreateSubscriptionPlanDto,
+  UpdateSubscriptionPlanDto,
+  Application,
+  PlatformFeature,
+  PlanApplication,
+  CreatePlanApplicationDto,
+  UpdatePlanApplicationDto,
+  PlanFeature,
+  CreatePlanFeatureDto,
+  UpdatePlanFeatureDto,
+  CompanySubscription,
+  CompanySubscriptionDetail,
+  SubscriptionPayment,
+  ProvisionedApplication,
+  SubscriptionLifecycleStatus,
+  UpdateCompanySubscriptionDto,
+  MerchantSubscription,
+  UpdateMerchantSubscriptionDto,
+} from '@/modules/platform-saas/subscription-system/types/subscription';
 import type { CompanyRegistryItem, CompanyRegistryPayload, CompanyRegistryStatus } from '@/modules/platform-saas/companies/types/company-registry';
 import type { PlatformUser } from '@/modules/platform-saas/users/types/user';
 import { saasRequest } from '@/shared/api/http';
@@ -455,6 +475,133 @@ export const saasService = {
   ): Promise<CompanySubscription> {
     const response = await saasApiFetch<{ data: CompanySubscription }>(
       `company-subscriptions/${id}`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+    return response.data;
+  },
+
+  // ── Company-level Subscription Operations ────────────────────────────
+  async getCompanySubscription(companyId: number): Promise<CompanySubscriptionDetail> {
+    try {
+      const response = await saasApiFetch<{ data: CompanySubscriptionDetail }>(
+        `companies/${companyId}/subscription`,
+      );
+      return response.data;
+    } catch {
+      // Fallback: search company-subscriptions by companyId
+      const all = await saasFetchAll<CompanySubscription>('company-subscriptions');
+      const found = all.find((s) => s.company?.id === companyId);
+      if (!found) {
+        throw new Error(`Subscription not found for company ${companyId}`);
+      }
+      return {
+        ...found,
+        billingCycle: found.billingCycle ?? 'MONTHLY',
+        price: found.price ?? (found.plan?.price ?? '0.00'),
+      };
+    }
+  },
+
+  async updateCompanySubscriptionStatus(
+    companyId: number,
+    status: SubscriptionLifecycleStatus,
+    options?: { immediate?: boolean; reason?: string },
+  ): Promise<CompanySubscriptionDetail> {
+    try {
+      const response = await saasApiFetch<{ data: CompanySubscriptionDetail }>(
+        `companies/${companyId}/subscription`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status,
+            immediate: options?.immediate ?? true,
+            reason: options?.reason,
+          }),
+        },
+      );
+      return response.data;
+    } catch {
+      // Fallback: update via company-subscriptions endpoint
+      const all = await saasFetchAll<CompanySubscription>('company-subscriptions');
+      const found = all.find((s) => s.company?.id === companyId);
+      if (found) {
+        const normalized = status.toLowerCase() === 'active' ? 'active' : 'inactive';
+        const updated = await this.updateCompanySubscription(found.id, {
+          status: normalized,
+          immediate: options?.immediate,
+          reason: options?.reason,
+        });
+        return {
+          ...updated,
+          status,
+        };
+      }
+      throw new Error(`Failed to update subscription status for company ${companyId}`);
+    }
+  },
+
+  async getCompanyPayments(companyId: number): Promise<SubscriptionPayment[]> {
+    try {
+      const response = await saasApiFetch<{ data: SubscriptionPayment[] }>(
+        `companies/${companyId}/payments`,
+      );
+      return response.data;
+    } catch {
+      try {
+        return await saasFetchAll<SubscriptionPayment>(`subscription-payments?companyId=${companyId}`);
+      } catch {
+        return [];
+      }
+    }
+  },
+
+  async getCompanySubscriptionApplications(
+    companyId: number,
+    planId?: number,
+  ): Promise<ProvisionedApplication[]> {
+    try {
+      const response = await saasApiFetch<{ data: ProvisionedApplication[] }>(
+        `companies/${companyId}/subscription/applications`,
+      );
+      return response.data;
+    } catch {
+      // Fallback: determine applications unlocked by the subscription plan
+      try {
+        let targetPlanId = planId;
+        if (!targetPlanId) {
+          const sub = await this.getCompanySubscription(companyId);
+          targetPlanId = sub.plan?.id;
+        }
+        const [allApps, planApps] = await Promise.all([
+          this.getApplications(),
+          targetPlanId ? this.getPlanApplications(targetPlanId) : Promise.resolve([]),
+        ]);
+        const unlockedAppIds = new Set(planApps.map((pa) => pa.application.id));
+        return allApps.map((app) => ({
+          id: app.id,
+          name: app.name,
+          code: app.code ?? app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          description: app.description ?? undefined,
+          category: app.category,
+          isProvisioned: unlockedAppIds.has(app.id),
+        }));
+      } catch {
+        return [];
+      }
+    }
+  },
+
+  // ── Merchant subscriptions ──────────────────────────────────────────
+  async listMerchantSubscriptions(): Promise<MerchantSubscription[]> {
+    return saasFetchAll<MerchantSubscription>('merchant-subscription');
+  },
+
+  async updateMerchantSubscription(
+    id: number,
+    dto: UpdateMerchantSubscriptionDto,
+  ): Promise<MerchantSubscription> {
+    const response = await saasApiFetch<{ data: MerchantSubscription }>(
+      `merchant-subscription/${id}`,
       { method: 'PATCH', body: JSON.stringify(dto) },
     );
     return response.data;

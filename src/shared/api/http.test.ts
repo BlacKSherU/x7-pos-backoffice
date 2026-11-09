@@ -58,6 +58,18 @@ describe('http client', () => {
       expect((init.headers as Record<string, string>).Authorization).toBe('Bearer saas-token');
     });
 
+    it('falls back to the access token when no SaaS admin token is present', async () => {
+      localStorage.setItem('x7_access_token', 'session-token');
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{"data":[]}', { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(saasRequest('/features', { method: 'GET' }, 'failed')).resolves.toEqual({ data: [] });
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('/api/features');
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer session-token');
+    });
+
     it('clears the SaaS session on a 401 and throws SESSION_EXPIRED', async () => {
       localStorage.setItem('x7_saas_admin_token', 'expired');
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })));
