@@ -37,3 +37,4 @@ export function toUpdateMerchantDto(
   }
   return dto;
 }
+

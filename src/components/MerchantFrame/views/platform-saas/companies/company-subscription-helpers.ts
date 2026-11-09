@@ -62,3 +62,4 @@ export function paymentStatusBadge(status: string): { label: string; className: 
   }
   return { label: status, className: 'bg-zinc-500/10 text-zinc-600 border-zinc-500/20' };
 }
+
