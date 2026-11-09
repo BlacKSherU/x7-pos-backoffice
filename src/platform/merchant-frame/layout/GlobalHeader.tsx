@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { UserProfile, SystemNotification } from '@/modules/platform-saas/client-backoffice/api/restaurant-service';
 import { apiRequest } from '@/shared/api/http';
-import { navHubById } from '@/platform/navigation/module-nav-hubs';
+import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import type { NavCategory } from '@/platform/navigation/navigationService';
 import logoX7 from '@/assets/logo-x7.png';
 
@@ -22,6 +22,7 @@ interface GlobalHeaderProps {
 
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   activeTab,
+  activeCategory,
   refreshTrigger,
   navCategories,
   notifications,
@@ -96,6 +97,16 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     { id: 'user-management', name: 'User Management', categoryId: 'saas', categoryName: 'Platform SaaS' },
     { id: 'company-profile', name: 'Company Profile', categoryId: 'saas', categoryName: 'Platform SaaS' },
     { id: 'company-configurations', name: 'Company Configurations', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'subscription-system-hub', name: 'Subscription System Command Hub', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'sub-plans-core', name: 'Subscription Plans', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'apps-config', name: 'Applications Configuration', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'features-control', name: 'Features Configuration', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'plan-apps-rules', name: 'Plan Applications Rules', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'plan-features-mapping', name: 'Plan Features Mapping', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'merchant-subs-link', name: 'Merchant Subscriptions', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'company-subscriptions', name: 'Company Subscriptions', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'sub-payments-billing', name: 'Subscription Payments', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'sub-apps-mapping', name: 'Subscription Applications', categoryId: 'saas', categoryName: 'Platform SaaS' },
     { id: 'online-stores', name: 'Online Stores Workspace', categoryId: 'commerce', categoryName: 'Commerce' },
     { id: 'online-menus', name: 'Online Menus Workspace', categoryId: 'commerce', categoryName: 'Commerce' },
     { id: 'online-menu-categories', name: 'Menu Categories Directory', categoryId: 'commerce', categoryName: 'Commerce' },
@@ -164,6 +175,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   if (commandHub) {
     categoryName = commandHub.category;
     activeFeatureName = commandHub.title;
+  }
+
+  // Features belonging to a Module Command Hub (e.g. subscription-system) inherit its category
+  const featureHub = navHubForFeature(activeTab);
+  if (featureHub && !categoryName) {
+    categoryName = featureHub.category;
   }
 
   // Domain tabs list to map Breadcrumbs accurately and immune to accordion clicks
@@ -245,6 +262,29 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'company-profile',
     'company-configurations',
     'saas-dashboard',
+    'companies',
+    'merchants',
+    'orders-registry',
+    'merchant-settlements',
+    'subscription-system-hub',
+    'subscription-hub',
+    'apps-config',
+    'features-control',
+    'merchant-subs-link',
+    'company-subscriptions',
+    'plan-apps-rules',
+    'plan-features-mapping',
+    'sub-plans-core',
+    'sub-apps-mapping',
+    'sub-payments-billing',
+    'subscription',
+    'subscription-system',
+    'subscription-applications',
+    'subscription-features',
+    'subscription-payments',
+    'subscription-live-installs',
+    'subscription-plan-applications',
+    'subscription-plan-features',
   ];
 
   const onlineOrderingTabs = [
@@ -303,6 +343,42 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     categoryName = 'CORE';
   } else if (saasTabs.includes(activeTab)) {
     categoryName = 'Platform SaaS';
+    if (activeTab === 'subscription-system-hub' || activeTab === 'subscription-hub') {
+      activeFeatureName = 'Subscription System Command Hub';
+    } else if (activeTab === 'sub-plans-core' || activeTab === 'subscription') {
+      activeFeatureName = 'Subscription Plans';
+    } else if (activeTab === 'apps-config' || activeTab === 'subscription-applications') {
+      activeFeatureName = 'Apps Config';
+    } else if (activeTab === 'features-control' || activeTab === 'subscription-features') {
+      activeFeatureName = 'Features Control';
+    } else if (activeTab === 'plan-apps-rules' || activeTab === 'subscription-plan-applications') {
+      activeFeatureName = 'Plan Apps Rules';
+    } else if (activeTab === 'plan-features-mapping' || activeTab === 'subscription-plan-features') {
+      activeFeatureName = 'Plan Features Mapping';
+    } else if (
+      activeTab === 'company-subscriptions' ||
+      activeTab === 'subscription-company-subscriptions'
+    ) {
+      activeFeatureName = 'Company Subscriptions';
+    } else if (
+      activeTab === 'merchant-subs-link' ||
+      activeTab === 'merchant-subscriptions' ||
+      activeTab === 'subscription-merchant-subscriptions'
+    ) {
+      activeFeatureName = 'Merchant Subscriptions';
+    } else if (activeTab === 'sub-payments-billing' || activeTab === 'subscription-payments') {
+      activeFeatureName = 'Subscription Payments';
+    } else if (activeTab === 'sub-apps-mapping' || activeTab === 'subscription-live-installs') {
+      activeFeatureName = 'Subscription Applications';
+    } else if (activeTab === 'companies') {
+      activeFeatureName = 'Companies Registry';
+    } else if (activeTab === 'merchants') {
+      activeFeatureName = 'Merchants Registry';
+    } else if (activeTab === 'orders-registry') {
+      activeFeatureName = 'Orders Registry';
+    } else if (activeTab === 'merchant-settlements') {
+      activeFeatureName = 'Merchant Settlements';
+    }
   } else if (onlineOrderingTabs.includes(activeTab)) {
     categoryName = 'Commerce';
     if (activeTab === 'online-ordering-hub' || activeTab === 'online-ordering-dashboard') activeFeatureName = 'Online Ordering Command Hub';
@@ -329,7 +405,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   }
 
   // Fallbacks
-  if (!categoryName) categoryName = 'SYSTEM';
+  if (!categoryName) {
+    if (activeCategory === 'platformsaas' || activeCategory === 'saas') {
+      categoryName = 'Platform SaaS';
+    } else {
+      categoryName = 'SYSTEM';
+    }
+  }
   if (!activeFeatureName) activeFeatureName = activeTab.replace(/-/g, ' ').toUpperCase();
 
   // Breadcrumb: Only first (L1 Category) and third (Active L3 Feature), skipping intermediate application
@@ -388,6 +470,33 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Company Profile';
   } else if (activeTab === 'company-configurations') {
     friendlyTitle = 'Company Configurations';
+  } else if (activeTab === 'subscription-system-hub' || activeTab === 'subscription-hub') {
+    friendlyTitle = 'Subscription System Command Hub';
+  } else if (activeTab === 'sub-plans-core' || activeTab === 'subscription') {
+    friendlyTitle = 'Subscription Plans';
+  } else if (activeTab === 'apps-config' || activeTab === 'subscription-applications') {
+    friendlyTitle = 'Apps Config';
+  } else if (activeTab === 'features-control' || activeTab === 'subscription-features') {
+    friendlyTitle = 'Features Control';
+  } else if (activeTab === 'plan-apps-rules' || activeTab === 'subscription-plan-applications') {
+    friendlyTitle = 'Plan Apps Rules';
+  } else if (activeTab === 'plan-features-mapping' || activeTab === 'subscription-plan-features') {
+    friendlyTitle = 'Plan Features Mapping';
+  } else if (
+    activeTab === 'company-subscriptions' ||
+    activeTab === 'subscription-company-subscriptions'
+  ) {
+    friendlyTitle = 'Company Subscriptions';
+  } else if (
+    activeTab === 'merchant-subs-link' ||
+    activeTab === 'merchant-subscriptions' ||
+    activeTab === 'subscription-merchant-subscriptions'
+  ) {
+    friendlyTitle = 'Merchant Subscriptions';
+  } else if (activeTab === 'sub-payments-billing' || activeTab === 'subscription-payments') {
+    friendlyTitle = 'Subscription Payments';
+  } else if (activeTab === 'sub-apps-mapping' || activeTab === 'subscription-live-installs') {
+    friendlyTitle = 'Subscription Applications';
   } else if (activeTab === 'qr-order-items') {
     friendlyTitle = 'QR Order Items';
   } else if (activeTab === 'qr-code-orders') {

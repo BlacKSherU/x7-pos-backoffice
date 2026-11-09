@@ -3,11 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GlobalHeader } from '@/platform/merchant-frame/layout/GlobalHeader';
 import { calledRoutes, fakeBackend } from '@/test/fetch';
 
-function renderHeader() {
+function renderHeader(activeTab = 'dashboard', activeCategory = 'home') {
   return render(
     <GlobalHeader
-      activeTab="dashboard"
-      activeCategory="home"
+      activeTab={activeTab}
+      activeCategory={activeCategory}
       refreshTrigger={0}
       navCategories={[]}
       notifications={[]}
@@ -49,5 +49,19 @@ describe('GlobalHeader profile', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.getByRole('banner')).toBeInTheDocument();
     expect(screen.queryByAltText('Profile Portrait')).not.toBeInTheDocument();
+  });
+
+  it('resolves Platform SaaS category and titles for subscription sub-modules', async () => {
+    const fetchMock = fakeBackend({});
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { unmount } = renderHeader('apps-config', 'platformsaas');
+    expect(screen.getByText('Platform SaaS')).toBeInTheDocument();
+    expect(screen.getAllByText('Apps Config').length).toBeGreaterThanOrEqual(1);
+    unmount();
+
+    renderHeader('subscription-system-hub', 'platformsaas');
+    expect(screen.getByText('Platform SaaS')).toBeInTheDocument();
+    expect(screen.getAllByText('Subscription System Command Hub').length).toBeGreaterThanOrEqual(1);
   });
 });

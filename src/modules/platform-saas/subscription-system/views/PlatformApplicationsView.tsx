@@ -614,45 +614,6 @@ export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> =
         </div>
       </div>
 
-      {/* Quick Launch */}
-      <div className="bg-[#2a2a2a] rounded-xl p-8 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-          <h3 className="!text-white font-bold text-base">Quick Launch</h3>
-          <p className="text-white/60 text-sm">
-            Navigation shortcuts for platform management.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('subscription')}
-            className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform"
-          >
-            SUBSCRIPTION PLANS
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('subscription-features')}
-            className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform"
-          >
-            FEATURE CATALOG
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('subscription-live-installs')}
-            className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform"
-          >
-            ACTIVE LIVE INSTALLS
-          </button>
-          <button
-            type="button"
-            className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-6 py-3 rounded hover:bg-[#930015] hover:-translate-y-0.5 transition-all"
-          >
-            EMERGENCY SUPPORT
-          </button>
-        </div>
-      </div>
-
       <button
         type="button"
         aria-label="Open register-application form"

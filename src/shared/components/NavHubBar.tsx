@@ -64,6 +64,12 @@ const SPECIFIC_SHORTCUTS: Record<string, string> = {
   'PRODUCT MANAGMENT': 'PRODUCTS',
   'MODIFIERS MANAGEMENT': 'MODIFIERS',
   'VARIANTS MANAGEMENT': 'VARIANTS',
+  'COMPANY SUBSCRIPTIONS': 'COMPANY SUBS',
+  'MERCHANT SUBSCRIPTIONS': 'MERCHANT SUBS',
+  'PLAN APPLICATIONS': 'PLAN APPS',
+  'SUBSCRIPTION PAYMENTS': 'PAYMENTS',
+  'SUBSCRIPTION PLANS': 'PLANS',
+  'SUBSCRIPTION APPLICATIONS': 'SUBS APPS',
 };
 
 function formatNavHubLabel(rawLabel: string): string {
@@ -223,7 +229,7 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
         </div>
 
         {/* Center Slot: Navigation Buttons Array (Spaced & Centered in 1 Single Line) */}
-        <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-hidden flex-1 min-w-0 py-0.5">
+        <div className="flex items-center justify-center gap-0.5 sm:gap-1 lg:gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5 px-1">
           {items.map((item) => {
             const isActive = item.active || (activeModuleId ? item.id === activeModuleId : false);
             const displayLabel = formatNavHubLabel(item.label);
@@ -236,20 +242,25 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   item.onClick();
                 }}
                 aria-current={isActive ? 'page' : undefined}
-                className={`px-1.5 sm:px-2 py-1 rounded text-[10px] sm:text-[11px] font-semibold sm:font-bold transition-colors duration-200 flex items-center gap-1 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
+                className={`px-1.5 lg:px-2 py-1 rounded text-[10px] lg:text-[11px] font-semibold tracking-tight transition-colors duration-200 flex items-center gap-0.5 sm:gap-1 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
                   isActive
                     ? 'bg-[#ae001a] text-white shadow-xs'
                     : 'text-zinc-300 hover:text-[#ae001a] hover:bg-zinc-800'
                 }`}
               >
                 {item.icon && (
-                  <span className="material-symbols-outlined text-[15px] sm:text-[16px] shrink-0" aria-hidden="true">{item.icon}</span>
+                  <span className="material-symbols-outlined text-[13px] sm:text-[14px] lg:text-[15px] shrink-0" aria-hidden="true">{item.icon}</span>
                 )}
                 <span>{displayLabel}</span>
               </button>
             );
           })}
         </div>
+
+        {/* Right Slot: Balances the left slot so items are centered without getting clipped on the right */}
+        {handleBack ? (
+          <div className="w-7 shrink-0 hidden sm:block pointer-events-none opacity-0" aria-hidden="true" />
+        ) : null}
       </div>
     </div>
   );

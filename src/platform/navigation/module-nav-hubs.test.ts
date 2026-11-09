@@ -9,6 +9,7 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
     items: [
       'APPLICATIONS',
       'FEATURES',
+      'COMPANY SUBSCRIPTIONS',
       'MERCHANT SUBSCRIPTIONS',
       'PLAN APPLICATIONS',
       'PLAN FEATURES',

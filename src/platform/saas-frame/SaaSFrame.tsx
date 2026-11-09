@@ -13,6 +13,8 @@ import { PlanApplicationsView } from '@/modules/platform-saas/subscription-syste
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
 import { CompanyRegistryView } from '@/modules/platform-saas/companies/views/CompanyRegistryView';
 import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
+import { MerchantSubscriptionsView } from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
+import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionHubView';
 import { GlobalUsersDirectoryView } from '@/modules/platform-saas/users/views/GlobalUsersDirectoryView';
 import { OrdersRegistryView } from '@/modules/platform-saas/central-backoffice/views/OrdersRegistryView';
 import { MerchantSettlementsView } from '@/modules/platform-saas/central-backoffice/views/MerchantSettlementsView';
@@ -120,8 +122,14 @@ export const SaaSFrame: React.FC = () => {
 
   // Render views according to active tab
   const renderContent = () => {
+    if (activeTab === 'subscription-system-hub' || activeTab === 'subscription-hub') {
+      return <SubscriptionHubView onNavigate={(featId) => setActiveTab(featId)} />;
+    }
     const activeCommandHub = navHubById(activeTab);
     if (activeCommandHub) {
+      if (activeCommandHub.hubId === 'subscription-system-hub') {
+        return <SubscriptionHubView onNavigate={(featId) => setActiveTab(featId)} />;
+      }
       return (
         <GenericModuleNavHub
           hub={activeCommandHub}
@@ -154,9 +162,12 @@ export const SaaSFrame: React.FC = () => {
       return <PlatformFeatureCatalogView onNavigate={handleNavigateView} />;
     }
 
-    // The plan that grants access lives on the company subscription (company_subscription).
+    if (activeTab === 'company-subscriptions') {
+      return <CompanySubscriptionsView onNavigate={handleNavigateView} />;
+    }
+
     if (activeTab === 'merchant-subs-link' || activeTab === 'subscription-merchant-subscriptions') {
-      return <CompanySubscriptionsView />;
+      return <MerchantSubscriptionsView onNavigate={handleNavigateView} />;
     }
 
     // From Subscription Plans they open on the chosen plan; from the NavHubBar, without one,

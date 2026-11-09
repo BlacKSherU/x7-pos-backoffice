@@ -144,7 +144,7 @@ export async function saasRequest<T>(
   init: RequestInit,
   fallbackMessage: string,
 ): Promise<T> {
-  const token = getSaasToken();
+  const token = getSaasToken() || getAccessToken();
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {

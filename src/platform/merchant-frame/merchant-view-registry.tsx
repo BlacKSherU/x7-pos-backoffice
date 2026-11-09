@@ -11,6 +11,10 @@ import { PlatformFeatureCatalogView } from '@/modules/platform-saas/subscription
 import { PlanApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlanApplicationsView';
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
 import { SaasDashboardView } from '@/modules/platform-saas/central-backoffice/views/SaasDashboardView';
+import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionHubView';
+import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
+import { CompanySubscriptionView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanySubscriptionView';
+import { MerchantSubscriptionsView } from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
 import { ComingSoonView, PlanFeaturesPickPlanView } from '@/shared/components/PlaceholderViews';
 
 import { CategoriesView } from '@/modules/inventory/products-inventory/views/CategoriesView';
@@ -123,7 +127,9 @@ export interface MerchantViewContext {
   /** Navegación de las vistas de personal y propinas (también actualiza la URL). */
   onStaffNavigate: (target: string) => void;
   /** Navegación de las vistas de suscripciones (puede llevar el plan elegido). */
-  onSaasNavigate: (view: string, plan?: SubscriptionPlan) => void;
+  onSaasNavigate: (view: string, plan?: SubscriptionPlan, companyId?: number) => void;
+  selectedCompanyId?: number | null;
+  setSelectedCompanyId?: (id: number | null) => void;
   /** Cambia de pestaña limpiando los filtros de drill-down. */
   navigateToFeature: (featureId: string) => void;
   setActiveTab: (tab: string) => void;
@@ -183,6 +189,26 @@ view('merchant-directory', () => <MerchantDirectoryView />);
 view('user-management', () => <UserManagementView />);
 view('company-profile', () => <CompanyProfileView />);
 view('company-configurations', () => <CompanyConfigurationsView />);
+view(
+  ['company-subscriptions', 'subscription-company-subscriptions'],
+  (ctx) => <CompanySubscriptionsView onNavigate={ctx.onSaasNavigate} />,
+);
+view(
+  ['company-subscription-detail', 'company-subscription', 'subscription-company-subscription'],
+  (ctx) => (
+    <CompanySubscriptionView
+      companyId={ctx.selectedCompanyId ?? undefined}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
+);
+view(
+  ['merchant-subs-link', 'merchant-subscriptions', 'subscription-merchant-subscriptions'],
+  (ctx) => <MerchantSubscriptionsView onNavigate={ctx.onSaasNavigate} />,
+);
+view(['subscription-system-hub', 'subscription-hub'], (ctx) => (
+  <SubscriptionHubView onNavigate={ctx.navigateToFeature} />
+));
 
 // ---- Productos e inventario ----
 view('categories', (ctx) => <CategoriesView onNavigate={ctx.onNavigate} />);

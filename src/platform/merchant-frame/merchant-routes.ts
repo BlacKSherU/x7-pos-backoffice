@@ -16,6 +16,7 @@ export interface NavigationLocationState {
   activeTab?: string;
   activeCategory?: string;
   merchantId?: string | number;
+  companyId?: string | number;
 }
 
 const OPS = 'restaurant-operations';
@@ -33,6 +34,17 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('platformsaas', 'user-management', '/dashboard/users'),
   ...routes('platformsaas', 'company-profile', '/dashboard/company-profile'),
   ...routes('platformsaas', 'company-configurations', '/dashboard/company-configurations'),
+  ...routes('platformsaas', 'subscription-system-hub', '/platform-saas/subscription/hub', '/subscription/hub'),
+  ...routes('platformsaas', 'sub-plans-core', '/platform-saas/subscription/plans', '/subscription/plans'),
+  ...routes('platformsaas', 'apps-config', '/platform-saas/subscription/applications', '/subscription/applications'),
+  ...routes('platformsaas', 'features-control', '/platform-saas/subscription/features', '/subscription/features'),
+  ...routes('platformsaas', 'plan-apps-rules', '/platform-saas/subscription/plan-applications', '/subscription/plan-applications'),
+  ...routes('platformsaas', 'plan-features-mapping', '/platform-saas/subscription/plan-features', '/subscription/plan-features'),
+  ...routes('platformsaas', 'company-subscriptions', '/platform-saas/subscription/company-subscriptions', '/subscription/company-subscriptions'),
+  ...routes('platformsaas', 'company-subscription-detail', '/platform-saas/subscription/company-subscription', '/platform-saas/companies/subscription'),
+  ...routes('platformsaas', 'merchant-subs-link', '/platform-saas/subscription/merchant-subscriptions', '/subscription/merchant-subscriptions'),
+  ...routes('platformsaas', 'sub-payments-billing', '/platform-saas/subscription/payments', '/subscription/payments'),
+  ...routes('platformsaas', 'sub-apps-mapping', '/platform-saas/subscription/subscription-applications', '/subscription/subscription-applications'),
 
   ...routes('core', 'customers', '/customers', '/core/customers', '/dashboard/customers', '/business-partners/customers'),
   ...routes('core', 'suppliers', '/suppliers', '/core/suppliers', '/dashboard/suppliers', '/business-partners/suppliers'),

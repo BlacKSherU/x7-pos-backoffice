@@ -353,7 +353,7 @@ describe('CustomersView Workspace Data Grid', () => {
       expect(screen.getByText('Country is required.')).toBeInTheDocument();
     });
 
-    it('creates a customer and automatically injects companyId, merchantId, and timestamps into the payload', async () => {
+    it('creates a customer and automatically injects companyId into the payload', async () => {
       const user = userEvent.setup();
       const createSpy = vi.spyOn(customersApi, 'createCustomer').mockResolvedValue({
         id: 999,
@@ -411,9 +411,6 @@ describe('CustomersView Workspace Data Grid', () => {
             state: 'Biobío',
             country: 'Chile',
             companyId: 42,
-            merchantId: 7,
-            created_at: expect.any(String),
-            updated_at: expect.any(String),
           }),
         );
       });
@@ -453,8 +450,6 @@ describe('CustomersView Workspace Data Grid', () => {
             name: 'Inversiones Pacifico Modificado',
             rut: '77.890.123-4',
             companyId: 42,
-            merchantId: 7,
-            updated_at: expect.any(String),
           }),
         );
       });

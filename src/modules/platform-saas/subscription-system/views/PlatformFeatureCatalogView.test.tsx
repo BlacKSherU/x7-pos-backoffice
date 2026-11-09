@@ -356,65 +356,16 @@ describe('PlatformFeatureCatalogView — clear filters', () => {
   });
 });
 
-describe('PlatformFeatureCatalogView — Quick Launch', () => {
+describe('PlatformFeatureCatalogView — Quick Launch removed', () => {
   beforeEach(() => {
     vi.mocked(saasService.getFeatures).mockResolvedValue(MOCK_FEATURES);
   });
 
-  it('renders the Quick Launch section with dark background', async () => {
+  it('does not render the Quick Launch panel', async () => {
     render(<PlatformFeatureCatalogView />);
     await waitFor(() => {
-      expect(screen.getByText('Quick Launch')).toBeInTheDocument();
+      expect(screen.queryByText('Quick Launch')).not.toBeInTheDocument();
     });
-  });
-
-  it('renders PLATFORM APPLICATIONS button', async () => {
-    render(<PlatformFeatureCatalogView />);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'PLATFORM APPLICATIONS' })).toBeInTheDocument();
-    });
-  });
-
-  it('renders SUBSCRIPTION PLANS button', async () => {
-    render(<PlatformFeatureCatalogView />);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' })).toBeInTheDocument();
-    });
-  });
-
-  it('renders METERED USAGE LEDGER button', async () => {
-    render(<PlatformFeatureCatalogView />);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'METERED USAGE LEDGER' })).toBeInTheDocument();
-    });
-  });
-
-  it('renders EMERGENCY SUPPORT button', async () => {
-    render(<PlatformFeatureCatalogView />);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'EMERGENCY SUPPORT' })).toBeInTheDocument();
-    });
-  });
-
-  it("calls onNavigate with 'subscription-applications' when PLATFORM APPLICATIONS is clicked", async () => {
-    const onNavigate = vi.fn();
-    render(<PlatformFeatureCatalogView onNavigate={onNavigate} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'PLATFORM APPLICATIONS' }));
-    expect(onNavigate).toHaveBeenCalledWith('subscription-applications');
-  });
-
-  it("calls onNavigate with 'subscription' when SUBSCRIPTION PLANS is clicked", async () => {
-    const onNavigate = vi.fn();
-    render(<PlatformFeatureCatalogView onNavigate={onNavigate} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'SUBSCRIPTION PLANS' }));
-    expect(onNavigate).toHaveBeenCalledWith('subscription');
-  });
-
-  it("calls onNavigate with 'subscription-live-installs' when METERED USAGE LEDGER is clicked", async () => {
-    const onNavigate = vi.fn();
-    render(<PlatformFeatureCatalogView onNavigate={onNavigate} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'METERED USAGE LEDGER' }));
-    expect(onNavigate).toHaveBeenCalledWith('subscription-live-installs');
   });
 });
 

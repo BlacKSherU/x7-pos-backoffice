@@ -297,10 +297,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
           city: formCity.trim(),
           state: formState.trim(),
           country: formCountry.trim(),
-          companyId: activeCompanyId,
-          merchantId: activeMerchantId,
-          created_at: now,
-          updated_at: now,
+          companyId: Number(activeCompanyId),
         };
 
         const created = await createCustomer(payload);
@@ -335,9 +332,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
           city: formCity.trim(),
           state: formState.trim(),
           country: formCountry.trim(),
-          companyId: activeCompanyId,
-          merchantId: activeMerchantId,
-          updated_at: now,
+          companyId: Number(activeCompanyId),
         };
 
         const updated = await updateCustomer(selectedCustomer.id, payload);

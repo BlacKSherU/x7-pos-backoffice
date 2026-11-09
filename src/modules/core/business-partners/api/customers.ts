@@ -60,16 +60,32 @@ export async function fetchCustomers(
 }
 
 /**
+ * Strips client-only or non-whitelisted fields before sending to the backend.
+ * The backend Core Customers controller rejects merchantId, created_at, and updated_at.
+ */
+function sanitizeCustomerPayload<T extends Record<string, unknown>>(payload: T): T {
+  const clean = { ...payload };
+  delete clean.merchantId;
+  delete clean.merchant_id;
+  delete clean.created_at;
+  delete clean.updated_at;
+  delete clean.createdAt;
+  delete clean.updatedAt;
+  return clean as T;
+}
+
+/**
  * Creates a new customer record.
  */
 export async function createCustomer(
   payload: CreateCustomerPayload,
 ): Promise<Customer> {
+  const cleanPayload = sanitizeCustomerPayload(payload as unknown as Record<string, unknown>);
   const json = await apiRequest<{ data?: Customer } | Customer>(
     '/v1/core/customers',
     {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(cleanPayload),
     },
     'Failed to create customer record.',
   );
@@ -87,11 +103,12 @@ export async function updateCustomer(
   id: number | string,
   payload: UpdateCustomerPayload,
 ): Promise<Customer> {
+  const cleanPayload = sanitizeCustomerPayload(payload as unknown as Record<string, unknown>);
   const json = await apiRequest<{ data?: Customer } | Customer>(
     `/v1/core/customers/${id}`,
     {
       method: 'PATCH',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(cleanPayload),
     },
     'Failed to update customer record.',
   );

@@ -61,12 +61,16 @@ function statusBadge(s: CompanySubscription): { label: string; className: string
     : { label: 'Inactive', className: 'bg-[#5f5e5e]/20 text-[#5f5e5e]' };
 }
 
+interface CompanySubscriptionsViewProps {
+  onNavigate?: (view: string, plan?: any, companyId?: number) => void;
+}
+
 /**
  * Plan of each company. It is what grants access: the login takes the latest active
  * subscription whose end date has not passed, so an expired one leaves the company without
  * its plan.
  */
-export const CompanySubscriptionsView: React.FC = () => {
+export const CompanySubscriptionsView: React.FC<CompanySubscriptionsViewProps> = ({ onNavigate }) => {
   const [subscriptions, setSubscriptions] = useState<CompanySubscription[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -176,6 +180,46 @@ export const CompanySubscriptionsView: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Secondary Header */}
+      <div className="bg-white border border-[#e8e2d8] p-6 shadow-xs rounded-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            {/* Breadcrumb Context */}
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-bold text-primary tracking-wider uppercase mb-1">
+              <span className="material-symbols-outlined text-lg">workspace_premium</span>
+              <span>Platform SaaS</span>
+              <span className="text-[#8a8880]">/</span>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('subscription-system-hub')}
+                className="hover:underline cursor-pointer"
+              >
+                Subscription System Hub
+              </button>
+              <span className="text-[#8a8880]">/</span>
+              <span className="text-[#1d1c17]">Company Subscriptions</span>
+            </nav>
+            <h1 className="text-2xl font-black text-[#1d1c17] tracking-tight uppercase">
+              COMPANY SUBSCRIPTIONS
+            </h1>
+            <p className="text-body-sm text-[#5f5e5e] mt-1 max-w-3xl">
+              Active company tenant subscriptions, expiration dates, assigned plans, and renewal schedules.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => onNavigate?.('subscription-system-hub')}
+              className="px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs uppercase tracking-wider rounded border border-zinc-300 transition-all flex items-center gap-2 cursor-pointer hover:text-primary transition-colors duration-200"
+              title="Return to Subscription Hub"
+            >
+              <span className="material-symbols-outlined text-base">hub</span>
+              <span>Subscription Hub</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-[#222222] px-6 py-4 flex items-center justify-between gap-3">
         <span className="text-[11px] font-bold uppercase tracking-widest text-white">
           COMPANY SUBSCRIPTIONS
@@ -293,14 +337,26 @@ export const CompanySubscriptionsView: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(s)}
-                          aria-label={`Edit subscription of ${s.company.name}`}
-                          className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">edit</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onNavigate?.('company-subscription-detail', undefined, s.company.id)}
+                            aria-label={`Inspect subscription of ${s.company.name}`}
+                            title="Inspect Subscription"
+                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">visibility</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(s)}
+                            aria-label={`Edit subscription of ${s.company.name}`}
+                            title="Edit Subscription"
+                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">edit</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -65,9 +65,6 @@ export interface CreateCustomerPayload {
   state?: string;
   country?: string;
   companyId?: number | string;
-  merchantId?: number | string;
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface UpdateCustomerPayload extends Partial<CreateCustomerPayload> {

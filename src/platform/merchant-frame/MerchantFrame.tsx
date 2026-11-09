@@ -39,7 +39,7 @@ import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/type
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
 import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
-import { clearAuthSession } from '@/platform/auth/lib/auth-storage';
+import { clearAuthSession, getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
 import type { AllocationsContext, MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
@@ -62,6 +62,7 @@ export const MerchantFrame: React.FC = () => {
   const [itemsPaymentFilter, setItemsPaymentFilter] = useState<SupplierPayment | null>(null);
   const [allocationsContext, setAllocationsContext] = useState<AllocationsContext | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
 
   const SAAS_VIEW_TAB_MAP: Record<string, string> = {
     'subscription': 'sub-plans-core',
@@ -69,6 +70,12 @@ export const MerchantFrame: React.FC = () => {
     'subscription-features': 'features-control',
     'subscription-plan-applications': 'plan-apps-rules',
     'subscription-plan-features': 'plan-features-mapping',
+    'company-subscriptions': 'company-subscriptions',
+    'subscription-company-subscriptions': 'company-subscriptions',
+    'company-subscription': 'company-subscription-detail',
+    'company-subscription-detail': 'company-subscription-detail',
+    'merchant-subscriptions': 'merchant-subs-link',
+    'subscription-merchant-subscriptions': 'merchant-subs-link',
   };
 
   const handleViewChange = (view: string) => {
@@ -106,17 +113,19 @@ export const MerchantFrame: React.FC = () => {
     return () => clearTimeout(timer);
   }, [activeTab]);
 
-  const handleNavigateView = (view: string, plan?: SubscriptionPlan) => {
+  const handleNavigateView = (view: string, plan?: SubscriptionPlan, companyId?: number) => {
     if (plan) setSelectedPlan(plan);
+    if (companyId !== undefined) setSelectedCompanyId(companyId);
     setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
   };
 
   const [prevRouteKey, setPrevRouteKey] = useState<string>('');
-  const currentRouteKey = `${location.pathname}:${location.search}:${profile?.role ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
+  const userRole = profile?.role ?? getStoredUser()?.role;
+  const currentRouteKey = `${location.pathname}:${location.search}:${userRole ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
 
   if (currentRouteKey !== prevRouteKey) {
     setPrevRouteKey(currentRouteKey);
-    const routeNav = getNavFromPath(location.pathname, location.state, profile?.role);
+    const routeNav = getNavFromPath(location.pathname, location.state, userRole);
     if (routeNav) {
       setActiveCategory(routeNav.category);
       setActiveTab(routeNav.tab);
@@ -174,8 +183,15 @@ export const MerchantFrame: React.FC = () => {
     setIsNavLoading(true);
     setNavError(null);
 
+    const activeRole = profile?.role ?? getStoredUser()?.role;
+    const isPortalStaff =
+      activeRole === 'portal_admin' ||
+      activeRole === 'portal_user' ||
+      activeRole === 'SaaS Owner';
+    const surface = isPortalStaff ? 'saas_web' : 'merchant_web';
+
     navigationService
-      .loadDynamicNavigation('merchant_web')
+      .loadDynamicNavigation(surface)
       .then((menu) => {
         if (!ignore) {
           setNavCategories(menu);
@@ -200,7 +216,7 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, profile?.role]);
 
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
@@ -315,6 +331,16 @@ export const MerchantFrame: React.FC = () => {
 
   // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa
   useEffect(() => {
+    const activeRole = profile?.role ?? getStoredUser()?.role;
+    const isPortalStaff =
+      activeRole === 'portal_admin' ||
+      activeRole === 'portal_user' ||
+      activeRole === 'SaaS Owner';
+
+    if (isPortalStaff) {
+      return;
+    }
+
     resetHeartbeatSuspension();
     void sendStationKeepaliveHeartbeat('ALL');
 
@@ -323,7 +349,7 @@ export const MerchantFrame: React.FC = () => {
     }, 15000);
 
     return () => clearInterval(keepaliveTimer);
-  }, []);
+  }, [profile?.role]);
 
   const handleToggleApiFailure = () => {
     const newState = !apiFailedToggle;
@@ -402,6 +428,8 @@ export const MerchantFrame: React.FC = () => {
     onNavigate: handleViewChange,
     onStaffNavigate: handleStaffNavigate,
     onSaasNavigate: handleNavigateView,
+    selectedCompanyId,
+    setSelectedCompanyId,
     navigateToFeature,
     setActiveTab,
     goToDashboard,
@@ -613,7 +641,9 @@ export const MerchantFrame: React.FC = () => {
                             >
                               <div
                                 onClick={() => {
-                                  if (app.features.length === 1) {
+                                  if (app.id === 'subscription-system') {
+                                    handleNavigateTarget('subscription-system-hub', '/platform-saas/subscription/hub');
+                                  } else if (app.features.length === 1) {
                                     handleNavigateTarget(app.features[0].id, app.features[0].route);
                                   } else {
                                     handleNavigateTarget(hubId);
@@ -629,7 +659,7 @@ export const MerchantFrame: React.FC = () => {
                                 <span className="truncate">{app.name}</span>
                               </div>
 
-                              {app.features.length > 1 && (
+                              {app.id !== 'subscription-system' && app.features.length > 1 && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -647,7 +677,7 @@ export const MerchantFrame: React.FC = () => {
                               )}
                             </div>
 
-                            {isAppExpanded && app.features.length > 1 && (
+                            {app.id !== 'subscription-system' && isAppExpanded && app.features.length > 1 && (
                               <div className="ml-12 mt-1 border-l border-white/10 space-y-0.5">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;

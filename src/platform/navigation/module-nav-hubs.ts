@@ -48,7 +48,8 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     items: [
       { featureId: 'apps-config', label: 'APPLICATIONS', icon: 'apps', live: true, description: 'Platform application catalog and configuration.' },
       { featureId: 'features-control', label: 'FEATURES', icon: 'toggle_on', live: true, description: 'Feature catalog and feature flags.' },
-      { featureId: 'merchant-subs-link', label: 'MERCHANT SUBSCRIPTIONS', icon: 'storefront', live: false, description: 'Which plan each company is subscribed to and when it expires.' },
+      { featureId: 'company-subscriptions', label: 'COMPANY SUBSCRIPTIONS', icon: 'business', live: true, description: 'Which plan each company is subscribed to and when it expires.' },
+      { featureId: 'merchant-subs-link', label: 'MERCHANT SUBSCRIPTIONS', icon: 'storefront', live: true, description: 'Which plan each merchant store is subscribed to.' },
       { featureId: 'plan-apps-rules', label: 'PLAN APPLICATIONS', icon: 'widgets', live: true, description: 'Applications included in each plan.' },
       { featureId: 'plan-features-mapping', label: 'PLAN FEATURES', icon: 'checklist', live: true, description: 'Features unlocked by each plan.' },
       { featureId: 'sub-plans-core', label: 'SUBSCRIPTION PLANS', icon: 'workspace_premium', live: true, description: 'Plan tiers, pricing and billing cycles.' },
@@ -324,10 +325,12 @@ export function registerDynamicNavHubs(hubs: ModuleNavHub[]): void {
   DYNAMIC_HUB_BY_FEATURE.clear();
   DYNAMIC_HUB_BY_ID.clear();
   for (const hub of hubs) {
-    DYNAMIC_HUB_BY_ID.set(hub.hubId, hub);
-    DYNAMIC_HUB_BY_ID.set(hub.appId, hub);
-    for (const item of hub.items) {
-      DYNAMIC_HUB_BY_FEATURE.set(item.featureId, hub);
+    const canonical = MODULE_NAV_HUBS.find((h) => h.appId === hub.appId);
+    const resolvedHub = canonical && canonical.items.length >= hub.items.length ? canonical : hub;
+    DYNAMIC_HUB_BY_ID.set(resolvedHub.hubId, resolvedHub);
+    DYNAMIC_HUB_BY_ID.set(resolvedHub.appId, resolvedHub);
+    for (const item of resolvedHub.items) {
+      DYNAMIC_HUB_BY_FEATURE.set(item.featureId, resolvedHub);
     }
   }
 }
