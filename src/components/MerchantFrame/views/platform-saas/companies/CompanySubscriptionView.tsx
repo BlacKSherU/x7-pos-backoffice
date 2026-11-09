@@ -65,7 +65,7 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
       .then((list) => {
         if (!isMounted) return;
         setCompanies(list);
-        setSelectedCompanyId((prev) => prev ?? (list.length > 0 ? list[0].id : undefined));
+        setSelectedCompanyId((prev) => prev ?? (list.length > 0 ? list[0].id : null));
       })
       .catch(() => {
         // Fallback: load from subscriptions list
@@ -73,20 +73,15 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
           .listCompanySubscriptions()
           .then((subs) => {
             if (!isMounted) return;
-            const mapped = subs.map((s) => ({
+            const mapped: CompanyRegistryItem[] = subs.map((s) => ({
               id: s.company.id,
               name: s.company.name,
-              status: 'active' as const,
+              status: 'active',
               country: 'DOM',
-              timezone: 'America/Santo_Domingo',
-              currency: 'DOP',
-              adminEmail: 'admin@example.com',
               merchantsCount: 1,
-              usersCount: 1,
-              createdAt: s.startDate,
             }));
             setCompanies(mapped);
-            setSelectedCompanyId((prev) => prev ?? (mapped.length > 0 ? mapped[0].id : undefined));
+            setSelectedCompanyId((prev) => prev ?? (mapped.length > 0 ? mapped[0].id : null));
           })
           .catch((err) => {
             if (!isMounted) return;

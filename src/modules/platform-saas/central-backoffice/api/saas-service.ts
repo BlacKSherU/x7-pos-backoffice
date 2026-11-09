@@ -580,8 +580,9 @@ export const saasService = {
         return allApps.map((app) => ({
           id: app.id,
           name: app.name,
-          code: app.code,
+          code: app.code ?? app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           description: app.description ?? undefined,
+          category: app.category,
           isProvisioned: unlockedAppIds.has(app.id),
         }));
       } catch {

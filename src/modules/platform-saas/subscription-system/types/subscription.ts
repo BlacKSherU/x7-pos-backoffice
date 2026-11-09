@@ -45,6 +45,7 @@ export interface UpdatePlanApplicationDto {
 export interface Application {
   id: number;
   name: string;
+  code?: string;
   description: string;
   category: string;
   status: 'active' | 'inactive' | 'deleted';
