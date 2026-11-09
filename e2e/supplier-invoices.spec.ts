@@ -88,7 +88,7 @@ async function gotoSupplierInvoices(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('Accounts Payable').click();
-  await page.getByText('Supplier Invoices Control').click();
+  await page.getByText('Supplier Invoices Directory').first().click();
   await expect(page.getByText('INV-SEED-1')).toBeVisible();
 }
 

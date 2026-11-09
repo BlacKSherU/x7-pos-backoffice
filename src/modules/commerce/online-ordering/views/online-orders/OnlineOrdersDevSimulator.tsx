@@ -28,17 +28,18 @@ export const OnlineOrdersDevSimulator: React.FC<OnlineOrdersDevSimulatorProps> =
     if (typeof window === 'undefined') return false;
     const user = getStoredUser();
     return Boolean(
-      import.meta.env.DEV ||
-      user?.role === 'merchant_admin' ||
       user?.role === 'super_admin' ||
-      user?.role === 'portal_admin' ||
-      user?.email?.includes('admin') ||
-      localStorage.getItem('x7_online_orders_dev_tools') === 'true'
+      user?.role === 'Super Admin (All Access)'
     );
   });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const user = getStoredUser();
+      const isSuperAdmin =
+        user?.role === 'super_admin' || user?.role === 'Super Admin (All Access)';
+      if (!isSuperAdmin) return;
+
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         setIsVisible((prev) => {
@@ -53,7 +54,11 @@ export const OnlineOrdersDevSimulator: React.FC<OnlineOrdersDevSimulatorProps> =
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (!isVisible) return null;
+  const user = getStoredUser();
+  const isSuperAdmin =
+    user?.role === 'super_admin' || user?.role === 'Super Admin (All Access)';
+
+  if (!isSuperAdmin || !isVisible) return null;
 
   // Direct standard API creation helper
   const createOrderViaStandardApi = async (

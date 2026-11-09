@@ -31,37 +31,37 @@ const TIP_SHORTCUT_ANCHORS: TipShortcutAnchor[] = [
   {
     key: 'tips-ledger',
     route: '/tips/ledger',
-    label: 'TIPS LEDGER',
+    label: 'Tips Ledger',
     icon: 'payments',
   },
   {
     key: 'tips-pools',
     route: '/tips/pools',
-    label: 'TIP POOLS',
+    label: 'Tip Pools',
     icon: 'groups',
   },
   {
     key: 'tips-pool-members',
     route: '/tips/pool-members',
-    label: 'POOL MEMBERS',
+    label: 'Pool Members',
     icon: 'person_add',
   },
   {
     key: 'tips-allocations',
     route: '/tips/allocations',
-    label: 'TIP ALLOCATIONS',
+    label: 'Tip Allocations',
     icon: 'pie_chart',
   },
   {
     key: 'tips-settlements',
     route: '/tips/settlements',
-    label: 'TIP SETTLEMENTS',
+    label: 'Tip Settlements',
     icon: 'account_balance_wallet',
   },
   {
     key: 'tips-cash-movements',
     route: '/tips/cash-movements',
-    label: 'CASH TIP MOVEMENTS',
+    label: 'Cash Tip Movements',
     icon: 'point_of_sale',
   },
 ];

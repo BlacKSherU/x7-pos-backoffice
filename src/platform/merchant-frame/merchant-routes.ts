@@ -45,6 +45,10 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('platformsaas', 'merchant-subs-link', '/platform-saas/subscription/merchant-subscriptions', '/subscription/merchant-subscriptions'),
   ...routes('platformsaas', 'sub-payments-billing', '/platform-saas/subscription/payments', '/subscription/payments'),
   ...routes('platformsaas', 'sub-apps-mapping', '/platform-saas/subscription/subscription-applications', '/subscription/subscription-applications'),
+  ...routes('merchant-portal', 'merchant-directory', '/dashboard/merchants'),
+  ...routes('merchant-portal', 'user-management', '/dashboard/users'),
+  ...routes('merchant-portal', 'company-profile', '/dashboard/company-profile'),
+  ...routes('merchant-portal', 'company-configurations', '/dashboard/company-configurations'),
 
   ...routes('core', 'customers', '/customers', '/core/customers', '/dashboard/customers', '/business-partners/customers'),
   ...routes('core', 'suppliers', '/suppliers', '/core/suppliers', '/dashboard/suppliers', '/business-partners/suppliers'),
@@ -77,8 +81,11 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('inventory', 'raw-materials', '/dashboard/raw-materials', '/inventory/raw-materials'),
   ...routes('inventory', 'raw-material-categories', '/dashboard/raw-material-categories'),
   ...routes('inventory', 'recipes', '/dashboard/recipes', '/inventory/recipes'),
-  ...routes('inventory', 'stock-movements', '/inventory/stocks'),
+  ...routes('inventory', 'stock-inventory', '/dashboard/stock-inventory', '/inventory/stocks', '/inventory/stock-balance', '/inventory/stock-inventory'),
+  ...routes('inventory', 'stock-movements', '/dashboard/stock-movements', '/inventory/stock-movements'),
   ...routes('inventory', 'movements', '/inventory/movements'),
+  ...routes('inventory', 'locations', '/dashboard/locations', '/inventory/locations'),
+  ...routes('inventory', 'purchase-orders', '/dashboard/purchase-orders', '/inventory/purchase-orders'),
   ...routes('inventory', 'inventory-dashboard', '/inventory/dashboard', '/inventory/hub', '/dashboard/inventory'),
   ...routes('inventory', 'raw-materials-dashboard', '/inventory/raw-materials-dashboard', '/inventory/raw-materials/dashboard', '/dashboard/raw-materials-hub'),
 
@@ -158,8 +165,8 @@ export function getNavFromPath(
       profileRole === 'SaaS Owner' ||
       profileRole === 'portal_admin' ||
       profileRole === 'portal_user'
-        ? { category: 'saas', tab: 'saas-dashboard' }
-        : { category: 'core', tab: 'dashboard' };
+        ? { category: 'platform-saas', tab: 'saas-dashboard' }
+        : { category: 'merchant-portal', tab: 'dashboard' };
     return {
       category: locationState?.activeCategory || fallback.category,
       tab: locationState?.activeTab || fallback.tab,

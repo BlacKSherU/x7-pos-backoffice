@@ -123,7 +123,7 @@ async function gotoAllocations(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Finance & HR').click();
   await page.getByText('Accounts Payable').click();
-  await page.getByText('Supplier Payments Allocation').click();
+  await page.getByText('Invoice Payment Allocations').first().click();
   await expect(page.getByText('#101')).toBeVisible();
 }
 

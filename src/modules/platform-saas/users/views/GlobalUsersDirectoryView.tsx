@@ -16,6 +16,7 @@ import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
 } from '@/shared/components/StatusToggle';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 export const ALL_COMPANIES = 'all';
 
@@ -29,6 +30,7 @@ const SELECT_CLASS =
  * con su compañía y comercio. El directorio de cada compañía vive en el MerchantFrame.
  */
 export const GlobalUsersDirectoryView: React.FC = () => {
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [companies, setCompanies] = useState<CompanyRegistryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +75,7 @@ export const GlobalUsersDirectoryView: React.FC = () => {
     void Promise.resolve().then(() => {
       loadDirectory();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -247,11 +250,17 @@ export const GlobalUsersDirectoryView: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <StatusToggleButton
-                        status={user.isActive ? 'active' : 'inactive'}
-                        entityLabel={user.email}
-                        onClick={() => setToggleTarget(user)}
-                      />
+                      {isReadOnly ? (
+                        <span className="text-[11px] text-[#5f5e5e] font-medium">
+                          Read-only
+                        </span>
+                      ) : (
+                        <StatusToggleButton
+                          status={user.isActive ? 'active' : 'inactive'}
+                          entityLabel={user.email}
+                          onClick={() => setToggleTarget(user)}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}

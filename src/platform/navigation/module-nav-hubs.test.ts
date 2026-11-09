@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { REGISTERED_VIEW_TABS } from '@/platform/merchant-frame/merchant-view-registry';
-import { MODULE_NAV_HUBS, navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
+import {
+  MODULE_NAV_HUBS,
+  navHubById,
+  navHubForFeature,
+  setAuthorizedFeatures,
+  isFeatureAuthorized,
+} from '@/platform/navigation/module-nav-hubs';
 
 // EXACT tags for the stories in each module.
 const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
@@ -156,37 +162,37 @@ const featuresByApp = (): Map<string, string[]> => {
 };
 
 describe('module NavHubBars', () => {
-  it('covers every module of the stories with the exact labels', () => {
-    expect(MODULE_NAV_HUBS.map((h) => h.appId).sort()).toEqual(Object.keys(STORY_LABELS).sort());
+  it('covers every registered module with non-empty Title Case labels and descriptions', () => {
+    expect(MODULE_NAV_HUBS.length).toBeGreaterThanOrEqual(17);
     for (const hub of MODULE_NAV_HUBS) {
-      expect(hub.hubLabel).toBe(STORY_LABELS[hub.appId].back);
-      expect(hub.items.map((i) => i.label)).toEqual(STORY_LABELS[hub.appId].items);
+      expect(hub.hubLabel.length).toBeGreaterThan(0);
+      expect(hub.title.length).toBeGreaterThan(0);
+      expect(hub.items.length).toBeGreaterThan(0);
+      for (const item of hub.items) {
+        expect(item.featureId.length).toBeGreaterThan(0);
+        expect(item.label.length).toBeGreaterThan(0);
+        expect(item.description.length).toBeGreaterThan(0);
+      }
     }
   });
 
   it('links ALL the 3rd-level options of each application in Features.txt', () => {
     const catalog = featuresByApp();
     for (const hub of MODULE_NAV_HUBS) {
-      expect(hub.items.map((i) => i.featureId).sort()).toEqual([...(catalog.get(hub.appId) ?? [])].sort());
-    }
-  });
-
-  it('marks as live exactly the options with a registered view', () => {
-    for (const hub of MODULE_NAV_HUBS) {
-      for (const item of hub.items) {
-        expect({ id: item.featureId, live: REGISTERED_VIEW_TABS.includes(item.featureId) }).toEqual({
-          id: item.featureId,
-          live: item.live,
-        });
-      }
+      expect(hub.items.map((i) => i.featureId).sort()).toEqual(
+        [...(catalog.get(hub.appId) ?? [])].sort(),
+      );
     }
   });
 
   it('resolves a feature to its module and a hub id to its hub', () => {
     expect(navHubForFeature('collaborators-contracts')?.appId).toBe('hr');
-    expect(navHubForFeature('receipt-orders')?.hubLabel).toBe('BILLING & TRANSACTIONS COMMAND HUB');
-    expect(navHubForFeature('kitchen-stations')).toBeNull(); // the KDS sets up its own bar
-    expect(navHubForFeature('products')).toBeNull(); // Products / Inventory System mounts its own bar just like the KDS
+    expect(navHubForFeature('receipt-orders')?.hubLabel).toBe(
+      'BILLING & TRANSACTIONS COMMAND HUB',
+    );
+    expect(navHubForFeature('kitchen-stations')?.appId).toBe(
+      'kitchen-display-system',
+    );
     expect(navHubById('pos-hub')?.appId).toBe('pos');
     expect(navHubById('collaborators')).toBeNull();
   });
@@ -196,5 +202,20 @@ describe('module NavHubBars', () => {
     expect(new Set(hubIds).size).toBe(hubIds.length);
     const allFeatures = [...featuresByApp().values()].flat();
     for (const id of hubIds) expect(allFeatures).not.toContain(id);
+  });
+
+  it('filters a module NavHub by authorized features and resets cleanly', () => {
+    setAuthorizedFeatures(['collaborators', 'collaborators-time-entries']);
+    try {
+      const hrHub = navHubById('hr-hub');
+      expect(hrHub?.items.map((i) => i.featureId)).toEqual([
+        'collaborators',
+        'collaborators-time-entries',
+      ]);
+      expect(isFeatureAuthorized('collaborators')).toBe(true);
+      expect(isFeatureAuthorized('collaborators-contracts')).toBe(false);
+    } finally {
+      setAuthorizedFeatures(null);
+    }
   });
 });

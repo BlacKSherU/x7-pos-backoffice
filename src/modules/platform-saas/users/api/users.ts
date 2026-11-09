@@ -1,4 +1,4 @@
-import { apiRequest } from '@/shared/api/http';
+import { apiRequest, getActiveSuperAdminMerchantId } from '@/shared/api/http';
 import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { ApiError } from '@/shared/lib/api-error';
 import type {
@@ -17,7 +17,14 @@ import type {
 
 /** Resolves the logged-in administrator's merchant id (used to anchor new users). */
 export function getCurrentMerchantId(): number | null {
-  return getStoredUser()?.merchant.id ?? null;
+  const stored = getStoredUser();
+  if (stored?.role === 'super_admin') {
+    const activeMerchantId = Number(getActiveSuperAdminMerchantId());
+    if (Number.isInteger(activeMerchantId) && activeMerchantId > 0) {
+      return activeMerchantId;
+    }
+  }
+  return stored?.merchant?.id ?? null;
 }
 
 export async function getMerchantUsers(): Promise<MerchantUser[]> {

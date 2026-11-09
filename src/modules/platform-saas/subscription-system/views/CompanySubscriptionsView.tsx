@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type {
   CompanySubscription,
+  SubscriptionLifecycleStatus,
   SubscriptionPlan,
   UpdateCompanySubscriptionDto,
 } from '@/modules/platform-saas/subscription-system/types/subscription';
@@ -11,6 +12,7 @@ import {
   ModalFormError,
   ModalFormFooter,
 } from '@/shared/components/AppModal';
+import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 const ALL = 'all';
 const HEADER_CLASS =
@@ -20,7 +22,7 @@ const SELECT_CLASS =
 
 interface SubscriptionForm {
   planId: string;
-  status: 'active' | 'inactive';
+  status: SubscriptionLifecycleStatus;
   startDate: string;
   endDate: string;
   renewalDate: string;
@@ -37,6 +39,7 @@ const toForm = (s: CompanySubscription): SubscriptionForm => ({
 });
 
 /** Only the fields that changed: the backend keeps everything else as it is. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function toUpdateDto(
   original: CompanySubscription,
   form: SubscriptionForm,
@@ -56,13 +59,15 @@ export function toUpdateDto(
 
 function statusBadge(s: CompanySubscription): { label: string; className: string } {
   if (s.isExpired) return { label: 'Expired', className: 'bg-[#ae001a]/10 text-[#ae001a]' };
-  return s.status === 'active'
-    ? { label: 'Active', className: 'bg-green-500/10 text-green-600' }
-    : { label: 'Inactive', className: 'bg-[#5f5e5e]/20 text-[#5f5e5e]' };
+  const st = String(s.status).toLowerCase();
+  if (st === 'active') return { label: 'Active', className: 'bg-green-500/10 text-green-600' };
+  if (st === 'suspended') return { label: 'Suspended', className: 'bg-amber-500/10 text-amber-700' };
+  if (st === 'cancelled' || st === 'canceled') return { label: 'Cancelled', className: 'bg-rose-500/10 text-rose-600' };
+  return { label: 'Inactive', className: 'bg-[#5f5e5e]/20 text-[#5f5e5e]' };
 }
 
 interface CompanySubscriptionsViewProps {
-  onNavigate?: (view: string, plan?: any, companyId?: number) => void;
+  onNavigate?: (view: string, plan?: SubscriptionPlan, companyId?: number) => void;
 }
 
 /**
@@ -71,6 +76,7 @@ interface CompanySubscriptionsViewProps {
  * its plan.
  */
 export const CompanySubscriptionsView: React.FC<CompanySubscriptionsViewProps> = ({ onNavigate }) => {
+  const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [subscriptions, setSubscriptions] = useState<CompanySubscription[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -347,15 +353,19 @@ export const CompanySubscriptionsView: React.FC<CompanySubscriptionsViewProps> =
                           >
                             <span className="material-symbols-outlined text-[20px]">visibility</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => openEdit(s)}
-                            aria-label={`Edit subscription of ${s.company.name}`}
-                            title="Edit Subscription"
-                            className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">edit</span>
-                          </button>
+                          {isReadOnly ? (
+                            <span className="text-[11px] text-[#5f5e5e] font-medium">Read-only</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openEdit(s)}
+                              aria-label={`Edit subscription of ${s.company.name}`}
+                              title="Edit Subscription"
+                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">edit</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -409,10 +419,12 @@ export const CompanySubscriptionsView: React.FC<CompanySubscriptionsViewProps> =
                 <select
                   id="subscription-status"
                   value={form.status}
-                  onChange={(e) => updateField('status', e.target.value as 'active' | 'inactive')}
+                  onChange={(e) => updateField('status', e.target.value as SubscriptionLifecycleStatus)}
                   className={SELECT_CLASS}
                 >
                   <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="cancelled">Cancelled</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>

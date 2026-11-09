@@ -1,5 +1,5 @@
 import React from 'react';
-import type { KDSLanguage } from '@/modules/restaurant-operations/kitchen-display-system/views/kdsLocalization';
+import type { KDSLanguage } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/kdsLocalization';
 
 export interface AllergyDetail {
   ticketId: string;

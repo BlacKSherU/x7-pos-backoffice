@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { StockQuickLinks } from '@/modules/inventory/raw-materials/views/stocks/StockQuickLinks';
@@ -7,6 +7,7 @@ import { EmergencySupportModal } from '@/shared/components/QuickActionModals';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
 import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
 import { apiRequest, unwrapList, type MaybeEnvelopedList } from '@/shared/api/http';
+import { UnitMultiSelectPill } from '../components/UnitMultiSelectPill';
 
 interface Category {
   id: number;
@@ -82,9 +83,13 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
-  const [purchaseUnitFilter, setPurchaseUnitFilter] = useState<string>('All');
-  const [consumptionUnitFilter, setConsumptionUnitFilter] = useState<string>('All');
+  const [purchaseUnitFilters, setPurchaseUnitFilters] = useState<string[]>([]);
+  const [consumptionUnitFilters, setConsumptionUnitFilters] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('All');
+
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Table options state
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
@@ -168,6 +173,7 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
     setError(null);
     try {
       // Categories and stock enrich the grid; if either fails the materials still render.
@@ -227,6 +233,7 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
       setError('Could not load raw materials. Please check connection with server.');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -238,6 +245,44 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
       fetchData(true);
     });
   }, [fetchData]);
+
+  // Canonical auto refresh interval effect
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const interval = setInterval(() => {
+      void fetchData(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefreshInterval, fetchData]);
+
+  // Unique Purchase and Consumption Units with Counts
+  const { topPurchaseUnits, purchaseUnitCounts } = useMemo(() => {
+    const counts: Record<string, number> = { All: materials.length };
+    const set = new Set<string>();
+    materials.forEach((m) => {
+      if (m.purchase_unit) {
+        const u = m.purchase_unit.toUpperCase();
+        set.add(u);
+        counts[u] = (counts[u] || 0) + 1;
+      }
+    });
+    const units = set.size > 0 ? Array.from(set).sort() : ['KG', 'BOX', 'LITER', 'BAG'];
+    return { topPurchaseUnits: units, purchaseUnitCounts: counts };
+  }, [materials]);
+
+  const { topConsumptionUnits, consumptionUnitCounts } = useMemo(() => {
+    const counts: Record<string, number> = { All: materials.length };
+    const set = new Set<string>();
+    materials.forEach((m) => {
+      if (m.consumption_unit) {
+        const u = m.consumption_unit.toUpperCase();
+        set.add(u);
+        counts[u] = (counts[u] || 0) + 1;
+      }
+    });
+    const units = set.size > 0 ? Array.from(set).sort() : ['GRAM', 'ML', 'UNIT'];
+    return { topConsumptionUnits: units, consumptionUnitCounts: counts };
+  }, [materials]);
 
   const handleOpenAdd = () => {
     if (!isInventorySpecialist) return;
@@ -415,30 +460,34 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
   };
 
   // Filtering of reactive materials
-  const filteredMaterials = materials.filter((m) => {
-    if (statusFilter === 'Active' && !m.isActive) return false;
-    if (statusFilter === 'Inactive' && m.isActive) return false;
+  const filteredMaterials = useMemo(() => {
+    return materials.filter((m) => {
+      if (statusFilter === 'Active' && !m.isActive) return false;
+      if (statusFilter === 'Inactive' && m.isActive) return false;
 
-    const matchSearch =
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.sku && m.sku.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (m.description && m.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    if (!matchSearch) return false;
+      const matchSearch =
+        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (m.sku && m.sku.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (m.description && m.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      if (!matchSearch) return false;
 
-    if (categoryFilter !== 'All') {
-      if (String(m.category_id) !== categoryFilter) return false;
-    }
+      if (categoryFilter !== 'All') {
+        if (String(m.category_id) !== categoryFilter) return false;
+      }
 
-    if (purchaseUnitFilter !== 'All') {
-      if (m.purchase_unit !== purchaseUnitFilter) return false;
-    }
+      if (purchaseUnitFilters.length > 0) {
+        const u = (m.purchase_unit || '').toUpperCase();
+        if (!purchaseUnitFilters.includes(u)) return false;
+      }
 
-    if (consumptionUnitFilter !== 'All') {
-      if (m.consumption_unit !== consumptionUnitFilter) return false;
-    }
+      if (consumptionUnitFilters.length > 0) {
+        const u = (m.consumption_unit || '').toUpperCase();
+        if (!consumptionUnitFilters.includes(u)) return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [materials, statusFilter, searchQuery, categoryFilter, purchaseUnitFilters, consumptionUnitFilters]);
 
   const totalPages = Math.ceil(filteredMaterials.length / pageSize) || 1;
   const paginatedMaterials = filteredMaterials.slice(
@@ -465,85 +514,152 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
         </p>
       </div>
 
-      {/* Search panel and actions */}
-      <div className="bg-white border border-[#e8e2d8] rounded p-6 shadow-sm space-y-4">
-        {/* Fila 1: Buscador a ancho completo */}
-        <div className="relative w-full">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search raw materials by name, SKU, description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-md font-sans outline-none focus:border-[#ae001a]"
-          />
-        </div>
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search on left, Category & Units Selectors, Auto Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search raw materials by name, SKU..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search raw materials"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-        {/* Row 2: Filters on the left, Buttons on the right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Categories */}
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
-            >
-              <option value="All">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-
-            {/* Purchase Units */}
-            <select
-              value={purchaseUnitFilter}
-              onChange={(e) => setPurchaseUnitFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
-            >
-              <option value="All">All Purchase Units</option>
-              <option value="KG">KG</option>
-              <option value="BOX">BOX</option>
-              <option value="LITER">LITER</option>
-              <option value="BAG">BAG</option>
-            </select>
-
-            {/* Consumption Units */}
-            <select
-              value={consumptionUnitFilter}
-              onChange={(e) => setConsumptionUnitFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
-            >
-              <option value="All">All Consumption Units</option>
-              <option value="GRAM">GRAM</option>
-              <option value="MILLILITER">MILLILITER</option>
-              <option value="UNIT">UNIT</option>
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+            {/* Category Dropdown Selector */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">category</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[170px] transition-colors duration-200"
+                aria-label="Filter by category"
+              >
+                <option value="All">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchData(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh raw materials now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Purchase & Consumption Pill Selectors on left, Status & Add Button on right */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: Purchase Units & Consumption Units MultiSelect Pills */}
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap min-w-0">
+            {/* Purchase Units MultiSelect Pill */}
+            <UnitMultiSelectPill
+              label="Purchase:"
+              icon="inventory_2"
+              selectedUnits={purchaseUnitFilters}
+              onChange={(units) => {
+                setPurchaseUnitFilters(units);
+                setCurrentPage(1);
+              }}
+              options={topPurchaseUnits}
+              counts={purchaseUnitCounts}
+              totalCount={materials.length}
+              theme="blue"
+            />
+
+            {/* Consumption Units MultiSelect Pill */}
+            <UnitMultiSelectPill
+              label="Consumption:"
+              icon="straighten"
+              selectedUnits={consumptionUnitFilters}
+              onChange={(units) => {
+                setConsumptionUnitFilters(units);
+                setCurrentPage(1);
+              }}
+              options={topConsumptionUnits}
+              counts={consumptionUnitCounts}
+              totalCount={materials.length}
+              theme="amber"
+            />
+          </div>
+
+          {/* Right: Status Filter & Primary Add Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Status Filter Dropdown */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">tune</span>
+              <select
+                aria-label="Filter by status"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs font-semibold focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer"
+              >
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
+            {/* Primary Add Button */}
             {isInventorySpecialist && (
               <button
+                type="button"
                 onClick={handleOpenAdd}
-                className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+                className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
               >
-                <span className="material-symbols-outlined text-sm">add</span>
-                <span>ADD RAW MATERIAL</span>
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                ADD RAW MATERIAL
               </button>
             )}
-
           </div>
         </div>
       </div>
@@ -1165,16 +1281,16 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
             onClick: () => onNavigate?.('purchase-orders'),
           },
           {
-            id: 'stock-movements',
-            label: 'STOCK LEVELS',
+            id: 'stock-inventory',
+            label: 'STOCK & BALANCE',
             icon: 'table_rows',
-            onClick: () => onNavigate?.('stock-movements'),
+            onClick: () => onNavigate?.('stock-inventory'),
           },
           {
-            id: 'movements',
+            id: 'stock-movements',
             label: 'MOVEMENTS',
             icon: 'swap_vert',
-            onClick: () => onNavigate?.('movements'),
+            onClick: () => onNavigate?.('stock-movements'),
           },
           {
             id: 'locations',

@@ -40,6 +40,16 @@ function json(body: unknown) {
 async function bootstrap(page: Page, settlements = [PENDING_SETTLEMENT]) {
   await page.addInitScript(() => {
     localStorage.setItem('x7_saas_admin_token', 'e2e-token');
+    localStorage.setItem('x7_access_token', 'e2e-token');
+    localStorage.setItem(
+      'x7_user',
+      JSON.stringify({
+        id: 16,
+        email: 'portal.admin@x7pos.com',
+        role: 'portal_admin',
+        scope: 'portal',
+      }),
+    );
   });
 
   // Fallback para cualquier otra llamada al backend real (/api/...) — p. ej. las métricas

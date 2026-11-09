@@ -14,12 +14,12 @@ describe('TipsManagementQuickLinks — Navigation Hub Bar', () => {
     expect(screen.getByText('space_dashboard')).toBeInTheDocument();
     expect(screen.getByText('Tips Navigation Hub')).toBeInTheDocument();
 
-    expect(screen.getByTestId('nav-link-tips-ledger')).toHaveTextContent('TIPS LEDGER');
-    expect(screen.getByTestId('nav-link-tips-pools')).toHaveTextContent('TIP POOLS');
-    expect(screen.getByTestId('nav-link-tips-pool-members')).toHaveTextContent('POOL MEMBERS');
-    expect(screen.getByTestId('nav-link-tips-allocations')).toHaveTextContent('TIP ALLOCATIONS');
-    expect(screen.getByTestId('nav-link-tips-settlements')).toHaveTextContent('TIP SETTLEMENTS');
-    expect(screen.getByTestId('nav-link-tips-cash-movements')).toHaveTextContent('CASH TIP MOVEMENTS');
+    expect(screen.getByTestId('nav-link-tips-ledger')).toHaveTextContent(/tips ledger/i);
+    expect(screen.getByTestId('nav-link-tips-pools')).toHaveTextContent(/tip pools/i);
+    expect(screen.getByTestId('nav-link-tips-pool-members')).toHaveTextContent(/pool members/i);
+    expect(screen.getByTestId('nav-link-tips-allocations')).toHaveTextContent(/tip allocations/i);
+    expect(screen.getByTestId('nav-link-tips-settlements')).toHaveTextContent(/tip settlements/i);
+    expect(screen.getByTestId('nav-link-tips-cash-movements')).toHaveTextContent(/cash tip movements/i);
   });
 
   it('highlights the active route context with corporate red styling', () => {

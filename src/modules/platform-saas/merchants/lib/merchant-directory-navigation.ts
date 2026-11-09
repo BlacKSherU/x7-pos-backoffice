@@ -60,7 +60,7 @@ export const MERCHANT_BRANCH_ACTION_TARGETS = {
     activeCategory: 'financehr',
   },
   manageStoreLocations: {
-    activeTab: 'stock-movements',
+    activeTab: 'stock-inventory',
     activeCategory: 'inventory',
   },
 } as const;

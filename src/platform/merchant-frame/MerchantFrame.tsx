@@ -4,8 +4,6 @@ import {
   restaurantService,
   setSimulate401,
   getSimulate401,
-  setSimulationPlanId,
-  setSimulationRole,
   setAuthenticatedState
 } from '@/modules/platform-saas/client-backoffice/api/restaurant-service';
 import type {
@@ -19,7 +17,7 @@ import type {
 } from '@/platform/navigation/navigationService';
 import { GlobalHeader } from '@/platform/merchant-frame/layout/GlobalHeader';
 import { GlobalFooter } from '@/platform/merchant-frame/layout/GlobalFooter';
-import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenMonitorView';
+import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/KitchenMonitorView';
 import {
   sendStationKeepaliveHeartbeat,
   resetHeartbeatSuspension,
@@ -32,26 +30,55 @@ import {
   NewQuickOrderModal,
   LoginGatewayModal
 } from '@/shared/components/QuickActionModals';
-import { setSimulateApiFailure, getSimulateApiFailure } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
 import type { JournalEntry } from '@/modules/core/financial-engine/types/accounting';
 import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/types/accounts-payable';
-import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
+import { navHubById, navHubForFeature, setAuthorizedFeatures } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
 import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
-import { clearAuthSession, getStoredUser } from '@/platform/auth/lib/auth-storage';
+import { clearAuthSession, getStoredUser, setPreviewUserRole } from '@/platform/auth/lib/auth-storage';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
 import type { AllocationsContext, MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
 import { FeatureInDevelopmentView } from '@/shared/components/PlaceholderViews';
 import { MerchantHomeDashboard } from '@/modules/platform-saas/client-backoffice/views/dashboard/MerchantHomeDashboard';
+import {
+  apiRequest,
+  getActiveSuperAdminMerchantId,
+  setActiveSuperAdminMerchantId,
+} from '@/shared/api/http';
+
+interface MerchantStaffUser {
+  id: number;
+  email: string;
+  username: string;
+  role: string;
+  shiftRole?: string | null;
+  collaboratorName?: string | null;
+}
+
+const PLATFORM_FALLBACK_USERS: MerchantStaffUser[] = [
+  { id: 14, email: 'superadmin@x7pos.com', username: 'superadmin', role: 'super_admin' },
+  { id: 16, email: 'portal.admin@x7pos.com', username: 'portal_admin', role: 'portal_admin' },
+  { id: 17, email: 'portal.user@x7pos.com', username: 'portal_user', role: 'portal_user' },
+];
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Session loading and initialization state
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  // Session loading and initialization state (hydrated synchronously from stored user so role is known on first render)
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    const stored = getStoredUser();
+    if (!stored) return null;
+    return {
+      name: stored.email ? stored.email.split('@')[0] : 'Merchant Admin',
+      role: stored.role || 'merchant_admin',
+      portraitUrl: '',
+      Plan_id: 2,
+      company_id: stored.merchant?.id,
+    };
+  });
   const [isAuthLocked, setIsAuthLocked] = useState<boolean>(false);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
@@ -87,6 +114,9 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter(null);
     setAllocationsContext(null);
     setActiveTab(featureId);
+    if (location.pathname !== '/dashboard') {
+      navigate('/dashboard', { state: { activeTab: featureId, activeCategory } });
+    }
     const mainEl = document.querySelector('main');
     if (mainEl) {
       mainEl.scrollTop = 0;
@@ -119,16 +149,34 @@ export const MerchantFrame: React.FC = () => {
     setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
   };
 
+  const effectiveProfileRole = profile?.role ?? getStoredUser()?.role;
   const [prevRouteKey, setPrevRouteKey] = useState<string>('');
-  const userRole = profile?.role ?? getStoredUser()?.role;
-  const currentRouteKey = `${location.pathname}:${location.search}:${userRole ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
+  const currentRouteKey = `${location.pathname}:${location.search}:${effectiveProfileRole ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
 
   if (currentRouteKey !== prevRouteKey) {
     setPrevRouteKey(currentRouteKey);
-    const routeNav = getNavFromPath(location.pathname, location.state, userRole);
+    const routeNav = getNavFromPath(location.pathname, location.state, effectiveProfileRole);
     if (routeNav) {
-      setActiveCategory(routeNav.category);
-      setActiveTab(routeNav.tab);
+      const isPlatformStaff =
+        effectiveProfileRole === 'super_admin' ||
+        effectiveProfileRole === 'Super Admin (All Access)' ||
+        effectiveProfileRole === 'portal_admin' ||
+        effectiveProfileRole === 'portal_user' ||
+        effectiveProfileRole === 'SaaS Owner';
+
+      const isSaaSCat =
+        routeNav.category === 'platformsaas' ||
+        routeNav.category === 'platform-saas' ||
+        routeNav.category === 'saas' ||
+        routeNav.tab === 'saas-dashboard';
+
+      if (isSaaSCat && !isPlatformStaff) {
+        setActiveCategory('core');
+        setActiveTab('dashboard');
+      } else {
+        setActiveCategory(routeNav.category);
+        setActiveTab(routeNav.tab);
+      }
     }
   }
 
@@ -143,8 +191,36 @@ export const MerchantFrame: React.FC = () => {
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
+
+  // Auto-expand category strictly when activeTab changes (single accordion model)
+  useEffect(() => {
+    if (!activeTab || navCategories.length === 0) return;
+    const featureHub = navHubForFeature(activeTab);
+    const activeCommandHub = navHubById(activeTab);
+    const matchedByApp = navCategories.find((cat) =>
+      cat.applications.some(
+        (app) =>
+          app.features.some((f) => f.id === activeTab) ||
+          app.id === featureHub?.appId ||
+          app.id === activeCommandHub?.appId ||
+          activeTab === `${app.id}-hub` ||
+          activeTab === app.id,
+      ),
+    );
+    const matchedCat =
+      matchedByApp ??
+      navCategories.find(
+        (cat) =>
+          cat.name.toLowerCase() ===
+          (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase(),
+      );
+
+    if (matchedCat) {
+      setExpandedCategories({ [matchedCat.id]: true });
+      setActiveCategory(matchedCat.id);
+    }
+  }, [activeTab, navCategories]);
 
   const filteredNavCategories = useMemo(() => {
     const query = sidebarSearchQuery.trim().toLowerCase();
@@ -178,25 +254,342 @@ export const MerchantFrame: React.FC = () => {
   const [isNavLoading, setIsNavLoading] = useState<boolean>(true);
   const [navError, setNavError] = useState<string | null>(null);
 
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
+  const [demo401Toggle, setDemo401Toggle] = useState<boolean>(getSimulate401());
+  const [showDemoPanel, setShowDemoPanel] = useState<boolean>(false);
+
+  // Super Admin active merchant switching
+  const [activeMerchantId, setActiveMerchantId] = useState<string>(
+    () => getActiveSuperAdminMerchantId() || '1',
+  );
+  const [merchantsList, setMerchantsList] = useState<
+    Array<{ id: number; name: string; companyId?: number; companyName?: string }>
+  >([
+    { id: 1, name: 'FastBites Downtown [Essential M1]', companyId: 1, companyName: 'FastBites Corp [Essential]' },
+    { id: 3, name: 'FastBites Airport [Essential M2]', companyId: 1, companyName: 'FastBites Corp [Essential]' },
+    { id: 2, name: 'Bistro Central [Professional M1]', companyId: 2, companyName: 'Bistro Gourmet Group [Professional]' },
+    { id: 4, name: 'Bistro Marina [Professional M2]', companyId: 2, companyName: 'Bistro Gourmet Group [Professional]' },
+    { id: 5, name: 'Grand Palace Dining [Executive M1]', companyId: 3, companyName: 'Grand Palace Hospitality [Executive]' },
+    { id: 6, name: 'Grand Palace Sky Bar [Executive M2]', companyId: 3, companyName: 'Grand Palace Hospitality [Executive]' },
+  ]);
+
   useEffect(() => {
+    const role = profile?.role ?? getStoredUser()?.role;
+    if (role === 'super_admin' || role === 'Super Admin (All Access)') {
+      apiRequest<{ data?: Array<{ id: number; name: string; company?: { id: number; name: string } }> }>(
+        '/merchants',
+        { method: 'GET' },
+        'Failed to load merchants list',
+      )
+        .then((res) => {
+          if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+            setMerchantsList(
+              res.data.map((m) => ({
+                id: m.id,
+                name: m.name,
+                companyId: m.company?.id,
+                companyName: m.company?.name || (m.name.includes('Essential') ? 'FastBites Corp [Essential]' : m.name.includes('Professional') ? 'Bistro Gourmet Group [Professional]' : 'Grand Palace Hospitality [Executive]'),
+              })),
+            );
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load merchants list for superadmin:', err);
+        });
+    }
+  }, [profile?.role, refreshTrigger]);
+
+  const groupedMerchants = useMemo(() => {
+    const groups: Record<string, Array<{ id: number; name: string }>> = {};
+    for (const m of merchantsList) {
+      const groupKey = m.companyName || 'Other Companies';
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(m);
+    }
+    return groups;
+  }, [merchantsList]);
+
+  const [merchantUsers, setMerchantUsers] = useState<MerchantStaffUser[]>([]);
+  const [platformUsers, setPlatformUsers] = useState<MerchantStaffUser[]>(PLATFORM_FALLBACK_USERS);
+
+  // Platform staff (super admin + portal admin/user). Only a super admin can list them.
+  useEffect(() => {
+    const role = profile?.role ?? getStoredUser()?.role;
+    if (role !== 'super_admin') return;
+    let ignore = false;
+    apiRequest<{ data: MerchantStaffUser[] }>(
+      '/users/platform',
+      { method: 'GET' },
+      'Failed to load platform users',
+    )
+      .then((res) => {
+        if (!ignore && Array.isArray(res?.data) && res.data.length > 0) {
+          setPlatformUsers(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load platform users:', err);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [profile?.role, refreshTrigger]);
+
+  const [selectedUserEmail, setSelectedUserEmail] = useState<string>(
+    () =>
+      sessionStorage.getItem('x7_superadmin_preview_email') ||
+      getStoredUser()?.email ||
+      'superadmin@x7pos.com',
+  );
+
+  const handleSelectPreviewUser = (email: string) => {
+    setSelectedUserEmail(email);
+    sessionStorage.setItem('x7_superadmin_preview_email', email);
+  };
+
+  const selectedPreviewUser = useMemo(
+    () => [...platformUsers, ...merchantUsers].find((u) => u.email === selectedUserEmail) ?? null,
+    [platformUsers, merchantUsers, selectedUserEmail],
+  );
+
+  const actualUserRole = profile?.role ?? getStoredUser()?.role;
+  const isActualSuperAdmin =
+    actualUserRole === 'super_admin' || actualUserRole === 'Super Admin (All Access)';
+  setPreviewUserRole(isActualSuperAdmin ? (selectedPreviewUser?.role ?? null) : null);
+
+  const handleMerchantSwitch = (newMerchantId: string) => {
+    setActiveMerchantId(newMerchantId);
+    setActiveSuperAdminMerchantId(newMerchantId);
+    window.location.reload();
+  };
+
+  useEffect(() => {
+    const role = profile?.role ?? getStoredUser()?.role;
+    const canSwitchUsers =
+      role === 'super_admin' ||
+      role === 'Super Admin (All Access)';
+    if (!canSwitchUsers) return;
+
+    const fallbackUsers: Record<string, MerchantStaffUser[]> = {
+      '1': [
+        { id: 18, email: 'admin.mer1@x7pos.com', username: 'admin_mer1', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 19, email: 'manager.mer1@x7pos.com', username: 'manager_mer1', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mateo Manager' },
+        { id: 20, email: 'cashier.mer1@x7pos.com', username: 'cashier_mer1', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Camila Cajera' },
+        { id: 21, email: 'waiter.mer1@x7pos.com', username: 'waiter_mer1', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Manuel Mozo' },
+        { id: 22, email: 'cook.mer1@x7pos.com', username: 'cook_mer1', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristian Cocinero' },
+        { id: 23, email: 'delivery.mer1@x7pos.com', username: 'delivery_mer1', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'David Delivery' },
+      ],
+      '2': [
+        { id: 25, email: 'admin.mer2@x7pos.com', username: 'admin_mer2', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 26, email: 'manager.mer2@x7pos.com', username: 'manager_mer2', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcos Manager M2' },
+        { id: 27, email: 'cashier.mer2@x7pos.com', username: 'cashier_mer2', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carla Cashier M2' },
+        { id: 28, email: 'waiter.mer2@x7pos.com', username: 'waiter_mer2', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Walter Waiter M2' },
+        { id: 33, email: 'cook.mer2@x7pos.com', username: 'cook_mer2', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Claudio Chef M2' },
+        { id: 34, email: 'delivery.mer2@x7pos.com', username: 'delivery_mer2', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Diego Delivery M2' },
+      ],
+      '3': [
+        { id: 29, email: 'admin.mer1b@x7pos.com', username: 'admin_mer1b', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 35, email: 'manager.mer1b@x7pos.com', username: 'manager_mer1b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mariano Manager M1B' },
+        { id: 36, email: 'cashier.mer1b@x7pos.com', username: 'cashier_mer1b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carolina Cashier M1B' },
+        { id: 37, email: 'waiter.mer1b@x7pos.com', username: 'waiter_mer1b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'William Waiter M1B' },
+        { id: 38, email: 'cook.mer1b@x7pos.com', username: 'cook_mer1b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cesar Cook M1B' },
+      ],
+      '4': [
+        { id: 30, email: 'admin.mer2b@x7pos.com', username: 'admin_mer2b', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 39, email: 'manager.mer2b@x7pos.com', username: 'manager_mer2b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Mauricio Manager M2B' },
+        { id: 40, email: 'cashier.mer2b@x7pos.com', username: 'cashier_mer2b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Carmen Cashier M2B' },
+        { id: 41, email: 'waiter.mer2b@x7pos.com', username: 'waiter_mer2b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wendy Waiter M2B' },
+        { id: 42, email: 'cook.mer2b@x7pos.com', username: 'cook_mer2b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Camilo Cook M2B' },
+        { id: 43, email: 'delivery.mer2b@x7pos.com', username: 'delivery_mer2b', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Daniel Delivery M2B' },
+      ],
+      '5': [
+        { id: 31, email: 'admin.mer3a@x7pos.com', username: 'admin_mer3a', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 44, email: 'manager.mer3a@x7pos.com', username: 'manager_mer3a', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Marcelo Manager M3A' },
+        { id: 45, email: 'cashier.mer3a@x7pos.com', username: 'cashier_mer3a', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Clara Cashier M3A' },
+        { id: 46, email: 'waiter.mer3a@x7pos.com', username: 'waiter_mer3a', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Waldemar Waiter M3A' },
+        { id: 47, email: 'cook.mer3a@x7pos.com', username: 'cook_mer3a', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Carlos Chef M3A' },
+        { id: 48, email: 'delivery.mer3a@x7pos.com', username: 'delivery_mer3a', role: 'merchant_user', shiftRole: 'delivery', collaboratorName: 'Dario Delivery M3A' },
+      ],
+      '6': [
+        { id: 32, email: 'admin.mer3b@x7pos.com', username: 'admin_mer3b', role: 'merchant_admin', shiftRole: null, collaboratorName: null },
+        { id: 49, email: 'manager.mer3b@x7pos.com', username: 'manager_mer3b', role: 'merchant_user', shiftRole: 'manager', collaboratorName: 'Martin Manager M3B' },
+        { id: 50, email: 'cashier.mer3b@x7pos.com', username: 'cashier_mer3b', role: 'merchant_user', shiftRole: 'cashier', collaboratorName: 'Cinthia Cashier M3B' },
+        { id: 51, email: 'waiter.mer3b@x7pos.com', username: 'waiter_mer3b', role: 'merchant_user', shiftRole: 'waiter', collaboratorName: 'Wenceslao Waiter M3B' },
+        { id: 52, email: 'bartender.mer3b@x7pos.com', username: 'bartender_mer3b', role: 'merchant_user', shiftRole: 'bartender', collaboratorName: 'Bernardo Bartender M3B' },
+        { id: 53, email: 'cook.mer3b@x7pos.com', username: 'cook_mer3b', role: 'merchant_user', shiftRole: 'cook', collaboratorName: 'Cristobal Cook M3B' },
+      ],
+    };
+
+    const applyUsersList = (users: MerchantStaffUser[]) => {
+      setMerchantUsers(users);
+      if (users.length > 0) {
+        setSelectedUserEmail((prev) => {
+          const isKnown =
+            users.some((u) => u.email === prev) ||
+            PLATFORM_FALLBACK_USERS.some((u) => u.email === prev);
+          if (prev && isKnown) return prev;
+          const fallbackEmail = users[0].email;
+          sessionStorage.setItem('x7_superadmin_preview_email', fallbackEmail);
+          return fallbackEmail;
+        });
+      }
+    };
+
+    let ignore = false;
+    apiRequest<{ data: MerchantStaffUser[] }>(
+      `/users/merchant/${activeMerchantId}`,
+      { method: 'GET' },
+      'Failed to load merchant users',
+    )
+      .then((res) => {
+        if (!ignore && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          applyUsersList(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load merchant users:', err);
+        if (!ignore) {
+          applyUsersList(fallbackUsers[String(activeMerchantId)] || []);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [activeMerchantId, refreshTrigger, profile?.role]);
+
+  // Platform SaaS lives inside this same shell: portal staff only see the Platform SaaS
+  // category (saas_web); the super admin sees it together with the merchant categories;
+  // every other role gets the merchant menu with the SaaS category hidden.
+  useEffect(() => {
+    const baseRole = profile?.role ?? getStoredUser()?.role;
+    const isRealSuperAdmin =
+      baseRole === 'super_admin' || baseRole === 'Super Admin (All Access)';
+    const effectiveRole =
+      isRealSuperAdmin && selectedPreviewUser ? selectedPreviewUser.role : baseRole;
+    const previewUserId =
+      isRealSuperAdmin && selectedPreviewUser ? selectedPreviewUser.id : undefined;
+
+    const isPortalStaff =
+      effectiveRole === 'portal_admin' ||
+      effectiveRole === 'portal_user' ||
+      effectiveRole === 'SaaS Owner';
+    const isSuperAdmin =
+      effectiveRole === 'super_admin' || effectiveRole === 'Super Admin (All Access)';
     let ignore = false;
     setIsNavLoading(true);
     setNavError(null);
 
-    const activeRole = profile?.role ?? getStoredUser()?.role;
-    const isPortalStaff =
-      activeRole === 'portal_admin' ||
-      activeRole === 'portal_user' ||
-      activeRole === 'SaaS Owner';
-    const surface = isPortalStaff ? 'saas_web' : 'merchant_web';
+    const loadWithRetry = async (
+      surface: 'merchant_web' | 'saas_web',
+      attempts = 3,
+      targetUserId?: number,
+    ): Promise<NavCategory[]> => {
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          return await navigationService.loadDynamicNavigation(surface, targetUserId);
+        } catch (err) {
+          const status =
+            typeof err === 'object' && err !== null && 'status' in err
+              ? (err as { status?: number }).status
+              : undefined;
+          const isTransient = status === 502 || status === 503 || status === 504 || err instanceof TypeError;
+          if (!isTransient || attempt === attempts) {
+            throw err;
+          }
+          await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+        }
+      }
+      return [];
+    };
 
-    navigationService
-      .loadDynamicNavigation(surface)
+    const loadMenu = async (): Promise<NavCategory[]> => {
+      if (isPortalStaff) {
+        return loadWithRetry('saas_web', 3, previewUserId);
+      }
+      const merchantMenu = await loadWithRetry(
+        'merchant_web',
+        3,
+        isSuperAdmin ? undefined : previewUserId,
+      );
+      if (!isSuperAdmin) {
+        return merchantMenu.filter(
+          (cat) =>
+            cat.id !== 'platform-saas' &&
+            cat.id !== 'platformsaas' &&
+            cat.name.toLowerCase() !== 'platform saas',
+        );
+      }
+      try {
+        const saasMenu = await loadWithRetry('saas_web');
+        const merchantOnly = merchantMenu.filter((cat) => !saasMenu.some((s) => s.id === cat.id));
+        return [...saasMenu, ...merchantOnly];
+      } catch (err) {
+        console.warn('Could not load saas_web menu for super_admin, falling back to merchant_web:', err);
+        return merchantMenu;
+      }
+    };
+
+    loadMenu()
       .then((menu) => {
         if (!ignore) {
+          const allowedCodes = new Set<string>();
+          for (const cat of menu) {
+            for (const app of cat.applications) {
+              allowedCodes.add(app.id);
+              allowedCodes.add(`${app.id}-hub`);
+              for (const feat of app.features) {
+                allowedCodes.add(feat.id);
+              }
+            }
+          }
+          setAuthorizedFeatures(allowedCodes);
           setNavCategories(menu);
           setNavError(null);
           setIsNavLoading(false);
+
+          if (menu.length > 0) {
+            const directTargets: Record<string, string> = {
+              'central-backoffice': 'saas-dashboard',
+              'saas-companies': 'companies-registry',
+              'saas-merchants': 'global-merchants-directory',
+              'saas-users': 'users-auth-profiles',
+              'client-backoffice': 'dashboard',
+              companies: 'company-profile',
+              merchants: 'merchant-directory',
+              users: 'user-management',
+            };
+            const featureHub = navHubForFeature(activeTab);
+            const activeCommandHub = navHubById(activeTab);
+            const isTabAllowed = menu.some((cat) =>
+              cat.applications.some(
+                (app) =>
+                  app.features.some((f) => f.id === activeTab) ||
+                  directTargets[app.id] === activeTab ||
+                  app.id === featureHub?.appId ||
+                  app.id === activeCommandHub?.appId ||
+                  activeTab === `${app.id}-hub` ||
+                  activeTab === app.id,
+              ),
+            );
+
+            if (!isTabAllowed) {
+              const firstCat = menu[0];
+              const firstApp = firstCat.applications[0];
+              const nextTab =
+                (firstApp && directTargets[firstApp.id]) ||
+                firstApp?.features[0]?.id ||
+                (isPortalStaff ? 'saas-dashboard' : 'dashboard');
+              setActiveCategory(firstCat.id);
+              setActiveTab(nextTab);
+              setExpandedCategories({ [firstCat.id]: true });
+              if (location.pathname !== '/dashboard') {
+                navigate('/dashboard', {
+                  state: { activeTab: nextTab, activeCategory: firstCat.id },
+                });
+              }
+            }
+          }
         }
       })
       .catch((err: unknown) => {
@@ -216,14 +609,10 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [refreshTrigger, profile?.role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger, profile?.role, selectedPreviewUser]);
 
-  const [showNotifications, setShowNotifications] = useState<boolean>(false);
-  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
-  const [demo401Toggle, setDemo401Toggle] = useState<boolean>(getSimulate401());
-  const [showDemoPanel, setShowDemoPanel] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  const [apiFailedToggle, setApiFailedToggle] = useState<boolean>(getSimulateApiFailure());
 
   const [isReservationOpen, setIsReservationOpen] = useState<boolean>(false);
   const [isVoidOpen, setIsVoidOpen] = useState<boolean>(false);
@@ -257,7 +646,7 @@ export const MerchantFrame: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, profile?.role]);
 
   useEffect(() => {
     let ignore = false;
@@ -309,7 +698,8 @@ export const MerchantFrame: React.FC = () => {
       profile?.role === 'portal_admin' ||
       profile?.role === 'portal_user' ||
       exclusiveSaaS.includes(activeTab) ||
-      activeCategory === 'saas';
+      activeCategory === 'saas' ||
+      activeCategory === 'platform-saas';
 
     if (isSaaSTab) {
       rootEl?.classList.remove('restaurant-active');
@@ -329,7 +719,7 @@ export const MerchantFrame: React.FC = () => {
     };
   }, [activeTab, activeCategory, profile?.role]);
 
-  // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa
+  // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa de comercio
   useEffect(() => {
     const activeRole = profile?.role ?? getStoredUser()?.role;
     const isPortalStaff =
@@ -341,6 +731,10 @@ export const MerchantFrame: React.FC = () => {
       return;
     }
 
+    const role = profile?.role ?? getStoredUser()?.role;
+    if (!role || role === 'portal_admin' || role === 'portal_user') {
+      return;
+    }
     resetHeartbeatSuspension();
     void sendStationKeepaliveHeartbeat('ALL');
 
@@ -350,13 +744,6 @@ export const MerchantFrame: React.FC = () => {
 
     return () => clearInterval(keepaliveTimer);
   }, [profile?.role]);
-
-  const handleToggleApiFailure = () => {
-    const newState = !apiFailedToggle;
-    setSimulateApiFailure(newState);
-    setApiFailedToggle(newState);
-    setRefreshTrigger((prev) => prev + 1);
-  };
 
   const handleToggle401 = () => {
     const newState = !demo401Toggle;
@@ -396,10 +783,10 @@ export const MerchantFrame: React.FC = () => {
       profile?.role === 'portal_admin' ||
       profile?.role === 'portal_user'
     ) {
-      setActiveCategory('saas');
+      setActiveCategory('platform-saas');
       setActiveTab('saas-dashboard');
     } else {
-      setActiveCategory('core');
+      setActiveCategory('merchant-portal');
       setActiveTab('dashboard');
     }
     navigate('/dashboard');
@@ -447,7 +834,7 @@ export const MerchantFrame: React.FC = () => {
     if (registered !== undefined) return registered;
 
     const commandHub = navHubById(activeTab);
-    if (commandHub) {
+    if (commandHub && !commandHub.items.some((i) => i.featureId === activeTab)) {
       return <GenericModuleNavHub hub={commandHub} onNavigate={navigateToFeature} />;
     }
 
@@ -461,7 +848,7 @@ export const MerchantFrame: React.FC = () => {
           const feat = app.features.find(f => f.id === activeTab);
           if (feat) {
             featureName = feat.name;
-            featureIcon = cat.icon;
+            featureIcon = feat.icon || cat.icon;
             appName = app.name;
             break;
           }
@@ -560,13 +947,27 @@ export const MerchantFrame: React.FC = () => {
           ) : (
             filteredNavCategories.map((cat) => {
               const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
-              const hasActiveTab = cat.applications.some(
-                (app) =>
-                  app.features.some((f) => f.id === activeTab) ||
-                  navHubById(activeTab)?.appId === app.id ||
-                  activeTab === `${app.id}-hub`,
-              );
-              const isCatActive = activeCategory === cat.id || hasActiveTab;
+              const featureHub = navHubForFeature(activeTab);
+              const activeCommandHub = navHubById(activeTab);
+
+              // Active category is strictly determined by the active tab location; fallback to activeCategory only when no category matches activeTab
+              const activeMatchingCat =
+                navCategories.find((c) =>
+                  c.applications.some(
+                    (app) =>
+                      app.features.some((f) => f.id === activeTab) ||
+                      activeCommandHub?.appId === app.id ||
+                      featureHub?.appId === app.id ||
+                      activeTab === `${app.id}-hub` ||
+                      activeTab === app.id,
+                  ),
+                ) ??
+                navCategories.find(
+                  (c) =>
+                    c.name.toLowerCase() ===
+                    (featureHub?.category ?? activeCommandHub?.category ?? '').toLowerCase(),
+                );
+              const isCatActive = activeMatchingCat ? activeMatchingCat.id === cat.id : activeCategory === cat.id;
 
               return (
                 <div key={cat.id} className="w-full text-left">
@@ -574,7 +975,6 @@ export const MerchantFrame: React.FC = () => {
                     onClick={() => {
                       const isCurrentlyExpanded = !!expandedCategories[cat.id];
                       setExpandedCategories(isCurrentlyExpanded ? {} : { [cat.id]: true });
-                      setExpandedApps({});
                       setActiveCategory(cat.id);
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
@@ -600,11 +1000,11 @@ export const MerchantFrame: React.FC = () => {
                         const hubId = appHub?.hubId ?? `${app.id}-hub`;
                         const isAppSelected =
                           app.features.some((f) => f.id === activeTab) ||
-                          navHubById(activeTab)?.appId === app.id ||
+                          activeCommandHub?.appId === app.id ||
+                          featureHub?.appId === app.id ||
+                          featureHub?.hubId === hubId ||
                           activeTab === hubId ||
                           activeTab === app.id;
-                        const isAppExpanded =
-                          sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id];
 
                         const handleNavigateTarget = (targetId: string, route?: string) => {
                           setActiveCategory(cat.id);
@@ -786,122 +1186,161 @@ export const MerchantFrame: React.FC = () => {
 
       <LoginGatewayModal isOpen={false} onLoginSuccess={handleLoginSuccess} />
 
-      {import.meta.env.DEV && (
+      {(profile?.role === 'super_admin' ||
+        profile?.role === 'Super Admin (All Access)') && (
         <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
           isSidebarCollapsed ? 'left-6' : 'left-[272px]'
         }`}>
         <button
           onClick={() => setShowDemoPanel(!showDemoPanel)}
-          className="w-10 h-10 bg-[#222222] hover:bg-[#d51f2c] text-white rounded-full shadow-lg flex items-center justify-center border border-white/20 transition-all active:scale-95"
-          title="Demo Simulation Controls"
+          className="relative w-10 h-10 bg-[#222222] hover:bg-[#d51f2c] text-white rounded-full shadow-lg flex items-center justify-center border border-white/20 transition-all active:scale-95 cursor-pointer"
+          title={`Super Admin Controls - Active Store: Merchant ${activeMerchantId}`}
         >
           <span className="material-symbols-outlined text-[20px]">construction</span>
+          <span className="absolute -top-1 -right-1 bg-[#ae001a] text-white text-[9px] font-bold px-1 rounded-full border border-[#222222] leading-tight">
+            M{activeMerchantId}
+          </span>
         </button>
 
         {showDemoPanel && (
-          <div className="absolute bottom-12 left-0 w-64 bg-[#222222] border border-white/10 p-4 rounded shadow-2xl space-y-3 animate-fade-in text-left">
-            <div>
-              <p className="font-bold text-[#d51f2c] uppercase text-[10px] tracking-wider">Demo Simulation Controls</p>
-              <p className="text-[9px] text-white/50 mb-2">Simulate live conditions.</p>
+          <div className="absolute bottom-12 left-0 w-[350px] bg-[#1c1c1c] border border-white/20 p-4 rounded-xl shadow-2xl space-y-3.5 animate-fade-in text-left font-sans z-[10000]">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-[#d51f2c]">admin_panel_settings</span>
+                <div>
+                  <h3 className="font-bold text-white text-xs leading-none">Super Admin Controls</h3>
+                  <p className="text-[10px] text-white/50 mt-0.5">Switch active store & merchant user</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDemoPanel(false)}
+                className="p-1 text-white/40 hover:text-white rounded hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-center"
+                title="Close panel"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
             </div>
 
-            <div className="border-t border-white/10 pt-2">
-              <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Role / Environment</p>
+            {/* Active Merchant Switcher with Optgroups by Company */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[15px] text-amber-400">storefront</span>
+                  Switch Active Merchant
+                </label>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#ae001a] text-white font-bold tracking-wide">
+                  Active #{activeMerchantId}
+                </span>
+              </div>
               <select
-                aria-label="Role / Environment"
-                value={profile?.role || 'merchant_admin'}
-                onChange={(e) => {
-                  const role = e.target.value;
-                  setSimulationRole(role);
-                  if (
-                    role === 'portal_admin' ||
-                    role === 'portal_user' ||
-                    role === 'SaaS Owner'
-                  ) {
-                    setActiveCategory('saas');
-                    setActiveTab('saas-dashboard');
-                  } else if (
-                    role === 'super_admin' ||
-                    role === 'Super Admin (All Access)'
-                  ) {
-                    setActiveCategory('core');
-                    setActiveTab('dashboard');
-                  } else {
-                    setActiveCategory('core');
-                    setActiveTab('dashboard');
-                  }
-                  setRefreshTrigger((p) => p + 1);
-                }}
-                className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
+                aria-label="Active Merchant Store"
+                value={activeMerchantId}
+                onChange={(e) => handleMerchantSwitch(e.target.value)}
+                className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
               >
-                <option value="super_admin">Super Admin (All Access)</option>
-                <option value="portal_admin">Portal Admin (Platform SaaS)</option>
-                <option value="portal_user">Portal User (SaaS Read-Only)</option>
-                <option value="merchant_admin">Merchant Admin (General Manager)</option>
-                <option value="merchant_user">Merchant User (Staff)</option>
+                {Object.entries(groupedMerchants).map(([groupName, stores]) => (
+                  <optgroup key={groupName} label={groupName} className="bg-[#222222] text-amber-400 font-bold py-1">
+                    {stores.map((m) => (
+                      <option key={m.id} value={String(m.id)} className="bg-[#111111] text-white font-normal py-1">
+                        #{m.id} — {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
 
-            {profile?.role !== 'SaaS Owner' &&
-              profile?.role !== 'portal_admin' &&
-              profile?.role !== 'portal_user' && (
-              <div className="border-t border-white/10 pt-2">
-                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
-                <select
-                  aria-label="Merchant Plan (Tier)"
-                  value={profile?.Plan_id || 2}
-                  onChange={(e) => {
-                    const planId = parseInt(e.target.value);
-                    setSimulationPlanId(planId);
-                    if (planId === 1 && (activeCategory === 'finance' || activeCategory === 'growth')) {
-                      setActiveCategory('core');
-                      setActiveTab('dashboard');
-                    } else if (planId === 2 && activeCategory === 'growth') {
-                      setActiveCategory('core');
-                      setActiveTab('dashboard');
-                    }
-                    setRefreshTrigger((p) => p + 1);
-                  }}
-                  className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
-                >
-                  <option value="1">Plan 1: Quick Service</option>
-                  <option value="2">Plan 2: Full Restaurant</option>
-                  <option value="3">Plan 3: Enterprise</option>
-                </select>
+            {/* Contracted Plan Info */}
+            <div className="bg-[#111111] border border-white/10 rounded-lg p-2.5 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Contracted Plan</p>
+                <p className="text-xs font-bold text-white">
+                  {Number(activeMerchantId) === 1 || Number(activeMerchantId) === 3
+                    ? 'Plan 1 (15 Apps)'
+                    : Number(activeMerchantId) === 2 || Number(activeMerchantId) === 4
+                    ? 'Plan 2 (26 Apps)'
+                    : 'Plan 3 (28 Apps)'}
+                </p>
               </div>
-            )}
+              <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-white/10 text-amber-300 border border-amber-300/20">
+                {Number(activeMerchantId) === 1 || Number(activeMerchantId) === 3
+                  ? 'Essential'
+                  : Number(activeMerchantId) === 2 || Number(activeMerchantId) === 4
+                  ? 'Professional'
+                  : 'Executive'}
+              </span>
+            </div>
 
-            {profile?.role === 'SaaS Owner' ||
-            profile?.role === 'portal_admin' ||
-            profile?.role === 'portal_user' ? (
-              <div className="border-t border-white/10 pt-2">
-                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">SaaS Status</p>
-                <button
-                  onClick={() => {
-                    handleToggleApiFailure();
-                  }}
-                  className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
-                    apiFailedToggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
-                  }`}
-                >
-                  {apiFailedToggle ? 'Simulate Online API' : 'Simulate API Failure'}
-                </button>
+            {/* Merchant Staff Users Selector & Quick Switch */}
+            <div className="border-t border-white/10 pt-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[15px] text-purple-400">group</span>
+                  Users & Team
+                </label>
+                <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-white/70 rounded font-medium">
+                  {platformUsers.length + merchantUsers.length} users
+                </span>
               </div>
-            ) : (
-              <div className="border-t border-white/10 pt-2">
-                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Auth Session</p>
-                <button
-                  onClick={() => {
-                    handleToggle401();
-                  }}
-                  className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
-                    demo401Toggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
-                  }`}
+              <select
+                aria-label="Platform and Merchant Users"
+                value={selectedUserEmail}
+                onChange={(e) => handleSelectPreviewUser(e.target.value)}
+                className="w-full bg-[#111111] text-white border border-white/25 text-xs p-2 rounded-lg focus:outline-none focus:border-[#d51f2c] cursor-pointer font-sans transition-colors"
+              >
+                <optgroup label="Platform Team (SaaS)" className="bg-[#111111] text-white/60">
+                  {platformUsers.map((u) => (
+                    <option key={`p-${u.id}`} value={u.email} className="bg-[#111111] text-white py-1">
+                      {u.username} [{u.role.replace('_', ' ').toUpperCase()}] — {u.email}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup
+                  label={`Merchant Team (#${activeMerchantId})`}
+                  className="bg-[#111111] text-white/60"
                 >
-                  {demo401Toggle ? 'Simulate Session OK (200)' : 'Force Expiration (401)'}
-                </button>
-              </div>
-            )}
+                  {merchantUsers.map((u) => {
+                    const roleLabel = u.shiftRole
+                      ? u.shiftRole.toUpperCase()
+                      : u.role === 'merchant_admin'
+                      ? 'STORE ADMIN'
+                      : u.role.toUpperCase();
+                    const nameLabel = u.collaboratorName || u.username;
+                    return (
+                      <option key={u.id} value={u.email} className="bg-[#111111] text-white py-1">
+                        {nameLabel} [{roleLabel}] — {u.email}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Auth Session / 401 Testing */}
+            <div className="border-t border-white/10 pt-2.5 space-y-1.5">
+              <label className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-400">lock</span>
+                Session Security (401 Testing)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggle401();
+                }}
+                className={`w-full py-2 px-3 text-center text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  demo401Toggle
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'
+                    : 'bg-red-600 hover:bg-red-700 text-white shadow-md'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">
+                  {demo401Toggle ? 'check_circle' : 'warning'}
+                </span>
+                <span>{demo401Toggle ? 'Simulate Session OK (200)' : 'Force Expiration (401)'}</span>
+              </button>
+            </div>
           </div>
         )}
       </div>

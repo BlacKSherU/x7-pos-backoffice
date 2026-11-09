@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenQuickLinks';
+import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/hub/KitchenQuickLinks';
 import { AppModal } from '@/shared/components/AppModal';
 import { HeaderQuickTabs } from '@/shared/components/HeaderQuickTabs';
 import { TableOptionsMenu, NoColumnsEmptyState, TableEmptyState, TablePaginationFooter } from '@/shared/components/TableOptionsMenu';
@@ -770,9 +770,9 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         </div>
 
         {/* Row 2: STATUS Pills Strip on left, Record Status & Primary Add Button on right */}
-        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
           {/* Left: STATUS Pills Strip */}
-          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 no-scrollbar">
             <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
               Status:
             </span>
@@ -1634,4 +1634,5 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   );
 };
 
+export const KdsDevices = KitchenDisplayDevicesView;
 export default KitchenDisplayDevicesView;

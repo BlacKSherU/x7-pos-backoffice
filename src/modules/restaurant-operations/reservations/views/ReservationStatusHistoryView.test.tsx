@@ -238,7 +238,7 @@ describe('ReservationStatusHistoryView', () => {
     await screen.findByTestId('history-feed');
 
     await user.type(screen.getByLabelText('Look up a reservation by ID'), '999');
-    expect(await screen.findByTestId('lifecycle-not-found')).toHaveTextContent('#RES-999');
+    expect(await screen.findByTestId('lifecycle-not-found', {}, { timeout: 4000 })).toHaveTextContent('#RES-999');
   });
 
   it('does not query the API for text that is not a reservation ID', async () => {

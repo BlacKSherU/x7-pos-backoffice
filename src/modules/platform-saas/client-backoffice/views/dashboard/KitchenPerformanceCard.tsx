@@ -70,7 +70,7 @@ export const KitchenPerformanceCard: React.FC<KitchenPerformanceCardProps> = ({
   }
 
   return (
-    <div className="bg-white border border-[#e8e2d8] p-6 flex flex-col justify-between">
+    <div className="bg-white border border-[#e8e2d8] p-6 flex flex-col justify-between select-none cursor-default">
       <div className="flex justify-between">
         <p className="font-label-caps text-label-caps text-secondary uppercase font-bold">KITCHEN PERFORMANCE</p>
         <span className="material-symbols-outlined text-[#222222]">speed</span>

@@ -3,9 +3,9 @@ import { NavHubBar } from '@/shared/components/NavHubBar';
 import { HeaderQuickTabs } from '@/shared/components/HeaderQuickTabs';
 import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '@/shared/components/TableOptionsMenu';
 import { getDensityPadding } from '@/shared/components/tableOptionsHelpers';
-import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenQuickLinks';
+import { KitchenQuickLinks } from '@/modules/restaurant-operations/kitchen-display-system/views/hub/KitchenQuickLinks';
 import { useKdsCriticalSla } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-sla-config';
-import { KitchenDevResetButton } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenDevResetButton';
+import { KitchenDevResetButton } from '@/modules/restaurant-operations/kitchen-display-system/views/hub/KitchenDevResetButton';
 import {
   apiRequest,
   unwrapItem,
@@ -1128,7 +1128,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
         </div>
 
         {/* Row 2: STATUS Pills Strip + Expand/Collapse Buttons */}
-        <div className="flex items-center gap-1 pt-2.5 border-t border-[#f0ede6] overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-[#f0ede6] no-scrollbar">
           <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
             STATUS:
           </span>
@@ -2230,4 +2230,5 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
     </div>
   );
 };
+export const KdsOrderItems = KitchenOrderItemsView;
 export default KitchenOrderItemsView;

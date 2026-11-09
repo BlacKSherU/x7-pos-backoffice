@@ -12,10 +12,10 @@ const RULE_CONFIG_ANCHORS: Array<{
   featureId: string;
   icon: string;
 }> = [
-  { key: 'tax', label: 'TAX RULES', featureId: 'merchant-tax-rules', icon: 'percent' },
-  { key: 'payroll', label: 'PAYROLL RULES', featureId: 'merchant-payroll-rules', icon: 'payments' },
-  { key: 'overtime', label: 'OVERTIME RULES', featureId: 'merchant-overtime-rules', icon: 'more_time' },
-  { key: 'tips', label: 'TIPS MANAGEMENT', featureId: 'merchant-tips-rules', icon: 'volunteer_activism' },
+  { key: 'tax', label: 'Tax Rules', featureId: 'merchant-tax-rules', icon: 'percent' },
+  { key: 'payroll', label: 'Payroll Rules', featureId: 'merchant-payroll-rules', icon: 'payments' },
+  { key: 'overtime', label: 'Overtime Rules', featureId: 'merchant-overtime-rules', icon: 'more_time' },
+  { key: 'tips', label: 'Tips Management', featureId: 'merchant-tips-rules', icon: 'volunteer_activism' },
 ];
 
 export const RuleConfigQuickLinks: React.FC<RuleConfigQuickLinksProps> = ({ activeRule, onNavigate }) => {

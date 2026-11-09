@@ -5,6 +5,7 @@ const REFRESH_TOKEN_KEY = 'x7_refresh_token';
 const USER_KEY = 'x7_user';
 const REMEMBERED_EMAIL_KEY = 'x7_remembered_email';
 const REMEMBER_STATION_KEY = 'x7_remember_station';
+const PREVIEW_USER_ROLE_KEY = 'x7_preview_user_role';
 
 function getStorage(remember: boolean): Storage {
   return remember ? localStorage : sessionStorage;
@@ -53,7 +54,25 @@ export function clearAuthSession(): void {
     storage.removeItem(ACCESS_TOKEN_KEY);
     storage.removeItem(REFRESH_TOKEN_KEY);
     storage.removeItem(USER_KEY);
+    storage.removeItem(PREVIEW_USER_ROLE_KEY);
   }
+}
+
+export function setPreviewUserRole(role: string | null): void {
+  if (role) {
+    sessionStorage.setItem(PREVIEW_USER_ROLE_KEY, role);
+  } else {
+    sessionStorage.removeItem(PREVIEW_USER_ROLE_KEY);
+  }
+}
+
+export function getEffectiveUserRole(): string | undefined {
+  const stored = getStoredUser();
+  if (stored?.role === 'super_admin') {
+    const previewRole = sessionStorage.getItem(PREVIEW_USER_ROLE_KEY);
+    if (previewRole) return previewRole;
+  }
+  return stored?.role;
 }
 
 /** Ends the session and sends the user back to the login page (hard navigation). */

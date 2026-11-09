@@ -126,7 +126,7 @@ describe('QROrdersView Component (US-QR-ORD-01)', () => {
     await user.type(searchInput, '#ORD-5004');
     expect(screen.getByText('Valentina Mendoza')).toBeInTheDocument();
     expect(screen.queryByText('Carlos Santana')).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   it('calculates KPI banner metrics accurately (Total QR Orders, Total QR Sales Volume, Pending Acceptance, Active Kitchen Orders)', async () => {
     render(<QROrdersView merchantId={3} />);

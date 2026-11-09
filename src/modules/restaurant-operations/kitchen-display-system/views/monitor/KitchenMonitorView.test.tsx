@@ -4,7 +4,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/KitchenMonitorView';
+import { KitchenMonitorView } from '@/modules/restaurant-operations/kitchen-display-system/views/monitor/KitchenMonitorView';
 import { calledRoutes, fakeBackend, jsonResponse } from '@/test/fetch';
 import { enqueueOfflineAction } from '@/modules/restaurant-operations/kitchen-display-system/lib/kds-offline-sync';
 

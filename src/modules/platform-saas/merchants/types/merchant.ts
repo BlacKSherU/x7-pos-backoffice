@@ -4,6 +4,7 @@ export interface CompanyMerchant {
   id: number;
   name: string;
   rut?: string | null;
+  tax_id?: string | null;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -12,6 +13,10 @@ export interface CompanyMerchant {
   country?: string | null;
   status: MerchantOperationalStatus;
   companyId: number;
+  company?: {
+    id: number;
+    name: string;
+  } | null;
 }
 
 export interface CompanyMerchantsMeta {

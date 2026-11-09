@@ -170,7 +170,7 @@ async function gotoAssignments(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Restaurant Operations').click();
   await page.getByText('Dining System', { exact: true }).click();
-  await page.getByText('Table assignments matrix').click();
+  await page.getByText('Staff Table Assignments').first().click();
   await expect(page.getByRole('heading', { name: 'Table Assignments', exact: true })).toBeVisible();
 }
 

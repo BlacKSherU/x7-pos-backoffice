@@ -156,7 +156,7 @@ async function gotoTables(page: Page) {
   await page.goto('/dashboard');
   await page.getByText('Restaurant Operations').click();
   await page.getByText('Dining System', { exact: true }).click();
-  await page.getByText('Tables Architecture').click();
+  await page.getByText('Guest Table Inventory').first().click();
   await expect(page.getByRole('main').getByRole('heading', { name: /dining tables/i })).toBeVisible();
 }
 

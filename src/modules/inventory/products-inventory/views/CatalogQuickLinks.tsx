@@ -21,32 +21,32 @@ const CATALOG_ANCHORS: Array<{
   icon: string;
 }> = [
   {
+    key: 'categories',
+    label: 'CATEGORIES',
+    route: '/dashboard/categories',
+    featureId: 'categories',
+    icon: 'category',
+  },
+  {
     key: 'products',
     label: 'PRODUCTS',
     route: '/dashboard/products',
     featureId: 'products',
-    icon: 'fastfood',
-  },
-  {
-    key: 'categories',
-    label: 'PRODUCT CATEGORIES',
-    route: '/dashboard/categories',
-    featureId: 'categories',
-    icon: 'label',
-  },
-  {
-    key: 'modifiers',
-    label: 'MODIFIERS & TOPPINGS',
-    route: '/dashboard/modifiers',
-    featureId: 'modifiers',
-    icon: 'tune',
+    icon: 'inventory_2',
   },
   {
     key: 'variants',
-    label: 'VARIANTS & SIZES',
+    label: 'VARIANTS',
     route: '/dashboard/variants',
     featureId: 'variants',
     icon: 'style',
+  },
+  {
+    key: 'modifiers',
+    label: 'MODIFIERS',
+    route: '/dashboard/modifiers',
+    featureId: 'modifiers',
+    icon: 'tune',
   },
 ];
 

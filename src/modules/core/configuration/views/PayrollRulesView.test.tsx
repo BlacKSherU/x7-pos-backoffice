@@ -348,7 +348,8 @@ describe('PayrollRulesView — quick links', () => {
     render(<PayrollRulesView />);
     await screen.findByText('Weekly Hourly Staff');
 
-    expect(screen.getByText('PAYROLL RULES')).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
+    expect(within(nav).getByText(/payroll rules/i)).toBeInTheDocument();
   });
 });
 
