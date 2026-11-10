@@ -9,6 +9,16 @@ import { ShiftAssignmentView } from '@/modules/restaurant-operations/shifts/view
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
 import { PlanFeaturesPickPlanView } from '@/shared/components/PlaceholderViews';
 import { resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
+import { OrderPaymentsView } from '@/modules/restaurant-operations/pos/views/OrderPaymentsView';
+import { PaymentGatewayConfigsView } from '@/modules/restaurant-operations/pos/views/PaymentGatewayConfigsView';
+import { PaymentTerminalsView } from '@/modules/restaurant-operations/pos/views/PaymentTerminalsView';
+import { CompaniesHubView } from '@/components/MerchantFrame/views/platform-saas/companies/CompaniesHubView';
+import { CompanyHubView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanyHubView';
+import { CompanyProfileView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanyProfileView';
+import { MerchantTerminalsDirectoryView } from '@/components/MerchantFrame/views/platform-saas/merchants/MerchantTerminalsDirectoryView';
+import { MerchantHubView } from '@/components/MerchantFrame/views/platform-saas/merchants/MerchantHubView';
+import { MerchantUserDashboardView } from '@/components/MerchantFrame/views/platform-saas/users/MerchantUserDashboardView';
+import { SaasMissingContext } from '@/components/MerchantFrame/views/platform-saas/SaasViewKit';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
 
 function context(overrides: Partial<MerchantViewContext> = {}): MerchantViewContext {
@@ -71,6 +81,9 @@ describe('merchant view registry', () => {
     expect(viewFor('scheduler').props.initialViewMode).toBe('weekly');
     expect(viewFor('roster').props.initialViewMode).toBe('monthly');
     expect(viewFor('swaps').type).toBe(ShiftAssignmentView);
+    expect(viewFor('order-payments').type).toBe(OrderPaymentsView);
+    expect(viewFor('payment-gateway-configs').type).toBe(PaymentGatewayConfigsView);
+    expect(viewFor('payment-terminals').type).toBe(PaymentTerminalsView);
   });
 });
 
@@ -95,3 +108,27 @@ describe('resolveStaffTarget', () => {
     expect(resolveStaffTarget('products')).toBeNull();
   });
 });
+
+describe('platform saas context views', () => {
+  it('passes the URL ids to the views and asks for a company when they are missing', () => {
+    expect(viewFor('saas-companies-hub').type).toBe(CompaniesHubView);
+    const hub = renderMerchantView('saas-company-hub', context({ routeParams: { companyId: 3 } }));
+    expect(isValidElement<{ companyId: number }>(hub) && hub.type === CompanyHubView && hub.props.companyId).toBe(3);
+    const profile = renderMerchantView('saas-company-profile', context({ routeParams: { companyId: 3 } }));
+    expect(isValidElement<{ companyId: number }>(profile) && profile.type === CompanyProfileView && profile.props.companyId).toBe(3);
+    const merchantHub = renderMerchantView('saas-merchant-hub', context({ routeParams: { companyId: 3, merchantId: 8 } }));
+    expect(isValidElement<{ merchantId: number }>(merchantHub) && merchantHub.type === MerchantHubView && merchantHub.props.merchantId).toBe(8);
+    const terminals = renderMerchantView('saas-merchant-terminals', context({ routeParams: { companyId: 3, merchantId: 8 } }));
+    expect(
+      isValidElement<{ companyId: number; merchantId: number }>(terminals) &&
+        terminals.type === MerchantTerminalsDirectoryView &&
+        [terminals.props.companyId, terminals.props.merchantId],
+    ).toEqual([3, 8]);
+    expect(viewFor('saas-merchant-terminals', context({ routeParams: { companyId: 3 } })).type).toBe(SaasMissingContext);
+    const user = renderMerchantView('saas-merchant-user-detail', context({ routeParams: { merchantId: 8, userId: 21 } }));
+    expect(isValidElement<{ userId: number }>(user) && user.type === MerchantUserDashboardView && user.props.userId).toBe(21);
+    expect(viewFor('saas-company-hub').type).toBe(SaasMissingContext);
+    expect(viewFor('saas-merchant-hub', context({ routeParams: { companyId: 3 } })).type).toBe(SaasMissingContext);
+  });
+});
+

@@ -5,6 +5,7 @@ import { getStoredUser } from '@/platform/auth/lib/auth-storage';
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import type { NavCategory } from '@/platform/navigation/navigationService';
 import logoX7 from '@/assets/logo-x7.png';
+import { platformSaasTabTitle } from '@/modules/platform-saas/companies/lib/platform-saas-routes';
 
 interface GlobalHeaderProps {
   activeTab: string;
@@ -195,6 +196,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   if (commandHub && !commandHub.items.some((item) => item.featureId === activeTab)) {
     categoryName = commandHub.category;
     activeFeatureName = commandHub.title.replace(/\s+(Command\s+)?Hub$/i, '').trim();
+  }
+
+  // Pestañas con contexto de company/merchant (/platform-saas/...): no están en el catálogo.
+  const platformSaasTitle = platformSaasTabTitle(activeTab);
+  if (platformSaasTitle) {
+    categoryName = 'Platform SaaS';
+    activeFeatureName = platformSaasTitle;
   }
 
   // 2. If activeTab is a feature inside a module hub, resolve its category and label

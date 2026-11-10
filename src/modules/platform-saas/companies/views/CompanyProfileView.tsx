@@ -32,6 +32,11 @@ function profileToFormValues(profile: CompanyProfile): CompanyFormValues {
   };
 }
 
+/**
+ * Perfil de la company propia del usuario (/dashboard/company-profile). El perfil de una company
+ * elegida en Platform SaaS (/platform-saas/companies/:id/profile, historia 6) es otra vista:
+ * src/components/MerchantFrame/views/platform-saas/companies/CompanyProfileView.tsx.
+ */
 export const CompanyProfileView: React.FC = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<CompanyProfile | null>(null);

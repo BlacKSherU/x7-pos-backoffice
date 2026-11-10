@@ -39,6 +39,13 @@ import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
 import { clearAuthSession, getStoredUser, setPreviewUserRole } from '@/platform/auth/lib/auth-storage';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
+import {
+  isPlatformSaasContextTab,
+  matchPlatformSaasRoute,
+  pathForPlatformSaasTab,
+  PLATFORM_SAAS_TABS,
+} from '@/modules/platform-saas/companies/lib/platform-saas-routes';
+
 import type { AllocationsContext, MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
 import { FeatureInDevelopmentView } from '@/shared/components/PlaceholderViews';
 import { MerchantHomeDashboard } from '@/modules/platform-saas/client-backoffice/views/dashboard/MerchantHomeDashboard';
@@ -56,6 +63,10 @@ interface MerchantStaffUser {
   shiftRole?: string | null;
   collaboratorName?: string | null;
 }
+
+// Pestañas /platform-saas/... (companies, merchants, users con ids en la URL): cuelgan de la
+// aplicación Companies de Platform SaaS en el menú.
+const SAAS_CONTEXT_APP_ID = 'saas-companies';
 
 const PLATFORM_FALLBACK_USERS: MerchantStaffUser[] = [
   { id: 14, email: 'superadmin@x7pos.com', username: 'superadmin', role: 'super_admin' },
@@ -107,7 +118,10 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter(null);
     setAllocationsContext(null);
     setActiveTab(featureId);
-    if (location.pathname !== '/dashboard') {
+    const saasPath = pathForPlatformSaasTab(featureId);
+    if (saasPath) {
+      if (location.pathname !== saasPath) navigate(saasPath);
+    } else if (location.pathname !== '/dashboard') {
       navigate('/dashboard', { state: { activeTab: featureId, activeCategory } });
     }
     const mainEl = document.querySelector('main');
@@ -162,7 +176,12 @@ export const MerchantFrame: React.FC = () => {
         routeNav.category === 'saas' ||
         routeNav.tab === 'saas-dashboard';
 
-      if (isSaaSCat && !isPlatformStaff) {
+      // El Company/Merchant Administrator también abre las vistas de su company con contexto en la
+      // URL (/platform-saas/...): el backend limita los datos a su propia company.
+      const isCompanyAdminContext =
+        effectiveProfileRole === 'merchant_admin' && isPlatformSaasContextTab(routeNav.tab);
+
+      if (isSaaSCat && !isPlatformStaff && !isCompanyAdminContext) {
         setActiveCategory('core');
         setActiveTab('dashboard');
       } else {
@@ -197,7 +216,8 @@ export const MerchantFrame: React.FC = () => {
           app.id === featureHub?.appId ||
           app.id === activeCommandHub?.appId ||
           activeTab === `${app.id}-hub` ||
-          activeTab === app.id,
+          activeTab === app.id ||
+          (app.id === SAAS_CONTEXT_APP_ID && isPlatformSaasContextTab(activeTab)),
       ),
     );
     const matchedCat =
@@ -540,7 +560,7 @@ export const MerchantFrame: React.FC = () => {
           if (menu.length > 0) {
             const directTargets: Record<string, string> = {
               'central-backoffice': 'saas-dashboard',
-              'saas-companies': 'companies-registry',
+              'saas-companies': PLATFORM_SAAS_TABS.companiesHub,
               'saas-merchants': 'global-merchants-directory',
               'saas-users': 'users-auth-profiles',
               'client-backoffice': 'dashboard',
@@ -560,7 +580,7 @@ export const MerchantFrame: React.FC = () => {
                   activeTab === `${app.id}-hub` ||
                   activeTab === app.id,
               ),
-            );
+            ) || isPlatformSaasContextTab(activeTab);
 
             if (!isTabAllowed) {
               const firstCat = menu[0];
@@ -803,6 +823,8 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter,
     allocationsContext,
     setAllocationsContext,
+    routeParams: matchPlatformSaasRoute(location.pathname)?.params ?? {},
+    navigateToPath: (path: string) => navigate(path),
   };
 
   const renderSPAView = () => {
@@ -935,7 +957,8 @@ export const MerchantFrame: React.FC = () => {
                       activeCommandHub?.appId === app.id ||
                       featureHub?.appId === app.id ||
                       activeTab === `${app.id}-hub` ||
-                      activeTab === app.id,
+                      activeTab === app.id ||
+                      (app.id === SAAS_CONTEXT_APP_ID && isPlatformSaasContextTab(activeTab)),
                   ),
                 ) ??
                 navCategories.find(
@@ -980,13 +1003,17 @@ export const MerchantFrame: React.FC = () => {
                           featureHub?.appId === app.id ||
                           featureHub?.hubId === hubId ||
                           activeTab === hubId ||
-                          activeTab === app.id;
+                          activeTab === app.id ||
+                          (app.id === SAAS_CONTEXT_APP_ID && isPlatformSaasContextTab(activeTab));
 
                         const handleNavigateTarget = (targetId: string, route?: string) => {
                           setActiveCategory(cat.id);
                           setActiveTab(targetId);
+                          const saasPath = pathForPlatformSaasTab(targetId);
                           if (route) {
                             navigate(route, { state: { activeTab: targetId, activeCategory: cat.id } });
+                          } else if (saasPath) {
+                            navigate(saasPath);
                           } else if (targetId === 'products') {
                             navigate('/dashboard/products');
                           } else if (targetId === 'categories') {
@@ -1008,7 +1035,7 @@ export const MerchantFrame: React.FC = () => {
 
                         const DIRECT_APP_TARGETS: Record<string, string> = {
                           'central-backoffice': 'saas-dashboard',
-                          'saas-companies': 'companies-registry',
+                          'saas-companies': PLATFORM_SAAS_TABS.companiesHub,
                           'saas-merchants': 'global-merchants-directory',
                           'saas-users': 'users-auth-profiles',
                           'client-backoffice': 'dashboard',
@@ -1106,6 +1133,9 @@ export const MerchantFrame: React.FC = () => {
                 onNavigate={navigateToFeature}
               />
             </>
+          ) : isPlatformSaasContextTab(activeTab) ? (
+            // Las vistas /platform-saas/... montan su propia barra inferior (SaasNavBar): mismo hueco.
+            <div aria-hidden="true" className="h-16 shrink-0" />
           ) : null}
         </div>
       </main>

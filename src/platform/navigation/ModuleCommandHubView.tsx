@@ -416,10 +416,24 @@ const KNOWN_CARD_METADATA: Record<string, CardMetadata> = {
   },
   'order-payments': {
     title: 'Order Payment Tenders',
-    subtitle: 'SPLIT BILLS, CARDS & CASH',
-    description: 'Process split tenders, EMV chip transactions, contactless digital payments, and cash receipts.',
+    subtitle: 'CARD CHARGES, TERMINALS & REFUNDS',
+    description: 'Charge tokenized cards, send sales to counter terminals, and refund or void card payments.',
     badge: 'Tenders Operational',
     badgeVariant: 'rose',
+  },
+  'payment-gateway-configs': {
+    title: 'Payment Gateway Configs',
+    subtitle: 'STRIPE & CARDPOINTE ACCOUNTS',
+    description: 'Connect Stripe and CardPointe accounts, sandbox or production credentials, and the default gateway.',
+    badge: 'Gateways Secured',
+    badgeVariant: 'emerald',
+  },
+  'payment-terminals': {
+    title: 'Payment Terminals',
+    subtitle: 'COUNTER READERS & BOLT DEVICES',
+    description: 'Register CardPointe Bolt and Stripe readers per branch and register, bound to a gateway config.',
+    badge: 'Readers Paired',
+    badgeVariant: 'blue',
   },
   'order-taxes': {
     title: 'Order Taxes & Surcharges',

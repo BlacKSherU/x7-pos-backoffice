@@ -43,3 +43,21 @@ describe('NavHubBar — scroll reset timers', () => {
     expect(vi.getTimerCount()).toBe(afterFirstClick);
   });
 });
+
+describe('NavHubBar — labels', () => {
+  afterEach(() => cleanup());
+
+  it('abbreviates labels by default and keeps them verbatim with keepLabel', () => {
+    render(
+      <NavHubBar
+        isSidebarCollapsed
+        items={[
+          { id: 'a', label: 'COMPANY PROFILE', onClick: vi.fn() },
+          { id: 'b', label: 'Company Profile', keepLabel: true, onClick: vi.fn() },
+        ]}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Company Profile' })).toBeInTheDocument();
+  });
+});

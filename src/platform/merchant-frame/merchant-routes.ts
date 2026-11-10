@@ -1,5 +1,9 @@
 import { featureIdForDeliveryPath } from '@/modules/commerce/delivery-management/lib/delivery-navigation';
 import { featureIdForReservationPath } from '@/modules/restaurant-operations/reservations/lib/reservation-navigation';
+import {
+  PLATFORM_SAAS_CATEGORY,
+  matchPlatformSaasRoute,
+} from '@/modules/platform-saas/companies/lib/platform-saas-routes';
 
 /**
  * Rutas del backoffice del merchant. Todas renderizan MerchantFrame; la URL solo decide qué
@@ -89,6 +93,11 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('commerce', 'online-order-items', '/online-ordering/order-items'),
   ...routes('commerce', 'online-delivery-info', '/online-ordering/delivery', '/online-ordering/delivery-info'),
 
+  // POS: cobros con tarjeta, pasarelas y terminales
+  ...routes(OPS, 'order-payments', '/app/pos/order-payments', '/pos/order-payments'),
+  ...routes(OPS, 'payment-gateway-configs', '/app/pos/payment-gateway-configs', '/pos/payment-gateway-configs'),
+  ...routes(OPS, 'payment-terminals', '/app/pos/payment-terminals', '/pos/payment-terminals'),
+
   // Cocina (KDS)
   ...routes(OPS, 'kitchen-kds-hub', '/kitchen-kds-hub', '/kds', '/app/kitchen-display-system', '/app/kitchen-display-system/hub'),
   ...routes(OPS, 'kitchen-stations', '/kitchen-stations', '/kds/stations', '/app/kitchen-display-system/kitchen-stations'),
@@ -110,6 +119,8 @@ const SECTION_PREFIXES = [
   '/kds',
   '/app',
   '/hub',
+  // Companies / merchants / users de Platform SaaS con ids en la URL (platform-saas-routes.ts).
+  '/platform-saas',
 ];
 
 /** Rutas que App.tsx registra para MerchantFrame. */
@@ -134,6 +145,11 @@ export function getNavFromPath(
       category: locationState?.activeCategory || 'core',
       tab: `${appCode}-hub`,
     };
+  }
+
+  const saasRoute = matchPlatformSaasRoute(path);
+  if (saasRoute) {
+    return { category: PLATFORM_SAAS_CATEGORY, tab: saasRoute.tab };
   }
 
   if (path.startsWith('/reservations/')) {

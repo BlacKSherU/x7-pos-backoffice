@@ -9,6 +9,8 @@ export interface NavHubItem {
   label: string;
   icon?: string;
   active?: boolean;
+  /** Muestra `label` tal cual, sin abreviarlo (formatNavHubLabel quita prefijos como COMPANY). */
+  keepLabel?: boolean;
   onClick: () => void;
 }
 
@@ -32,6 +34,8 @@ const ITEM_ID_SHORTCUTS: Record<string, string> = {
   'order-item-modifiers': 'MODIFIERS',
   'order-discounts': 'DISCOUNTS',
   'order-payments': 'PAYMENTS',
+  'payment-gateway-configs': 'GATEWAYS',
+  'payment-terminals': 'TERMINALS',
   'order-taxes': 'TAXES',
 
   // Tips
@@ -613,7 +617,7 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
         <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-1 min-w-0 py-0.5">
           {visibleItems.map((item) => {
             const isActive = item.active || (activeModuleId ? item.id === activeModuleId : false);
-            const displayLabel = formatNavHubLabel(item.label, item.id);
+            const displayLabel = item.keepLabel ? item.label : formatNavHubLabel(item.label, item.id);
             return (
               <button
                 key={item.id}
