@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SubscriptionPlansView } from '@/modules/platform-saas/subscription-system/views/SubscriptionPlansView';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
+import type { SaaSMetrics } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
 
 vi.mock('@/modules/platform-saas/central-backoffice/api/saas-service', () => ({
@@ -12,6 +13,7 @@ vi.mock('@/modules/platform-saas/central-backoffice/api/saas-service', () => ({
     createSubscriptionPlan: vi.fn(),
     updateSubscriptionPlan: vi.fn(),
     deleteSubscriptionPlan: vi.fn(),
+    getMetrics: vi.fn(),
   },
 }));
 
@@ -557,5 +559,124 @@ describe('SubscriptionPlansView — Edit no longer touches status', () => {
         billingCycle: 'monthly',
       }),
     );
+  });
+});
+
+describe('SubscriptionPlansView — Secondary Header, KPIs & Navigation Hub', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue(MOCK_PLANS);
+    vi.mocked(saasService.getMetrics).mockResolvedValue({
+      totalMerchants: { value: 2842, growth: 12.5, trend: [100, 200] },
+      quickService: { count: 1120, terminals: 4480 },
+      fullRestaurant: { count: 942, terminals: 7536 },
+      enterprise: { count: 780, terminals: 15600 },
+    } as unknown as SaaSMetrics);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('renders the secondary header with breadcrumbs and title', async () => {
+    render(<SubscriptionPlansView />);
+    await waitFor(() => {
+      expect(screen.getByText('SUBSCRIPTION PLANS CONFIGURATION')).toBeInTheDocument();
+      expect(screen.getByText('Platform SaaS')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Subscription System Hub' })).toBeInTheDocument();
+    });
+  });
+
+  it('navigates to subscription-system-hub when breadcrumb link or header button is clicked', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(<SubscriptionPlansView onNavigate={onNavigate} />);
+    await waitFor(() => {
+      expect(screen.getByText('SUBSCRIPTION PLANS CONFIGURATION')).toBeInTheDocument();
+    });
+
+    const hubBreadcrumb = screen.getByRole('button', { name: 'Subscription System Hub' });
+    await user.click(hubBreadcrumb);
+    expect(onNavigate).toHaveBeenCalledWith('subscription-system-hub');
+
+    const hubButtons = screen.getAllByRole('button', { name: /subscription hub/i });
+    await user.click(hubButtons[0]);
+    expect(onNavigate).toHaveBeenCalledWith('subscription-system-hub');
+  });
+
+  it('displays real-time KPI metrics in stat cards', async () => {
+    render(<SubscriptionPlansView />);
+    await waitFor(() => {
+      // 3 active plans out of 5 in MOCK_PLANS
+      expect(screen.getByTestId('stat-active-plans')).toHaveTextContent('3');
+      // Total subscribers from metrics mock (2,842)
+      expect(screen.getByTestId('stat-subscribers-count')).toHaveTextContent('2,842');
+      // Billing cycles cadence: 4 monthly (Starter, Professional, Legacy Basic, Archived Gold), 1 yearly (Enterprise)
+      expect(screen.getByTestId('stat-cadence-count')).toHaveTextContent('4M / 1Y');
+      // Average price for active paid plans (Starter: 49.99, Professional: 129.99, Enterprise: 1199.99) -> 1379.97 / 3 = $459.99
+      expect(screen.getByTestId('stat-avg-price')).toHaveTextContent('$459.99');
+    });
+  });
+
+  it('shows grandfathering explanation when opening deactivation dialog for an active plan', async () => {
+    const user = userEvent.setup();
+    render(<SubscriptionPlansView />);
+    await waitFor(() => {
+      expect(screen.getByText('Starter')).toBeInTheDocument();
+    });
+
+    const deactivateBtn = screen.getByRole('button', { name: 'Deactivate Starter' });
+    await user.click(deactivateBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /prevents new subscriptions from selecting it while grandfathering existing active subscribers until renewal/i,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('supports selecting quarterly billing cycle when creating a plan', async () => {
+    const user = userEvent.setup();
+    vi.mocked(saasService.createSubscriptionPlan).mockResolvedValue({
+      id: 99,
+      name: 'Quarterly Growth',
+      description: 'Quarterly billing plan',
+      price: 199.99,
+      billingCycle: 'quarterly',
+      status: 'active',
+    });
+    render(<SubscriptionPlansView />);
+    await waitFor(() => expect(screen.getByText('SUBSCRIPTION MASTER PLANS')).toBeInTheDocument());
+
+    const addButtons = screen.getAllByRole('button', { name: /add plan/i });
+    await user.click(addButtons[0]);
+
+    const nameInput = screen.getByPlaceholderText('e.g. Professional');
+    await user.type(nameInput, 'Quarterly Growth');
+
+    const descInput = screen.getByPlaceholderText("Describe what's included in this plan...");
+    await user.type(descInput, 'Quarterly billing plan');
+
+    const priceInput = screen.getByPlaceholderText('0.00');
+    await user.type(priceInput, '199.99');
+
+    // Look for the select element inside the modal
+    const cycleSelect = screen.getByTestId('modal-billing-cycle');
+    await user.selectOptions(cycleSelect, 'quarterly');
+
+    const createBtn = screen.getByRole('button', { name: /create plan/i });
+    await user.click(createBtn);
+
+    await waitFor(() => {
+      expect(saasService.createSubscriptionPlan).toHaveBeenCalledWith({
+        name: 'Quarterly Growth',
+        description: 'Quarterly billing plan',
+        price: 199.99,
+        billingCycle: 'quarterly',
+        status: 'active',
+      });
+    });
   });
 });

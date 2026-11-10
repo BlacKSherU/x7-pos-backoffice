@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isFeatureAuthorized,
   MODULE_NAV_HUBS,
   navHubById,
   navHubForFeature,
   setAuthorizedFeatures,
+  isFeatureAuthorized,
 } from '@/platform/navigation/module-nav-hubs';
 
 const featuresByApp = (): Map<string, string[]> => {

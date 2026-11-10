@@ -11,9 +11,12 @@ import { PlatformFeatureCatalogView } from '@/modules/platform-saas/subscription
 import { PlanApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlanApplicationsView';
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
 import { SaasDashboardView } from '@/modules/platform-saas/central-backoffice/views/SaasDashboardView';
+import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionHubView';
+import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
+import { CompanySubscriptionView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanySubscriptionView';
+import { MerchantSubscriptionsView } from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
 import { OrdersRegistryView } from '@/modules/platform-saas/central-backoffice/views/OrdersRegistryView';
 import { MerchantSettlementsView } from '@/modules/platform-saas/central-backoffice/views/MerchantSettlementsView';
-import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
 import { ComingSoonView, PlanFeaturesPickPlanView } from '@/shared/components/PlaceholderViews';
 
 import { CategoriesView } from '@/modules/inventory/products-inventory/views/CategoriesView';
@@ -69,6 +72,7 @@ import { JournalEntriesView } from '@/modules/core/financial-engine/views/Journa
 import { JournalEntryLinesView } from '@/modules/core/financial-engine/views/JournalEntryLinesView';
 
 import { SuppliersView } from '@/modules/core/business-partners/views/SuppliersView';
+import { CustomersView } from '@/modules/core/business-partners/views/CustomersView';
 import { SupplierInvoicesView } from '@/modules/finance-hr/accounts-payable/views/SupplierInvoicesView';
 import { SupplierInvoiceItemsView } from '@/modules/finance-hr/accounts-payable/views/SupplierInvoiceItemsView';
 import { SupplierCreditNotesView } from '@/modules/finance-hr/accounts-payable/views/SupplierCreditNotesView';
@@ -146,7 +150,9 @@ export interface MerchantViewContext {
   /** Navegación de las vistas de personal y propinas (también actualiza la URL). */
   onStaffNavigate: (target: string) => void;
   /** Navegación de las vistas de suscripciones (puede llevar el plan elegido). */
-  onSaasNavigate: (view: string, plan?: SubscriptionPlan) => void;
+  onSaasNavigate: (view: string, plan?: SubscriptionPlan, companyId?: number) => void;
+  selectedCompanyId?: number | null;
+  setSelectedCompanyId?: (id: number | null) => void;
   /** Cambia de pestaña limpiando los filtros de drill-down. */
   navigateToFeature: (featureId: string) => void;
   setActiveTab: (tab: string) => void;
@@ -196,7 +202,6 @@ view('saas-dashboard', (ctx) => (
 view('sub-plans-core', (ctx) => <SubscriptionPlansView onNavigate={ctx.onSaasNavigate} />);
 view('apps-config', (ctx) => <PlatformApplicationsView onNavigate={ctx.onSaasNavigate} />);
 view('features-control', (ctx) => <PlatformFeatureCatalogView onNavigate={ctx.onSaasNavigate} />);
-view('merchant-subs-link', () => <CompanySubscriptionsView />);
 view('orders-registry', (ctx) => <OrdersRegistryView onNavigate={ctx.onNavigate} />);
 view('merchant-settlements', (ctx) => <MerchantSettlementsView onNavigate={ctx.onNavigate} />);
 view('plan-apps-rules', (ctx) => (
@@ -219,6 +224,26 @@ view(['user-management', 'users-directory', 'users'], () => <UserManagementView 
 view(['users-auth-profiles', 'global-users-directory'], () => <GlobalUsersDirectoryView />);
 view('company-profile', () => <CompanyProfileView />);
 view('company-configurations', () => <CompanyConfigurationsView />);
+view(
+  ['company-subscriptions', 'subscription-company-subscriptions'],
+  (ctx) => <CompanySubscriptionsView onNavigate={ctx.onSaasNavigate} />,
+);
+view(
+  ['company-subscription-detail', 'company-subscription', 'subscription-company-subscription'],
+  (ctx) => (
+    <CompanySubscriptionView
+      companyId={ctx.selectedCompanyId ?? undefined}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
+);
+view(
+  ['merchant-subs-link', 'merchant-subscriptions', 'subscription-merchant-subscriptions'],
+  (ctx) => <MerchantSubscriptionsView onNavigate={ctx.onSaasNavigate} />,
+);
+view(['subscription-system-hub', 'subscription-hub'], (ctx) => (
+  <SubscriptionHubView onNavigate={ctx.navigateToFeature} />
+));
 view(['companies', 'company-registry', 'companies-registry'], () => <CompanyRegistryView />);
 
 // ---- Platform SaaS: companies / merchants / users con contexto en la URL (historias 1-7) ----
@@ -391,6 +416,15 @@ view('journal-entries-lines', (ctx) => (
       ctx.setLinesEntryFilter(null);
       ctx.setActiveTab(next);
     }}
+  />
+));
+
+// ---- Business Partners / Clientes ----
+view('customers', (ctx) => (
+  <CustomersView
+    onNavigate={ctx.onNavigate}
+    companyId={ctx.profile?.company_id}
+    merchantId={getCurrentMerchantId() ?? undefined}
   />
 ));
 

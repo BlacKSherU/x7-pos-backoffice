@@ -35,14 +35,15 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     icon: 'grid_view',
     description: 'Plans, the applications and features they unlock, and merchant subscriptions and payments.',
     items: [
-      { featureId: 'apps-config', label: 'Platform Applications Catalog', icon: 'apps', live: true, description: 'Platform application catalog, module configurations, system dependencies, and deployment provisioning.' },
-      { featureId: 'features-control', label: 'Feature Flags & Entitlements', icon: 'toggle_on', live: true, description: 'Granular feature flag catalog, permission gates, capabilities toggles, and beta module rollouts.' },
-      { featureId: 'merchant-subs-link', label: 'Merchant Subscriptions Directory', icon: 'storefront', live: false, description: 'Monitor merchant subscription allocations, active platform tiers, automated renewal dates, and billing statuses.' },
-      { featureId: 'plan-apps-rules', label: 'Plan Application Inclusions', icon: 'widgets', live: true, description: 'Define software applications, subsystems, and add-on modules bundled into each commercial subscription plan.' },
-      { featureId: 'plan-features-mapping', label: 'Plan Feature Capabilities Mapping', icon: 'checklist', live: true, description: 'Map granular feature entitlements and operational limits unlocked across standard, pro, and enterprise tiers.' },
-      { featureId: 'sub-plans-core', label: 'Software Subscription Plans', icon: 'workspace_premium', live: true, description: 'Manage SaaS subscription tiers, recurring billing frequencies, user seat allocations, and module access.' },
-      { featureId: 'sub-apps-mapping', label: 'Active Merchant Applications', icon: 'apps_outage', live: false, description: 'Audit software modules and subsystem applications provisioned for each subscribed restaurant merchant.' },
-      { featureId: 'sub-payments-billing', label: 'Subscription Billing Invoices', icon: 'payments', live: false, description: 'Track monthly platform SaaS subscription fee invoices, card payment receipts, and settlement history.' },
+      { featureId: 'apps-config', label: 'APPLICATIONS', icon: 'apps', live: true, description: 'Platform application catalog and configuration.' },
+      { featureId: 'features-control', label: 'FEATURES', icon: 'toggle_on', live: true, description: 'Feature catalog and feature flags.' },
+      { featureId: 'company-subscriptions', label: 'COMPANY SUBSCRIPTIONS', icon: 'business', live: true, description: 'Which plan each company is subscribed to and when it expires.' },
+      { featureId: 'merchant-subs-link', label: 'MERCHANT SUBSCRIPTIONS', icon: 'storefront', live: true, description: 'Which plan each merchant store is subscribed to.' },
+      { featureId: 'plan-apps-rules', label: 'PLAN APPLICATIONS', icon: 'widgets', live: true, description: 'Applications included in each plan.' },
+      { featureId: 'plan-features-mapping', label: 'PLAN FEATURES', icon: 'checklist', live: true, description: 'Features unlocked by each plan.' },
+      { featureId: 'sub-plans-core', label: 'SUBSCRIPTION PLANS', icon: 'workspace_premium', live: true, description: 'Plan tiers, pricing and billing cycles.' },
+      { featureId: 'sub-apps-mapping', label: 'SUBSCRIPTION APPLICATIONS', icon: 'apps_outage', live: false, description: 'Applications active on each merchant subscription.' },
+      { featureId: 'sub-payments-billing', label: 'SUBSCRIPTION PAYMENTS', icon: 'payments', live: false, description: 'Subscription invoices and payment history.' },
     ],
   },
   {
@@ -329,8 +330,8 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     icon: 'handshake',
     description: 'Customer and supplier master data.',
     items: [
-      { featureId: 'customers', label: 'Customer Billing Directory', icon: 'person', live: false, description: 'Maintain customer contact directories, corporate tax IDs, billing addresses, credit limits, and dining history.' },
-      { featureId: 'suppliers', label: 'Master Supplier Directory', icon: 'local_shipping', live: true, description: 'Manage verified vendor profiles, payment credit terms, purchasing lead times, and tax identification numbers.' },
+      { featureId: 'customers', label: 'CUSTOMERS', icon: 'person', live: true, description: 'Customer profiles and billing identity.' },
+      { featureId: 'suppliers', label: 'SUPPLIERS', icon: 'local_shipping', live: true, description: 'Supplier directory and terms.' },
     ],
   },
   {
@@ -540,7 +541,7 @@ export function registerDynamicNavHubs(hubs: ModuleNavHub[]): void {
       }
     }
   }
-}
+    }
 
 /** Returns the active dynamic command hubs list. */
 export function getDynamicNavHubs(): ModuleNavHub[] {

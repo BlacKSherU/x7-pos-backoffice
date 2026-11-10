@@ -278,7 +278,7 @@ function fuzzyMatch(query: string, target: string): boolean {
   return qi === query.length;
 }
 
-export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProps> = ({ onNavigate }) => {
+export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProps> = () => {
   const isReadOnly = getEffectiveUserRole() === 'portal_user';
   const [features, setFeatures] = useState<PlatformFeature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -622,45 +622,6 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
           </p>
         </div>
       )}
-
-      {/* Quick Launch */}
-      <div className="bg-[#2a2a2a] rounded-xl p-8 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-          <h3 className="!text-white font-bold text-base">Quick Launch</h3>
-          <p className="text-white/60 text-sm">
-            Feature workspace tools and rapid platform navigation.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('subscription-applications')}
-            className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform"
-          >
-            PLATFORM APPLICATIONS
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('subscription')}
-            className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform"
-          >
-            SUBSCRIPTION PLANS
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('subscription-live-installs')}
-            className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform"
-          >
-            METERED USAGE LEDGER
-          </button>
-          <button
-            type="button"
-            className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-6 py-3 rounded hover:bg-[#930015] hover:-translate-y-0.5 transition-all"
-          >
-            EMERGENCY SUPPORT
-          </button>
-        </div>
-      </div>
 
       {/* FAB */}
       <button

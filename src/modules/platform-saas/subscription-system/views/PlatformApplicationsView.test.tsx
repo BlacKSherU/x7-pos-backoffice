@@ -227,7 +227,7 @@ describe('PlatformApplicationsView — filter strip', () => {
   });
 });
 
-describe('PlatformApplicationsView — Quick Launch panel', () => {
+describe('PlatformApplicationsView — Quick Launch panel removed', () => {
   beforeEach(() => {
     vi.mocked(saasService.getApplications).mockResolvedValue(MOCK_APPS);
   });
@@ -236,53 +236,11 @@ describe('PlatformApplicationsView — Quick Launch panel', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the Quick Launch panel with heading', async () => {
+  it('does not render the Quick Launch panel', async () => {
     render(<PlatformApplicationsView />);
     await waitFor(() => {
-      expect(screen.getByText('Quick Launch')).toBeInTheDocument();
+      expect(screen.queryByText('Quick Launch')).not.toBeInTheDocument();
     });
-  });
-
-  it('renders all four Quick Launch buttons', async () => {
-    render(<PlatformApplicationsView />);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'FEATURE CATALOG' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'ACTIVE LIVE INSTALLS' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'EMERGENCY SUPPORT' })).toBeInTheDocument();
-    });
-  });
-
-  it('calls onNavigate with "subscription" when SUBSCRIPTION PLANS is clicked', async () => {
-    const onNavigate = vi.fn();
-    render(<PlatformApplicationsView onNavigate={onNavigate} />);
-    await waitFor(() => screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' }));
-    await userEvent.click(screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' }));
-    expect(onNavigate).toHaveBeenCalledWith('subscription');
-  });
-
-  it('calls onNavigate with "subscription-features" when FEATURE CATALOG is clicked', async () => {
-    const onNavigate = vi.fn();
-    render(<PlatformApplicationsView onNavigate={onNavigate} />);
-    await waitFor(() => screen.getByRole('button', { name: 'FEATURE CATALOG' }));
-    await userEvent.click(screen.getByRole('button', { name: 'FEATURE CATALOG' }));
-    expect(onNavigate).toHaveBeenCalledWith('subscription-features');
-  });
-
-  it('calls onNavigate with "subscription-live-installs" when ACTIVE LIVE INSTALLS is clicked', async () => {
-    const onNavigate = vi.fn();
-    render(<PlatformApplicationsView onNavigate={onNavigate} />);
-    await waitFor(() => screen.getByRole('button', { name: 'ACTIVE LIVE INSTALLS' }));
-    await userEvent.click(screen.getByRole('button', { name: 'ACTIVE LIVE INSTALLS' }));
-    expect(onNavigate).toHaveBeenCalledWith('subscription-live-installs');
-  });
-
-  it('does not call onNavigate when EMERGENCY SUPPORT is clicked', async () => {
-    const onNavigate = vi.fn();
-    render(<PlatformApplicationsView onNavigate={onNavigate} />);
-    await waitFor(() => screen.getByRole('button', { name: 'EMERGENCY SUPPORT' }));
-    await userEvent.click(screen.getByRole('button', { name: 'EMERGENCY SUPPORT' }));
-    expect(onNavigate).not.toHaveBeenCalled();
   });
 });
 
