@@ -382,6 +382,88 @@ export const saasService = {
     return response.data;
   },
 
+  async deletePlanApplication(id: number): Promise<void> {
+    await saasApiFetch(`plan-applications/${id}`, { method: 'DELETE' });
+  },
+
+  // ── Plan-to-Applications Association Endpoints ─────────────────────────
+  async getSubscriptionPlanApplications(planId: number | string): Promise<Application[]> {
+    try {
+      const response = await saasApiFetch<{ data: Application[] | PlanApplication[] }>(
+        `v1/saas/subscription-plans/${planId}/applications`,
+      );
+      const list = response.data;
+      if (Array.isArray(list)) {
+        return list.map((item) => {
+          if ('application' in item && typeof item.application === 'object' && item.application !== null) {
+            return (item as PlanApplication).application as unknown as Application;
+          }
+          return item as Application;
+        });
+      }
+      return [];
+    } catch {
+      // Fallback: use getPlanApplications
+      try {
+        const planApps = await this.getPlanApplications(Number(planId));
+        return planApps.map((pa) => ({
+          id: pa.application.id,
+          name: pa.application.name,
+          category: pa.application.category,
+          description: pa.limits || 'Bundled Module',
+          status: (pa.status as 'active' | 'inactive') || 'active',
+        }));
+      } catch {
+        return [];
+      }
+    }
+  },
+
+  async associatePlanApplication(
+    planId: number | string,
+    applicationId: number | string,
+  ): Promise<unknown> {
+    try {
+      const response = await saasApiFetch<{ data: unknown }>(
+        `v1/saas/subscription-plans/${planId}/applications`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ applicationId: Number(applicationId) }),
+        },
+      );
+      return response.data;
+    } catch {
+      // Fallback: create plan_application association
+      return this.createPlanApplication({
+        subscriptionPlan: Number(planId),
+        application: Number(applicationId),
+        limits: 'Included in plan tier',
+        status: 'active',
+      });
+    }
+  },
+
+  async disassociatePlanApplication(
+    planId: number | string,
+    applicationId: number | string,
+  ): Promise<void> {
+    try {
+      await saasApiFetch(
+        `v1/saas/subscription-plans/${planId}/applications/${applicationId}`,
+        {
+          method: 'DELETE',
+        },
+      );
+    } catch {
+      // Fallback: find existing PlanApplication and delete it
+      const planApps = await this.getPlanApplications(Number(planId));
+      const found = planApps.find((pa) => pa.application.id === Number(applicationId));
+      if (found) {
+        await this.deletePlanApplication(found.id);
+      }
+    }
+  },
+
   async getPlanFeatures(planId: number): Promise<PlanFeature[]> {
     return saasFetchAll<PlanFeature>(`plan-features?subscriptionPlanId=${planId}`);
   },

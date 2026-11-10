@@ -9,6 +9,7 @@ import { SubscriptionPlansView } from '@/modules/platform-saas/subscription-syst
 import { PlatformApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from '@/modules/platform-saas/subscription-system/views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlanApplicationsView';
+import { PlanApplicationsAssociationView } from '@/components/MerchantFrame/views/platform-saas/subscription/PlanApplicationsAssociationView';
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
 import { SaasDashboardView } from '@/modules/platform-saas/central-backoffice/views/SaasDashboardView';
 import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionHubView';
@@ -125,6 +126,8 @@ export interface MerchantViewContext {
   activeCategory: string;
   profile: UserProfile | null;
   selectedPlan: SubscriptionPlan | null;
+  selectedPlanId?: number | null;
+  setSelectedPlanId?: (id: number | null) => void;
   refreshTrigger: number;
   /** Cambia de pestaña sin tocar la URL. */
   onNavigate: (view: string) => void;
@@ -184,6 +187,16 @@ view('merchant-settlements', (ctx) => <MerchantSettlementsView onNavigate={ctx.o
 view('plan-apps-rules', (ctx) => (
   <PlanApplicationsView plan={ctx.selectedPlan ?? undefined} onNavigate={ctx.onSaasNavigate} />
 ));
+view(
+  ['plan-applications-association', 'plan-apps-association'],
+  (ctx) => (
+    <PlanApplicationsAssociationView
+      planId={ctx.selectedPlanId ?? ctx.selectedPlan?.id}
+      plan={ctx.selectedPlan ?? undefined}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
+);
 view('plan-features-mapping', (ctx) =>
   ctx.selectedPlan ? (
     <PlanFeaturesView plan={ctx.selectedPlan} onNavigate={ctx.onSaasNavigate} />
