@@ -101,6 +101,8 @@ export const MerchantFrame: React.FC = () => {
     'subscription-plan-features': 'plan-features-mapping',
     'plan-applications-association': 'plan-applications-association',
     'plan-apps-association': 'plan-applications-association',
+    'plan-features-association': 'plan-features-association',
+    'plan-features-mapping-association': 'plan-features-association',
     'company-subscriptions': 'company-subscriptions',
     'subscription-company-subscriptions': 'company-subscriptions',
     'company-subscription': 'company-subscription-detail',

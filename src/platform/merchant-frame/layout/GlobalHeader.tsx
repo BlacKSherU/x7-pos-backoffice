@@ -311,6 +311,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'plan-applications-association',
     'plan-apps-association',
     'plan-features-mapping',
+    'plan-features-association',
+    'plan-features-mapping-association',
     'sub-plans-core',
     'sub-apps-mapping',
     'sub-payments-billing',
@@ -411,7 +413,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       activeTab === 'plan-apps-association'
     ) {
       activeFeatureName = 'Plan Apps Rules';
-    } else if (activeTab === 'plan-features-mapping' || activeTab === 'subscription-plan-features') {
+    } else if (
+      activeTab === 'plan-features-mapping' ||
+      activeTab === 'subscription-plan-features' ||
+      activeTab === 'plan-features-association' ||
+      activeTab === 'plan-features-mapping-association'
+    ) {
       activeFeatureName = 'Plan Features Mapping';
     } else if (
       activeTab === 'company-subscriptions' ||
@@ -587,7 +594,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     activeTab === 'plan-apps-association'
   ) {
     friendlyTitle = 'Plan Apps Rules';
-  } else if (activeTab === 'plan-features-mapping' || activeTab === 'subscription-plan-features') {
+  } else if (
+    activeTab === 'plan-features-mapping' ||
+    activeTab === 'subscription-plan-features' ||
+    activeTab === 'plan-features-association' ||
+    activeTab === 'plan-features-mapping-association'
+  ) {
     friendlyTitle = 'Plan Features Mapping';
   } else if (
     activeTab === 'company-subscriptions' ||

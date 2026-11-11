@@ -42,6 +42,7 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('platformsaas', 'plan-apps-rules', '/platform-saas/subscription/plan-applications', '/subscription/plan-applications'),
   ...routes('platformsaas', 'plan-applications-association', '/platform-saas/subscription/plan-applications-association', '/subscription/plan-applications-association'),
   ...routes('platformsaas', 'plan-features-mapping', '/platform-saas/subscription/plan-features', '/subscription/plan-features'),
+  ...routes('platformsaas', 'plan-features-association', '/platform-saas/subscription/plan-features-association', '/subscription/plan-features-association'),
   ...routes('platformsaas', 'company-subscriptions', '/platform-saas/subscription/company-subscriptions', '/subscription/company-subscriptions'),
   ...routes('platformsaas', 'company-subscription-detail', '/platform-saas/subscription/company-subscription', '/platform-saas/companies/subscription'),
   ...routes('platformsaas', 'merchant-subs-link', '/platform-saas/subscription/merchant-subscriptions', '/subscription/merchant-subscriptions'),
@@ -154,6 +155,15 @@ export function getNavFromPath(
       category: 'platformsaas',
       tab: 'plan-applications-association',
       planId: planAppsMatch[1],
+    };
+  }
+
+  const planFeaturesMatch = path.match(/^\/(?:platform-saas\/)?subscription\/plans\/([^/]+)\/features\/?$/);
+  if (planFeaturesMatch) {
+    return {
+      category: 'platformsaas',
+      tab: 'plan-features-association',
+      planId: planFeaturesMatch[1],
     };
   }
 

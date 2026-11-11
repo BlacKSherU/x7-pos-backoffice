@@ -11,6 +11,7 @@ import { PlatformFeatureCatalogView } from '@/modules/platform-saas/subscription
 import { PlanApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlanApplicationsView';
 import { PlanApplicationsAssociationView } from '@/components/MerchantFrame/views/platform-saas/subscription/PlanApplicationsAssociationView';
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
+import { PlanFeaturesAssociationView } from '@/components/MerchantFrame/views/platform-saas/subscription/PlanFeaturesAssociationView';
 import { SaasDashboardView } from '@/modules/platform-saas/central-backoffice/views/SaasDashboardView';
 import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionHubView';
 import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
@@ -202,6 +203,16 @@ view('plan-features-mapping', (ctx) =>
     <PlanFeaturesView plan={ctx.selectedPlan} onNavigate={ctx.onSaasNavigate} />
   ) : (
     <PlanFeaturesPickPlanView onChoosePlan={() => ctx.navigateToFeature('sub-plans-core')} />
+  ),
+);
+view(
+  ['plan-features-association', 'plan-features-mapping-association'],
+  (ctx) => (
+    <PlanFeaturesAssociationView
+      planId={ctx.selectedPlanId ?? ctx.selectedPlan?.id}
+      plan={ctx.selectedPlan ?? undefined}
+      onNavigate={ctx.onSaasNavigate}
+    />
   ),
 );
 view(['merchant-directory', 'merchants-directory', 'merchants'], () => (

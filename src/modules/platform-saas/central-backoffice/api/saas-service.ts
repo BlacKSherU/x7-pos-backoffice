@@ -492,6 +492,95 @@ export const saasService = {
     return response.data;
   },
 
+  // ── Plan-to-Features Association Endpoints ────────────────────────────
+  async getSubscriptionPlanFeatures(planId: number | string): Promise<PlatformFeature[]> {
+    try {
+      const response = await saasApiFetch<{ data: PlatformFeature[] | PlanFeature[] }>(
+        `v1/saas/subscription-plans/${planId}/features`,
+      );
+      const list = response.data;
+      if (Array.isArray(list)) {
+        return list.map((item) => {
+          if ('feature' in item && typeof item.feature === 'object' && item.feature !== null) {
+            const pf = item as PlanFeature;
+            return {
+              id: pf.feature.id,
+              name: pf.feature.name,
+              Unit: pf.feature.unit,
+              description: pf.feature.description,
+              status: pf.status || 'active',
+            } as PlatformFeature;
+          }
+          return item as PlatformFeature;
+        });
+      }
+      return [];
+    } catch {
+      // Fallback: use getPlanFeatures
+      try {
+        const planFeatures = await this.getPlanFeatures(Number(planId));
+        return planFeatures.map((pf) => ({
+          id: pf.feature.id,
+          name: pf.feature.name,
+          Unit: pf.feature.unit,
+          description: pf.feature.description || `Limit: ${pf.limit_value}`,
+          status: pf.status || 'active',
+        }));
+      } catch {
+        return [];
+      }
+    }
+  },
+
+  async associatePlanFeature(
+    planId: number | string,
+    featureId: number | string,
+    limitValue = 100,
+  ): Promise<unknown> {
+    try {
+      const response = await saasApiFetch<{ data: unknown }>(
+        `v1/saas/subscription-plans/${planId}/features`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            featureId: Number(featureId),
+            limit_value: limitValue,
+          }),
+        },
+      );
+      return response.data;
+    } catch {
+      // Fallback: create plan_feature association
+      return this.createPlanFeature({
+        subscriptionPlan: Number(planId),
+        feature: Number(featureId),
+        limit_value: limitValue,
+        status: 'active',
+      });
+    }
+  },
+
+  async disassociatePlanFeature(
+    planId: number | string,
+    featureId: number | string,
+  ): Promise<void> {
+    try {
+      await saasApiFetch(
+        `v1/saas/subscription-plans/${planId}/features/${featureId}`,
+        {
+          method: 'DELETE',
+        },
+      );
+    } catch {
+      // Fallback: find existing PlanFeature and delete it
+      const planFeatures = await this.getPlanFeatures(Number(planId));
+      const found = planFeatures.find((pf) => pf.feature.id === Number(featureId));
+      if (found) {
+        await this.deletePlanFeature(found.id);
+      }
+    }
+  },
+
   // ── Global Company Registry (SaaS Owner) ──────────────────────────────
   async listCompanies(): Promise<CompanyRegistryItem[]> {
     const response = await saasApiFetch<{ data: CompanyRegistryItem[] }>(
