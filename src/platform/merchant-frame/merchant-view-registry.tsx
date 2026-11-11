@@ -242,7 +242,12 @@ view(
   ),
 );
 view(
-  ['subscription-applications-inquiry', 'company-applications-inquiry'],
+  [
+    'subscription-applications-inquiry',
+    'company-applications-inquiry',
+    'sub-apps-mapping',
+    'subscription-applications',
+  ],
   (ctx) => (
     <SubscriptionApplicationsInquiryView
       companyId={ctx.selectedCompanyId ?? undefined}

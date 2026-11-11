@@ -95,7 +95,7 @@ export const SUBSCRIPTION_SUB_MODULES: HubSubModuleItem[] = [
     title: 'Subscription Applications Inquiry',
     subtitle: 'ACTIVE DEPLOYMENTS',
     description: 'Inquire active applications and software modules mapped to company subscriptions and merchant profiles.',
-    icon: 'apps_outage',
+    icon: 'developer_board',
     badge: 'Deployments',
     badgeVariant: 'amber',
     actionText: 'Inquire Applications',

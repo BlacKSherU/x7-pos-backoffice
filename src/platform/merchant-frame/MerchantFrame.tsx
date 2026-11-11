@@ -109,6 +109,8 @@ export const MerchantFrame: React.FC = () => {
     'company-subscription-detail': 'company-subscription-detail',
     'subscription-applications-inquiry': 'subscription-applications-inquiry',
     'company-applications-inquiry': 'subscription-applications-inquiry',
+    'sub-apps-mapping': 'sub-apps-mapping',
+    'subscription-applications': 'sub-apps-mapping',
     'merchant-subscriptions': 'merchant-subs-link',
     'subscription-merchant-subscriptions': 'merchant-subs-link',
   };
