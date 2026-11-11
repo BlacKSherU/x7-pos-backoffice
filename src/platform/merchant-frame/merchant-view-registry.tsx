@@ -194,6 +194,7 @@ view(
     <PlanApplicationsAssociationView
       planId={ctx.selectedPlanId ?? ctx.selectedPlan?.id}
       plan={ctx.selectedPlan ?? undefined}
+      userRole={ctx.profile?.role}
       onNavigate={ctx.onSaasNavigate}
     />
   ),
@@ -211,6 +212,7 @@ view(
     <PlanFeaturesAssociationView
       planId={ctx.selectedPlanId ?? ctx.selectedPlan?.id}
       plan={ctx.selectedPlan ?? undefined}
+      userRole={ctx.profile?.role}
       onNavigate={ctx.onSaasNavigate}
     />
   ),

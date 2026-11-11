@@ -11,20 +11,39 @@ import { NavHubBar } from '@/shared/components/NavHubBar';
 export interface PlanApplicationsAssociationViewProps {
   planId?: number | string;
   plan?: SubscriptionPlan;
+  userRole?: string | null;
   onNavigate?: (view: string, plan?: SubscriptionPlan) => void;
 }
 
 export const PlanApplicationsAssociationView: React.FC<PlanApplicationsAssociationViewProps> = ({
   planId: initialPlanId,
   plan: initialPlan,
+  userRole,
   onNavigate,
 }) => {
   // ── RBAC Validation (Restricted Strictly to Superadmin) ──────────────────
-  const effectiveRole = getEffectiveUserRole() || getStoredUser()?.role;
+  const storedUser = getStoredUser();
+  const rawStoredRole = storedUser?.role;
+  const effectiveRole = getEffectiveUserRole();
+
+  const checkIsSuperAdmin = (r?: string | null) => {
+    if (!r) return false;
+    const lower = r.toLowerCase().trim();
+    return (
+      lower === 'super_admin' ||
+      lower === 'superadmin' ||
+      lower === 'super admin' ||
+      lower === 'super admin (all access)' ||
+      lower === 'saas owner' ||
+      lower === 'portal_admin' ||
+      lower.includes('super')
+    );
+  };
+
   const isSuperAdmin =
-    effectiveRole === 'super_admin' ||
-    effectiveRole === 'superadmin' ||
-    effectiveRole === 'Super Admin (All Access)';
+    checkIsSuperAdmin(userRole) ||
+    checkIsSuperAdmin(rawStoredRole) ||
+    checkIsSuperAdmin(effectiveRole);
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(
@@ -318,7 +337,7 @@ export const PlanApplicationsAssociationView: React.FC<PlanApplicationsAssociati
           </p>
           <p className="text-sm text-[#5f5e5e] mb-6 leading-relaxed">
             Plan-to-applications association is strictly restricted to Super Administrators.
-            Your current account role (<strong>{effectiveRole || 'guest'}</strong>) does not have
+            Your current account role (<strong>{userRole || rawStoredRole || effectiveRole || 'guest'}</strong>) does not have
             sufficient privileges to access or modify pricing tier application mappings.
           </p>
           <div className="flex justify-center gap-3">
