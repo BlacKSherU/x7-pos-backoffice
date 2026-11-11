@@ -154,6 +154,8 @@ const ITEM_ID_SHORTCUTS: Record<string, string> = {
   'merchant-subs-link': 'MERCHANT SUBS',
   'plan-apps-rules': 'PLAN APPS',
   'plan-features-mapping': 'PLAN FEATURES',
+  'plan-applications-association': 'PLAN APPS (SUPERADMIN)',
+  'plan-features-association': 'PLAN FEATURES (SUPERADMIN)',
   'sub-plans-core': 'PLANS',
   'sub-apps-mapping': 'ACTIVE APPS',
   'sub-payments-billing': 'PAYMENTS',

@@ -558,14 +558,25 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                 </select>
               </div>
               {!isReadOnly && (
-                <button
-                  type="button"
-                  onClick={openAssociateModal}
-                  className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
-                >
-                  <span className="material-symbols-outlined text-base">add_link</span>
-                  ASSOCIATE APPLICATION
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('plan-applications-association')}
+                    className="px-4 py-2 border border-[#ae001a] text-[#ae001a] hover:bg-[#ae001a] hover:text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer"
+                    title="Open Superadmin Plan-to-Applications Association Workspace"
+                  >
+                    <span className="material-symbols-outlined text-base">widgets</span>
+                    SUPERADMIN MATRIX
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openAssociateModal}
+                    className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <span className="material-symbols-outlined text-base">add_link</span>
+                    ASSOCIATE APPLICATION
+                  </button>
+                </div>
               )}
             </div>
           )}

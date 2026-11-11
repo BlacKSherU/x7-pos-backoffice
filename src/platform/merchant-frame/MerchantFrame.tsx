@@ -703,6 +703,8 @@ export const MerchantFrame: React.FC = () => {
       'features-control',
       'plan-apps-rules',
       'plan-features-mapping',
+      'plan-applications-association',
+      'plan-features-association',
       'sub-plans-core',
       'sub-apps-mapping'
     ];
