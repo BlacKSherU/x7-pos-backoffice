@@ -150,6 +150,9 @@ export interface ProvisionedApplication {
   icon?: string;
   isProvisioned: boolean;
   featuresCount?: number;
+  provisionedAt?: string;
+  provisioned_at?: string;
+  status?: string;
 }
 
 export interface UpdateCompanySubscriptionDto {

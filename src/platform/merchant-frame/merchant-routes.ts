@@ -11,6 +11,7 @@ export interface RouteNav {
   category: string;
   tab: string;
   planId?: string | number;
+  companyId?: string | number;
 }
 
 export interface NavigationLocationState {
@@ -45,6 +46,7 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('platformsaas', 'plan-features-association', '/platform-saas/subscription/plan-features-association', '/subscription/plan-features-association'),
   ...routes('platformsaas', 'company-subscriptions', '/platform-saas/subscription/company-subscriptions', '/subscription/company-subscriptions'),
   ...routes('platformsaas', 'company-subscription-detail', '/platform-saas/subscription/company-subscription', '/platform-saas/companies/subscription'),
+  ...routes('platformsaas', 'subscription-applications-inquiry', '/platform-saas/subscription/company-applications', '/subscription/company-applications'),
   ...routes('platformsaas', 'merchant-subs-link', '/platform-saas/subscription/merchant-subscriptions', '/subscription/merchant-subscriptions'),
   ...routes('platformsaas', 'sub-payments-billing', '/platform-saas/subscription/payments', '/subscription/payments'),
   ...routes('platformsaas', 'sub-apps-mapping', '/platform-saas/subscription/subscription-applications', '/subscription/subscription-applications'),
@@ -164,6 +166,15 @@ export function getNavFromPath(
       category: 'platformsaas',
       tab: 'plan-features-association',
       planId: planFeaturesMatch[1],
+    };
+  }
+
+  const companyAppsMatch = path.match(/^\/(?:platform-saas\/)?subscription\/company\/([^/]+)\/applications\/?$/);
+  if (companyAppsMatch) {
+    return {
+      category: 'platformsaas',
+      tab: 'subscription-applications-inquiry',
+      companyId: companyAppsMatch[1],
     };
   }
 

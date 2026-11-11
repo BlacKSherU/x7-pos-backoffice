@@ -662,9 +662,26 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                   PROVISIONED APPLICATIONS ({subscription.plan.name} TIER)
                 </span>
               </div>
-              <span className="text-white/60 text-xs">
-                {applications.filter((a) => a.isProvisioned).length} modules unlocked
-              </span>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-white/60 text-xs">
+                  {applications.filter((a) => a.isProvisioned).length} modules unlocked
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNavigate?.(
+                      'subscription-applications-inquiry',
+                      undefined,
+                      selectedCompanyId ?? undefined,
+                    )
+                  }
+                  className="px-3 py-1 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest rounded transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Open dedicated Subscription Applications Inquiry View"
+                >
+                  <span className="material-symbols-outlined text-sm">developer_board</span>
+                  INSPECT APPLICATIONS INQUIRY
+                </button>
+              </div>
             </div>
 
             <div className="p-6">

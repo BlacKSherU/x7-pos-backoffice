@@ -107,6 +107,8 @@ export const MerchantFrame: React.FC = () => {
     'subscription-company-subscriptions': 'company-subscriptions',
     'company-subscription': 'company-subscription-detail',
     'company-subscription-detail': 'company-subscription-detail',
+    'subscription-applications-inquiry': 'subscription-applications-inquiry',
+    'company-applications-inquiry': 'subscription-applications-inquiry',
     'merchant-subscriptions': 'merchant-subs-link',
     'subscription-merchant-subscriptions': 'merchant-subs-link',
   };
@@ -168,6 +170,9 @@ export const MerchantFrame: React.FC = () => {
     if (routeNav) {
       if (routeNav.planId !== undefined) {
         setSelectedPlanId(Number(routeNav.planId));
+      }
+      if (routeNav.companyId !== undefined) {
+        setSelectedCompanyId(Number(routeNav.companyId));
       }
       const isPlatformStaff =
         effectiveProfileRole === 'super_admin' ||
@@ -705,6 +710,7 @@ export const MerchantFrame: React.FC = () => {
       'plan-features-mapping',
       'plan-applications-association',
       'plan-features-association',
+      'subscription-applications-inquiry',
       'sub-plans-core',
       'sub-apps-mapping'
     ];

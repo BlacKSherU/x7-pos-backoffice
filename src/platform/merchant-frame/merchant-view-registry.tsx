@@ -16,6 +16,7 @@ import { SaasDashboardView } from '@/modules/platform-saas/central-backoffice/vi
 import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionHubView';
 import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
 import { CompanySubscriptionView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanySubscriptionView';
+import { SubscriptionApplicationsInquiryView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionApplicationsInquiryView';
 import { MerchantSubscriptionsView } from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
 import { OrdersRegistryView } from '@/modules/platform-saas/central-backoffice/views/OrdersRegistryView';
 import { MerchantSettlementsView } from '@/modules/platform-saas/central-backoffice/views/MerchantSettlementsView';
@@ -236,6 +237,16 @@ view(
   (ctx) => (
     <CompanySubscriptionView
       companyId={ctx.selectedCompanyId ?? undefined}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
+);
+view(
+  ['subscription-applications-inquiry', 'company-applications-inquiry'],
+  (ctx) => (
+    <SubscriptionApplicationsInquiryView
+      companyId={ctx.selectedCompanyId ?? undefined}
+      userRole={ctx.profile?.role}
       onNavigate={ctx.onSaasNavigate}
     />
   ),

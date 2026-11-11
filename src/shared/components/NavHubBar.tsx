@@ -151,6 +151,8 @@ const ITEM_ID_SHORTCUTS: Record<string, string> = {
   // Subscription System
   'apps-config': 'APPLICATIONS',
   'features-control': 'FEATURES',
+  'company-subscriptions': 'COMPANY SUBS',
+  'subscription-applications-inquiry': 'COMPANY APPS',
   'merchant-subs-link': 'MERCHANT SUBS',
   'plan-apps-rules': 'PLAN APPS',
   'plan-features-mapping': 'PLAN FEATURES',

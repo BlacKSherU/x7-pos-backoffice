@@ -306,6 +306,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'apps-config',
     'features-control',
     'company-subscriptions',
+    'subscription-applications-inquiry',
+    'company-applications-inquiry',
     'merchant-subs-link',
     'plan-apps-rules',
     'plan-applications-association',
@@ -425,6 +427,11 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       activeTab === 'subscription-company-subscriptions'
     ) {
       activeFeatureName = 'Company Subscriptions';
+    } else if (
+      activeTab === 'subscription-applications-inquiry' ||
+      activeTab === 'company-applications-inquiry'
+    ) {
+      activeFeatureName = 'Subscription Applications Inquiry';
     } else if (
       activeTab === 'merchant-subs-link' ||
       activeTab === 'merchant-subscriptions' ||
@@ -606,6 +613,11 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     activeTab === 'subscription-company-subscriptions'
   ) {
     friendlyTitle = 'Company Subscriptions';
+  } else if (
+    activeTab === 'subscription-applications-inquiry' ||
+    activeTab === 'company-applications-inquiry'
+  ) {
+    friendlyTitle = 'Subscription Applications Inquiry';
   } else if (
     activeTab === 'merchant-subs-link' ||
     activeTab === 'merchant-subscriptions' ||
