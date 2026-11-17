@@ -1,6 +1,7 @@
 import { ApiError, getApiErrorDetails, getApiErrorMessage } from '@/shared/lib/api-error';
 import { getAccessToken, redirectToLogin } from '@/platform/auth/lib/auth-storage';
 import { clearSaasToken, getSaasToken } from '@/platform/auth/lib/saas-auth-storage';
+import { interceptMerchantModuleRequest } from '@/modules/saas/guards/subscription-feature.guard';
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -128,14 +129,17 @@ export async function apiRequest<T>(
   init: RequestInit,
   fallbackMessage: string,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      // Solo cuerpos JSON (string): con FormData el navegador pone el boundary multipart.
-      ...authHeaders(typeof init.body === 'string'),
-      ...init.headers,
-    },
-  });
+  const intercepted = await interceptMerchantModuleRequest(path, init);
+  const response =
+    intercepted ??
+    (await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        // Solo cuerpos JSON (string): con FormData el navegador pone el boundary multipart.
+        ...authHeaders(typeof init.body === 'string'),
+        ...init.headers,
+      },
+    }));
 
   if (response.status === 401) {
     redirectToLogin();
@@ -143,8 +147,8 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const { message, code } = await getApiErrorDetails(response, fallbackMessage);
-    throw new ApiError(message, response.status, code);
+    const { message, code, details } = await getApiErrorDetails(response, fallbackMessage);
+    throw new ApiError(message, response.status, code, details);
   }
 
   return parseJsonBody<T>(response);
@@ -165,18 +169,21 @@ export async function saasRequest<T>(
   init: RequestInit,
   fallbackMessage: string,
 ): Promise<T> {
+  const intercepted = await interceptMerchantModuleRequest(path, init);
   // Platform staff sign in once through the regular login; the dedicated SaaS token is
   // only an override, so fall back to the session's access token.
   const token = getSaasToken() ?? getAccessToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      ...(typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers,
-    },
-  });
+  const response =
+    intercepted ??
+    (await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...(typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
+    }));
 
   if (response.status === 401) {
     clearSaasToken();
@@ -184,8 +191,8 @@ export async function saasRequest<T>(
   }
 
   if (!response.ok) {
-    const { message, code } = await getApiErrorDetails(response, fallbackMessage);
-    throw new ApiError(message, response.status, code);
+    const { message, code, details } = await getApiErrorDetails(response, fallbackMessage);
+    throw new ApiError(message, response.status, code, details);
   }
 
   return parseJsonBody<T>(response);

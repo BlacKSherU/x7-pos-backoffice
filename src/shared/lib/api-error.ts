@@ -2,12 +2,14 @@ export class ApiError extends Error {
   readonly status: number;
   /** Machine code of the error body (`code`), when the backend sends it. */
   readonly code?: string;
+  readonly details?: unknown;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: string, details?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -26,7 +28,7 @@ export async function getApiErrorMessage(
 export async function getApiErrorDetails(
   response: Response,
   fallback: string,
-): Promise<{ message: string; code?: string }> {
+): Promise<{ message: string; code?: string; details?: unknown }> {
   let data: unknown;
   try {
     data = await response.json();
@@ -37,7 +39,11 @@ export async function getApiErrorDetails(
     typeof data === 'object' && data !== null && typeof (data as { code?: unknown }).code === 'string'
       ? (data as { code: string }).code
       : undefined;
-  return { message: messageFromBody(data) ?? fallback, code };
+  const details =
+    typeof data === 'object' && data !== null && 'details' in data
+      ? (data as { details: unknown }).details
+      : undefined;
+  return { message: messageFromBody(data) ?? fallback, code, details };
 }
 
 function messageFromBody(data: unknown): string | null {
