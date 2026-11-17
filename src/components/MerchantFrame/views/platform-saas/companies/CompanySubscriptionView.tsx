@@ -244,6 +244,12 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
       icon: 'storefront',
       onClick: () => onNavigate?.('merchant-subs-link'),
     },
+    {
+      id: 'subscription-audit-logs',
+      label: 'AUDIT LOGS',
+      icon: 'history',
+      onClick: () => onNavigate?.('subscription-audit-logs'),
+    },
   ];
 
   return (
@@ -811,7 +817,7 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                       htmlFor="suspension-reason"
                       className="block text-xs font-bold uppercase tracking-wider text-[#5f5e5e] mb-1"
                     >
-                      Reason for Suspension (Optional):
+                      Reason for Suspension <span className="text-[#ae001a] font-bold">* (Mandatory for Compliance)</span>:
                     </label>
                     <textarea
                       id="suspension-reason"
@@ -820,6 +826,7 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                       onChange={(e) => setSuspensionReason(e.target.value)}
                       placeholder="e.g. Delinquent account, billing failure, administrative hold…"
                       className="w-full p-2.5 text-sm border border-[#e8e2d8] rounded focus:outline-none focus:border-[#ae001a]"
+                      required
                     />
                   </div>
                 </>
@@ -837,6 +844,24 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                       <strong>{subscription?.company.name}</strong>. Choose whether the cancellation
                       takes effect immediately or at the end of the current billing cycle.
                     </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="cancellation-reason"
+                      className="block text-xs font-bold uppercase tracking-wider text-[#5f5e5e] mb-1"
+                    >
+                      Reason for Cancellation <span className="text-[#ae001a] font-bold">* (Mandatory for Compliance)</span>:
+                    </label>
+                    <textarea
+                      id="cancellation-reason"
+                      rows={2}
+                      value={suspensionReason}
+                      onChange={(e) => setSuspensionReason(e.target.value)}
+                      placeholder="e.g. Customer offboarding, non-payment, vendor transition…"
+                      className="w-full p-2.5 text-sm border border-[#e8e2d8] rounded focus:outline-none focus:border-[#ae001a]"
+                      required
+                    />
                   </div>
 
                   <div className="space-y-2">

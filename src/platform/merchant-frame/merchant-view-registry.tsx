@@ -17,6 +17,7 @@ import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-s
 import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
 import { CompanySubscriptionView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanySubscriptionView';
 import { SubscriptionApplicationsInquiryView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionApplicationsInquiryView';
+import { SubscriptionAuditLogView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionAuditLogView';
 import { MerchantSubscriptionsView } from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
 import { OrdersRegistryView } from '@/modules/platform-saas/central-backoffice/views/OrdersRegistryView';
 import { MerchantSettlementsView } from '@/modules/platform-saas/central-backoffice/views/MerchantSettlementsView';
@@ -259,6 +260,16 @@ view(
 view(
   ['merchant-subs-link', 'merchant-subscriptions', 'subscription-merchant-subscriptions'],
   (ctx) => <MerchantSubscriptionsView onNavigate={ctx.onSaasNavigate} />,
+);
+view(
+  ['subscription-audit-logs', 'sub-audit-logs', 'subscription-audit-log-ledger'],
+  (ctx) => (
+    <SubscriptionAuditLogView
+      companyId={ctx.selectedCompanyId ?? undefined}
+      userRole={ctx.profile?.role}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
 );
 view(['subscription-system-hub', 'subscription-hub'], (ctx) => (
   <SubscriptionHubView onNavigate={ctx.navigateToFeature} />

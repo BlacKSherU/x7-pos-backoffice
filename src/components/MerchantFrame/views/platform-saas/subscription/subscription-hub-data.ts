@@ -100,5 +100,15 @@ export const SUBSCRIPTION_SUB_MODULES: HubSubModuleItem[] = [
     badgeVariant: 'amber',
     actionText: 'Inquire Applications',
   },
+  {
+    id: 'subscription-audit-logs',
+    title: 'Subscription Audit Log Ledger',
+    subtitle: 'IMMUTABLE COMPLIANCE TRAIL',
+    description: 'Immutable ledger tracking administrative changes to subscription statuses, plan mappings, and tenant access.',
+    icon: 'history',
+    badge: 'Audit & Compliance',
+    badgeVariant: 'rose',
+    actionText: 'View Audit Logs',
+  },
 ];
 

@@ -4,16 +4,17 @@ import type {
 
 export function normalizeLifecycleStatus(
   status: SubscriptionLifecycleStatus | string | undefined,
-): 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'INACTIVE' {
+): 'ACTIVE' | 'GRACE_PERIOD' | 'SUSPENDED' | 'CANCELLED' | 'INACTIVE' {
   if (!status) return 'INACTIVE';
   const upper = status.toUpperCase();
   if (upper === 'ACTIVE') return 'ACTIVE';
+  if (upper === 'GRACE_PERIOD' || upper === 'GRACE') return 'GRACE_PERIOD';
   if (upper === 'SUSPENDED') return 'SUSPENDED';
   if (upper === 'CANCELLED' || upper === 'CANCELED') return 'CANCELLED';
   return 'INACTIVE';
 }
 
-export function statusBadge(status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'INACTIVE'): {
+export function statusBadge(status: 'ACTIVE' | 'GRACE_PERIOD' | 'SUSPENDED' | 'CANCELLED' | 'INACTIVE'): {
   label: string;
   className: string;
   icon: string;
@@ -24,6 +25,12 @@ export function statusBadge(status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'INAC
         label: 'Active',
         className: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
         icon: 'check_circle',
+      };
+    case 'GRACE_PERIOD':
+      return {
+        label: 'Grace Period',
+        className: 'bg-amber-500/15 text-amber-900 border-amber-500/30 font-bold',
+        icon: 'hourglass_top',
       };
     case 'SUSPENDED':
       return {

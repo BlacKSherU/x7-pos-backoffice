@@ -19,7 +19,14 @@ import type {
   UpdateCompanySubscriptionDto,
   MerchantSubscription,
   UpdateMerchantSubscriptionDto,
+  SubscriptionAuditLog,
+  CreateSubscriptionAuditLogDto,
 } from '@/modules/platform-saas/subscription-system/types/subscription';
+import {
+  recordSubscriptionAuditLog as logAuditEntryLocally,
+  fetchSubscriptionAuditLogsFromStorage,
+} from '@/modules/platform-saas/subscription-system/lib/subscription-audit-logger';
+import { redisCacheService } from '@/modules/saas/services/redis-cache.service';
 import type { CompanyRegistryItem, CompanyRegistryPayload, CompanyRegistryStatus } from '@/modules/platform-saas/companies/types/company-registry';
 import type { PlatformUser } from '@/modules/platform-saas/users/types/user';
 import { saasRequest } from '@/shared/api/http';
@@ -270,7 +277,10 @@ export const saasService = {
         body: JSON.stringify(dto),
       },
     );
-    return toPlan(response.data);
+    const plan = toPlan(response.data);
+    // Invalidate Redis feature flag cache for all tenants on this plan
+    redisCacheService.invalidateByPlanId(id).catch(() => {});
+    return plan;
   },
 
   async deleteSubscriptionPlan(id: number): Promise<SubscriptionPlan> {
@@ -423,6 +433,7 @@ export const saasService = {
     planId: number | string,
     applicationId: number | string,
   ): Promise<unknown> {
+    let result: unknown;
     try {
       const response = await saasApiFetch<{ data: unknown }>(
         `v1/saas/subscription-plans/${planId}/applications`,
@@ -431,16 +442,33 @@ export const saasService = {
           body: JSON.stringify({ applicationId: Number(applicationId) }),
         },
       );
-      return response.data;
+      result = response.data;
     } catch {
       // Fallback: create plan_application association
-      return this.createPlanApplication({
+      result = await this.createPlanApplication({
         subscriptionPlan: Number(planId),
         application: Number(applicationId),
         limits: 'Included in plan tier',
         status: 'active',
       });
     }
+
+    // Immutable Audit Trail recording
+    this.recordSubscriptionAuditLog({
+      action_type: 'PLAN_MAPPING_UPDATED',
+      target_type: 'PLAN_APPLICATION',
+      target_id: applicationId,
+      target_name: `Plan #${planId} - App #${applicationId}`,
+      previous_value: { linked: false, planId: Number(planId), applicationId: Number(applicationId) },
+      new_value: { linked: true, planId: Number(planId), applicationId: Number(applicationId) },
+      reason_notes: 'Administrative plan-to-application association update',
+      metadata: { planId: Number(planId), applicationId: Number(applicationId) },
+    }).catch(() => {});
+
+    // Invalidate Redis feature flag cache for all tenants on this plan
+    redisCacheService.invalidateByPlanId(planId).catch(() => {});
+
+    return result;
   },
 
   async disassociatePlanApplication(
@@ -462,6 +490,21 @@ export const saasService = {
         await this.deletePlanApplication(found.id);
       }
     }
+
+    // Invalidate Redis feature flag cache for all tenants on this plan
+    redisCacheService.invalidateByPlanId(planId).catch(() => {});
+
+    // Immutable Audit Trail recording
+    this.recordSubscriptionAuditLog({
+      action_type: 'PLAN_MAPPING_UPDATED',
+      target_type: 'PLAN_APPLICATION',
+      target_id: applicationId,
+      target_name: `Plan #${planId} - App #${applicationId}`,
+      previous_value: { linked: true, planId: Number(planId), applicationId: Number(applicationId) },
+      new_value: { linked: false, planId: Number(planId), applicationId: Number(applicationId) },
+      reason_notes: 'Administrative plan-to-application disassociation update',
+      metadata: { planId: Number(planId), applicationId: Number(applicationId) },
+    }).catch(() => {});
   },
 
   async getPlanFeatures(planId: number): Promise<PlanFeature[]> {
@@ -537,6 +580,7 @@ export const saasService = {
     featureId: number | string,
     limitValue = 100,
   ): Promise<unknown> {
+    let result: unknown;
     try {
       const response = await saasApiFetch<{ data: unknown }>(
         `v1/saas/subscription-plans/${planId}/features`,
@@ -548,16 +592,33 @@ export const saasService = {
           }),
         },
       );
-      return response.data;
+      result = response.data;
     } catch {
       // Fallback: create plan_feature association
-      return this.createPlanFeature({
+      result = await this.createPlanFeature({
         subscriptionPlan: Number(planId),
         feature: Number(featureId),
         limit_value: limitValue,
         status: 'active',
       });
     }
+
+    // Immutable Audit Trail recording
+    this.recordSubscriptionAuditLog({
+      action_type: 'PLAN_MAPPING_UPDATED',
+      target_type: 'PLAN_FEATURE',
+      target_id: featureId,
+      target_name: `Plan #${planId} - Feature #${featureId}`,
+      previous_value: { linked: false, planId: Number(planId), featureId: Number(featureId), limitValue },
+      new_value: { linked: true, planId: Number(planId), featureId: Number(featureId), limitValue },
+      reason_notes: 'Administrative plan-to-feature entitlement association update',
+      metadata: { planId: Number(planId), featureId: Number(featureId), limitValue },
+    }).catch(() => {});
+
+    // Invalidate Redis feature flag cache for all tenants on this plan
+    redisCacheService.invalidateByPlanId(planId).catch(() => {});
+
+    return result;
   },
 
   async disassociatePlanFeature(
@@ -579,6 +640,21 @@ export const saasService = {
         await this.deletePlanFeature(found.id);
       }
     }
+
+    // Invalidate Redis feature flag cache for all tenants on this plan
+    redisCacheService.invalidateByPlanId(planId).catch(() => {});
+
+    // Immutable Audit Trail recording
+    this.recordSubscriptionAuditLog({
+      action_type: 'PLAN_MAPPING_UPDATED',
+      target_type: 'PLAN_FEATURE',
+      target_id: featureId,
+      target_name: `Plan #${planId} - Feature #${featureId}`,
+      previous_value: { linked: true, planId: Number(planId), featureId: Number(featureId) },
+      new_value: { linked: false, planId: Number(planId), featureId: Number(featureId) },
+      reason_notes: 'Administrative plan-to-feature entitlement disassociation update',
+      metadata: { planId: Number(planId), featureId: Number(featureId) },
+    }).catch(() => {});
   },
 
   // ── Global Company Registry (SaaS Owner) ──────────────────────────────
@@ -678,6 +754,7 @@ export const saasService = {
     status: SubscriptionLifecycleStatus,
     options?: { immediate?: boolean; reason?: string },
   ): Promise<CompanySubscriptionDetail> {
+    let result: CompanySubscriptionDetail;
     try {
       const response = await saasApiFetch<{ data: CompanySubscriptionDetail }>(
         `companies/${companyId}/subscription`,
@@ -690,7 +767,7 @@ export const saasService = {
           }),
         },
       );
-      return response.data;
+      result = response.data;
     } catch {
       // Fallback: update via company-subscriptions endpoint
       const all = await saasFetchAll<CompanySubscription>('company-subscriptions');
@@ -702,13 +779,58 @@ export const saasService = {
           immediate: options?.immediate,
           reason: options?.reason,
         });
-        return {
+        result = {
           ...updated,
           status,
         };
+      } else {
+        throw new Error(`Failed to update subscription status for company ${companyId}`);
       }
-      throw new Error(`Failed to update subscription status for company ${companyId}`);
     }
+
+    // Immutable Audit Trail recording
+    this.recordSubscriptionAuditLog({
+      action_type: 'SUBSCRIPTION_STATUS_CHANGED',
+      target_type: 'COMPANY_SUBSCRIPTION',
+      target_id: companyId,
+      target_name: result.company?.name ? `${result.company.name} Subscription` : `Company #${companyId} Subscription`,
+      company_id: companyId,
+      company_name: result.company?.name,
+      previous_value: { status: 'PREVIOUS_STATE' },
+      new_value: {
+        status,
+        immediate: options?.immediate ?? true,
+        cancellationEffective: options?.immediate ? 'immediate' : 'period_end',
+      },
+      reason_notes:
+        options?.reason ??
+        (String(status).toUpperCase() === 'SUSPENDED'
+          ? 'Mandatory suspension notice recorded by administrative operator'
+          : String(status).toUpperCase() === 'CANCELLED'
+          ? 'Mandatory cancellation notice recorded by administrative operator'
+          : null),
+      metadata: { companyId, immediate: options?.immediate ?? true },
+    }).catch(() => {});
+
+    // Invalidate and instantly refresh Redis cache for this tenant
+    redisCacheService
+      .refreshTenantFeatures(companyId, async () => ({
+        companyId: Number(companyId),
+        companyName: result.company?.name,
+        planId: result.plan?.id ?? 1,
+        planName: result.plan?.name ?? 'Professional',
+        subscriptionStatus: status,
+        isExpired: result.isExpired ?? false,
+        features: [],
+        featureCodes: [],
+        featureIds: [],
+        modulePermissions: [],
+        cachedAt: new Date().toISOString(),
+        ttlSeconds: 3600,
+      }))
+      .catch(() => {});
+
+    return result;
   },
 
   async getCompanyPayments(companyId: number): Promise<SubscriptionPayment[]> {
@@ -776,5 +898,33 @@ export const saasService = {
       { method: 'PATCH', body: JSON.stringify(dto) },
     );
     return response.data;
+  },
+
+  // ── Subscription Audit Trail Ledger ──────────────────────────────────
+  async getSubscriptionAuditLogs(companyId?: number): Promise<SubscriptionAuditLog[]> {
+    const path = companyId
+      ? `v1/saas/companies/${companyId}/subscription-audit-logs`
+      : 'v1/saas/subscription-audit-logs';
+    try {
+      const response = await saasApiFetch<{ data: SubscriptionAuditLog[] } | SubscriptionAuditLog[]>(path);
+      const items = Array.isArray(response) ? response : response.data ?? [];
+      return items;
+    } catch {
+      return fetchSubscriptionAuditLogsFromStorage(companyId);
+    }
+  },
+
+  async recordSubscriptionAuditLog(
+    dto: CreateSubscriptionAuditLogDto,
+  ): Promise<SubscriptionAuditLog> {
+    try {
+      await saasApiFetch('v1/saas/subscription-audit-logs', {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      });
+    } catch {
+      // Backend offline or mock fallback
+    }
+    return logAuditEntryLocally(dto);
   },
 };

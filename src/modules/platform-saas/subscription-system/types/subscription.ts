@@ -89,10 +89,12 @@ export interface UpdatePlanFeatureDto {
 
 export type SubscriptionLifecycleStatus =
   | 'active'
+  | 'grace_period'
   | 'suspended'
   | 'cancelled'
   | 'inactive'
   | 'ACTIVE'
+  | 'GRACE_PERIOD'
   | 'SUSPENDED'
   | 'CANCELLED'
   | 'INACTIVE';
@@ -190,3 +192,6 @@ export interface UpdateMerchantSubscriptionDto {
   renewalDate?: string | null;
   paymentMethod?: string;
 }
+
+export * from './subscription-audit-log';
+

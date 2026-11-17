@@ -315,6 +315,12 @@ export const PlanFeaturesAssociationView: React.FC<PlanFeaturesAssociationViewPr
       icon: 'storefront',
       onClick: () => onNavigate?.('merchant-subs-link'),
     },
+    {
+      id: 'subscription-audit-logs',
+      label: 'AUDIT LOGS',
+      icon: 'history',
+      onClick: () => onNavigate?.('subscription-audit-logs'),
+    },
   ];
 
   // ── Unauthorized Permission Boundary ──────────────────────────────────────

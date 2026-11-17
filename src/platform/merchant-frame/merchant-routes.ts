@@ -50,6 +50,7 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('platformsaas', 'merchant-subs-link', '/platform-saas/subscription/merchant-subscriptions', '/subscription/merchant-subscriptions'),
   ...routes('platformsaas', 'sub-payments-billing', '/platform-saas/subscription/payments', '/subscription/payments'),
   ...routes('platformsaas', 'sub-apps-mapping', '/platform-saas/subscription/subscription-applications', '/subscription/subscription-applications'),
+  ...routes('platformsaas', 'subscription-audit-logs', '/platform-saas/subscription/audit-logs', '/subscription/audit-logs'),
   ...routes('merchant-portal', 'merchant-directory', '/dashboard/merchants'),
   ...routes('merchant-portal', 'user-management', '/dashboard/users'),
   ...routes('merchant-portal', 'company-profile', '/dashboard/company-profile'),
