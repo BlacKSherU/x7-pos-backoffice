@@ -245,7 +245,7 @@ describe('OnlineOrderItemsView', () => {
     render(<OnlineOrderItemsView />);
 
     expect(await screen.findByText('#ORI-1')).toBeInTheDocument();
-    expect(screen.getByText('Classic Burger')).toBeInTheDocument();
+    expect(screen.getByText('Classic Burger', { selector: 'div' })).toBeInTheDocument();
     expect(screen.queryByText('#ORI-2')).not.toBeInTheDocument();
     expect(calledRoutes(fetchMock)).toEqual(
       expect.arrayContaining(['GET /online-order-items']),
@@ -266,7 +266,7 @@ describe('OnlineOrderItemsView', () => {
     await userEvent.click(deletedCheckbox);
 
     expect(await screen.findByText('#ORI-2')).toBeInTheDocument();
-    expect(screen.getByText('Cola Soda')).toBeInTheDocument();
+    expect(screen.getByText('Cola Soda', { selector: 'div' })).toBeInTheDocument();
   });
 
   it('shows the error banner when /online-order-items fails', async () => {
