@@ -3,4 +3,5 @@ export * from './payroll-entries-helpers';
 export * from './PayrollEntriesHeader';
 export * from './PayrollEntriesGrid';
 export * from './PayrollEntriesQuickLaunch';
+export * from './PayrollNavHub';
 

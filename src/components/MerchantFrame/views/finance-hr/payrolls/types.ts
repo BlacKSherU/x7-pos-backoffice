@@ -146,4 +146,44 @@ export interface PayrollEntriesQuickLaunchProps {
   children?: React.ReactNode;
 }
 
+export type PayrollSubModuleId =
+  | 'payroll-runs'
+  | 'payroll-entries'
+  | 'payroll-adjustments'
+  | 'payroll-tax-detail';
+
+export interface PayrollNavHubItem {
+  id: PayrollSubModuleId;
+  label: string;
+  path: string;
+  featureId?: string;
+  icon: string;
+}
+
+export interface PayrollNavHubProps {
+  /** The currently active tab ID */
+  activeTab?: PayrollSubModuleId;
+  /** Current URL route path, e.g. '/finance-hr/payrolls/entries' */
+  currentRoute?: string;
+  /** Callback when a navigation tab is clicked */
+  onNavigate?: (tabId: PayrollSubModuleId, path: string) => void;
+  /** Optional shorthand callback when active tab changes */
+  onTabChange?: (tabId: PayrollSubModuleId) => void;
+  /** Optional back button handler */
+  onBack?: () => void;
+  /** Label for back button */
+  backLabel?: string;
+  /** Title on the left badge */
+  title?: string;
+  /** Whether to show the module identity badge (default: true) */
+  showBadge?: boolean;
+  /** Whether the bar is persistently fixed to the bottom (default: true) */
+  isPersistent?: boolean;
+  /** Custom class name */
+  className?: string;
+  /** Custom items override */
+  items?: PayrollNavHubItem[];
+}
+
+
 

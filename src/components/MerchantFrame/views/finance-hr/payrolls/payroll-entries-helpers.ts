@@ -2,6 +2,8 @@ import type {
   PayrollCalculationVerification,
   PayrollEntry,
   PayrollMetrics,
+  PayrollNavHubItem,
+  PayrollSubModuleId,
 } from './types';
 
 /**
@@ -311,4 +313,71 @@ export const downloadPayrollSummaryCsv = (
   }
   return csvContent;
 };
+
+/**
+ * Default persistent navigation hub items for the Payroll module.
+ */
+export const DEFAULT_PAYROLL_NAV_ITEMS: PayrollNavHubItem[] = [
+  {
+    id: 'payroll-runs',
+    label: 'PAYROLL RUNS',
+    path: '/finance-hr/payrolls/runs',
+    featureId: 'payroll-runs',
+    icon: 'view_list',
+  },
+  {
+    id: 'payroll-entries',
+    label: 'PAYROLL ENTRIES',
+    path: '/finance-hr/payrolls/entries',
+    featureId: 'payroll-entries',
+    icon: 'payments',
+  },
+  {
+    id: 'payroll-adjustments',
+    label: 'PAYROLL ADJUSTMENTS',
+    path: '/finance-hr/payrolls/adjustments',
+    featureId: 'payroll-adjustments',
+    icon: 'tune',
+  },
+  {
+    id: 'payroll-tax-detail',
+    label: 'PAYROLL TAX DETAIL',
+    path: '/finance-hr/payrolls/tax-detail',
+    featureId: 'payroll-tax-detail',
+    icon: 'receipt_long',
+  },
+];
+
+/**
+ * Determines which tab is active based on explicit activeTab or route string.
+ */
+export const resolveActivePayrollTab = (
+  activeTab?: PayrollSubModuleId,
+  currentRoute?: string,
+): PayrollSubModuleId => {
+  if (activeTab) return activeTab;
+
+  if (currentRoute) {
+    const routeLower = currentRoute.toLowerCase();
+    if (routeLower.includes('/payrolls/runs') || routeLower.endsWith('/runs')) {
+      return 'payroll-runs';
+    }
+    if (routeLower.includes('/payrolls/adjustments') || routeLower.endsWith('/adjustments')) {
+      return 'payroll-adjustments';
+    }
+    if (
+      routeLower.includes('/payrolls/tax-detail') ||
+      routeLower.includes('/payrolls/tax') ||
+      routeLower.endsWith('/tax-detail')
+    ) {
+      return 'payroll-tax-detail';
+    }
+    if (routeLower.includes('/payrolls/entries') || routeLower.endsWith('/entries')) {
+      return 'payroll-entries';
+    }
+  }
+
+  return 'payroll-entries';
+};
+
 
