@@ -2,11 +2,49 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { PayrollEntriesView } from './PayrollEntriesView';
+import * as httpModule from '@/shared/api/http';
+import type { PayrollEntry } from './types';
 
-// Mock apiRequest so it does not make real network calls in tests
 vi.mock('@/shared/api/http', () => ({
-  apiRequest: vi.fn().mockRejectedValue(new Error('Network disabled in unit tests')),
+  apiRequest: vi.fn(),
 }));
+
+const SAMPLE_ENTRIES: PayrollEntry[] = [
+  {
+    id: 'PE-1001',
+    payroll_run_id: 1,
+    collaborator_id: 101,
+    collaborator_name: 'Carlos Mendoza',
+    base_pay: 2400.0,
+    overtime_pay: 300.0,
+    double_overtime_pay: 0.0,
+    tips_amount: 150.0,
+    bonuses: 200.0,
+    deductions: 100.0,
+    gross_total: 2950.0,
+    tax_total: 350.0,
+    net_total: 2600.0,
+    status: 'calculated',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'PE-1002',
+    payroll_run_id: 1,
+    collaborator_id: 102,
+    collaborator_name: 'Elena Rostova',
+    base_pay: 2100.0,
+    overtime_pay: 150.0,
+    double_overtime_pay: 50.0,
+    tips_amount: 420.0,
+    bonuses: 100.0,
+    deductions: 50.0,
+    gross_total: 2770.0,
+    tax_total: 320.0,
+    net_total: 2450.0,
+    status: 'calculated',
+    created_at: new Date().toISOString(),
+  },
+];
 
 describe('PayrollEntriesView', () => {
   afterEach(() => {
@@ -15,6 +53,8 @@ describe('PayrollEntriesView', () => {
   });
 
   it('renders the complete payroll entries workspace (header, grid, quick launch)', async () => {
+    vi.mocked(httpModule.apiRequest).mockResolvedValueOnce({ data: [] });
+
     render(<PayrollEntriesView />);
 
     // Renders the main workspace container
@@ -31,19 +71,25 @@ describe('PayrollEntriesView', () => {
     expect(screen.getByTestId('payroll-entries-quick-launch')).toBeInTheDocument();
   });
 
-  it('displays default seed employee records in the grid', async () => {
+  it('hydrates and displays records retrieved from the backend API', async () => {
+    vi.mocked(httpModule.apiRequest).mockResolvedValueOnce({ data: SAMPLE_ENTRIES });
+
     render(<PayrollEntriesView />);
 
     await waitFor(() => {
       expect(screen.getByText('Carlos Mendoza')).toBeInTheDocument();
       expect(screen.getByText('Elena Rostova')).toBeInTheDocument();
-      expect(screen.getByText('Mateo Morales')).toBeInTheDocument();
-      expect(screen.getByText('Sofia Valenzuela')).toBeInTheDocument();
     });
   });
 
   it('filters grid rows in real-time when typing in header search input', async () => {
+    vi.mocked(httpModule.apiRequest).mockResolvedValueOnce({ data: SAMPLE_ENTRIES });
+
     render(<PayrollEntriesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Carlos Mendoza')).toBeInTheDocument();
+    });
 
     const searchInput = screen.getByPlaceholderText(/search by collaborator name/i);
     fireEvent.change(searchInput, { target: { value: 'Elena' } });
@@ -51,12 +97,17 @@ describe('PayrollEntriesView', () => {
     await waitFor(() => {
       expect(screen.getByText('Elena Rostova')).toBeInTheDocument();
       expect(screen.queryByText('Carlos Mendoza')).toBeNull();
-      expect(screen.queryByText('Mateo Morales')).toBeNull();
     });
   });
 
   it('interacts with quick launch operational actions', async () => {
+    vi.mocked(httpModule.apiRequest).mockResolvedValueOnce({ data: SAMPLE_ENTRIES });
+
     render(<PayrollEntriesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Carlos Mendoza')).toBeInTheDocument();
+    });
 
     const recalculateBtn = screen.getByTestId('quick-action-recalculate');
     expect(recalculateBtn).toBeInTheDocument();
@@ -65,6 +116,16 @@ describe('PayrollEntriesView', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('quick-launch-feedback-msg')).toBeInTheDocument();
+    });
+  });
+
+  it('handles empty state when no records are returned by API', async () => {
+    vi.mocked(httpModule.apiRequest).mockResolvedValueOnce({ data: [] });
+
+    render(<PayrollEntriesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/no payroll entries found/i)).toBeInTheDocument();
     });
   });
 });

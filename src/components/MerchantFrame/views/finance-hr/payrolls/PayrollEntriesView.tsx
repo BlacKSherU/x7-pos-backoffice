@@ -10,112 +10,17 @@ export interface PayrollEntriesViewProps {
   payrollRunId?: string | number;
 }
 
-const DEFAULT_SEED_ENTRIES: PayrollEntry[] = [
-  {
-    id: 'PE-1001',
-    payroll_run_id: 1,
-    collaborator_id: 101,
-    collaborator_name: 'Carlos Mendoza',
-    collaborator: {
-      id: 101,
-      name: 'Carlos Mendoza',
-      role: 'Head Chef',
-      department: 'Kitchen',
-    },
-    base_pay: 2400.0,
-    overtime_pay: 300.0,
-    double_overtime_pay: 0.0,
-    tips_amount: 150.0,
-    bonuses: 200.0,
-    deductions: 100.0,
-    gross_total: 2950.0,
-    tax_total: 350.0,
-    net_total: 2600.0,
-    status: 'calculated',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'PE-1002',
-    payroll_run_id: 1,
-    collaborator_id: 102,
-    collaborator_name: 'Elena Rostova',
-    collaborator: {
-      id: 102,
-      name: 'Elena Rostova',
-      role: 'Floor Manager',
-      department: 'Front of House',
-    },
-    base_pay: 2100.0,
-    overtime_pay: 150.0,
-    double_overtime_pay: 50.0,
-    tips_amount: 420.0,
-    bonuses: 100.0,
-    deductions: 50.0,
-    gross_total: 2770.0,
-    tax_total: 320.0,
-    net_total: 2450.0,
-    status: 'calculated',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'PE-1003',
-    payroll_run_id: 1,
-    collaborator_id: 103,
-    collaborator_name: 'Mateo Morales',
-    collaborator: {
-      id: 103,
-      name: 'Mateo Morales',
-      role: 'Lead Bartender',
-      department: 'Beverage & Bar',
-    },
-    base_pay: 1800.0,
-    overtime_pay: 220.0,
-    double_overtime_pay: 0.0,
-    tips_amount: 680.0,
-    bonuses: 50.0,
-    deductions: 80.0,
-    gross_total: 2670.0,
-    tax_total: 290.0,
-    net_total: 2380.0,
-    status: 'verified',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'PE-1004',
-    payroll_run_id: 1,
-    collaborator_id: 104,
-    collaborator_name: 'Sofia Valenzuela',
-    collaborator: {
-      id: 104,
-      name: 'Sofia Valenzuela',
-      role: 'Pastry Sous Chef',
-      department: 'Kitchen',
-    },
-    base_pay: 1950.0,
-    overtime_pay: 90.0,
-    double_overtime_pay: 0.0,
-    tips_amount: 110.0,
-    bonuses: 150.0,
-    deductions: 60.0,
-    gross_total: 2240.0,
-    tax_total: 260.0,
-    net_total: 1980.0,
-    status: 'calculated',
-    created_at: new Date().toISOString(),
-  },
-];
-
 export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
   onNavigate,
   payrollRunId = 1,
 }) => {
-  const [entries, setEntries] = useState<PayrollEntry[]>(DEFAULT_SEED_ENTRIES);
+  const [entries, setEntries] = useState<PayrollEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRowIds, setSelectedRowIds] = useState<(string | number)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
-  // Attempt to hydrate entries from backend API
+  // Hydrate entries from backend API
   const hydrateEntries = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -124,11 +29,11 @@ export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
         { method: 'GET' },
       );
       const list = Array.isArray(res) ? res : res?.data;
-      if (Array.isArray(list) && list.length > 0) {
+      if (Array.isArray(list)) {
         setEntries(list);
       }
     } catch {
-      // Fallback seamlessly to seed entries if backend route is not mounted yet
+      // Backend error or route not reachable
     } finally {
       setIsLoading(false);
     }
