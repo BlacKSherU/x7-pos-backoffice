@@ -211,7 +211,6 @@ export const MerchantFrame: React.FC = () => {
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
 
   // Auto-expand category strictly when activeTab changes (single accordion model)
@@ -1031,10 +1030,6 @@ export const MerchantFrame: React.FC = () => {
                           activeTab === hubId ||
                           activeTab === app.id ||
                           (app.id === SAAS_CONTEXT_APP_ID && isPlatformSaasContextTab(activeTab));
-                        const isAppExpanded =
-                          sidebarSearchQuery.trim() !== '' ||
-                          Boolean(expandedApps[app.id]) ||
-                          isAppSelected;
 
                         const handleNavigateTarget = (targetId: string, route?: string) => {
                           setActiveCategory(cat.id);
@@ -1079,74 +1074,33 @@ export const MerchantFrame: React.FC = () => {
                           (app.features.length === 1 ? app.features[0].id : hubId);
 
                         return (
-                          <div key={app.id} className="w-full text-left">
-                            <div
-                              className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
-                                isAppSelected
-                                  ? 'text-[#d51f2c] font-semibold bg-white/5'
-                                  : 'text-white/70 hover:text-white'
-                              }`}
-                            >
-                              <div
-                                onClick={() => {
-                                  if (app.id === 'subscription-system') {
-                                    handleNavigateTarget('subscription-system-hub', '/platform-saas/subscription/hub');
-                                  } else if (DIRECT_APP_TARGETS[app.id]) {
-                                    handleNavigateTarget(primaryTargetId);
-                                  } else if (app.features.length === 1) {
-                                    handleNavigateTarget(app.features[0].id, app.features[0].route);
-                                  } else {
-                                    handleNavigateTarget(hubId);
-                                  }
-                                }}
-                                className="flex items-center gap-2.5 flex-1 min-w-0"
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/40'
-                                  }`}
-                                />
-                                <span className="truncate">{app.name}</span>
-                              </div>
-
-                              {app.id !== 'subscription-system' && app.features.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const isCurrentlyExpanded = !!expandedApps[app.id];
-                                    setExpandedApps(isCurrentlyExpanded ? {} : { [app.id]: true });
-                                  }}
-                                  className="p-1 text-white/40 hover:text-white transition-colors"
-                                  title={isAppExpanded ? 'Collapse submenus' : 'Expand submenus'}
-                                >
-                                  <span className="material-symbols-outlined text-[16px]">
-                                    {isAppExpanded ? 'expand_more' : 'chevron_right'}
-                                  </span>
-                                </button>
-                              )}
+                          <div
+                            key={app.id}
+                            onClick={() => {
+                              if (app.id === 'subscription-system') {
+                                handleNavigateTarget('subscription-system-hub', '/platform-saas/subscription/hub');
+                              } else if (DIRECT_APP_TARGETS[app.id]) {
+                                handleNavigateTarget(primaryTargetId);
+                              } else if (app.features.length === 1) {
+                                handleNavigateTarget(app.features[0].id, app.features[0].route);
+                              } else {
+                                handleNavigateTarget(hubId);
+                              }
+                            }}
+                            className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
+                              isAppSelected
+                                ? 'text-[#d51f2c] font-semibold bg-white/5'
+                                : 'text-white/70 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/40'
+                                }`}
+                              />
+                              <span className="truncate">{app.name}</span>
                             </div>
-
-                            {app.id !== 'subscription-system' && isAppExpanded && app.features.length > 1 && (
-                              <div className="ml-12 mt-1 border-l border-white/10 space-y-0.5">
-                                {app.features.map((feat) => {
-                                  const isFeatActive = activeTab === feat.id;
-                                  return (
-                                    <div
-                                      key={feat.id}
-                                      onClick={() => handleNavigateTarget(feat.id, feat.route)}
-                                      className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
-                                        isFeatActive
-                                          ? 'bg-white/20 text-white font-semibold border-l-2 border-[#d51f2c] -ml-[2px]'
-                                          : 'text-white/60 hover:text-white hover:bg-white/5'
-                                      }`}
-                                    >
-                                      {feat.name}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
                           </div>
                         );
                       })}
