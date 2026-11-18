@@ -133,6 +133,8 @@ import { OnlineMenusView } from '@/modules/commerce/online-ordering/views/online
 import { OnlineMenuCategoriesView } from '@/modules/commerce/online-ordering/views/online-menu-categories/OnlineMenuCategoriesView';
 import { OnlineMenuItemsView } from '@/modules/commerce/online-ordering/views/online-menu-items/OnlineMenuItemsView';
 import { OnlineOrdersView } from '@/modules/commerce/online-ordering/views/online-orders/OnlineOrdersView';
+import { OnlineOrderItemsView } from '@/modules/commerce/online-ordering/views/online-order-items/OnlineOrderItemsView';
+import { OnlinePaymentsView } from '@/modules/commerce/online-ordering/views/online-payments/OnlinePaymentsView';
 
 export interface AllocationsContext {
   payment?: SupplierPayment | null;
@@ -518,6 +520,8 @@ view('online-menus', (ctx) => <OnlineMenusView onNavigate={ctx.onNavigate} />);
 view('online-menu-categories', (ctx) => <OnlineMenuCategoriesView onNavigate={ctx.onNavigate} />);
 view('online-menu-items', (ctx) => <OnlineMenuItemsView onNavigate={ctx.onNavigate} />);
 view('online-orders', (ctx) => <OnlineOrdersView onNavigate={ctx.onNavigate} />);
+view(['online-order-items', 'online-ordering-order-items'], (ctx) => <OnlineOrderItemsView onNavigate={ctx.onNavigate} />);
+view(['online-payments', 'online-ordering-payments'], (ctx) => <OnlinePaymentsView onNavigate={ctx.onNavigate} />);
 
 // ---- Cocina (KDS) ----
 view(['kds-dashboard', 'kitchen-kds-hub', 'kitchen-display-system-hub', 'kitchen-display-system'], (ctx) => (
