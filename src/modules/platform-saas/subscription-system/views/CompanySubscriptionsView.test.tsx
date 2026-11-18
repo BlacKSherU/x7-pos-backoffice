@@ -114,6 +114,36 @@ describe('CompanySubscriptionsView', () => {
     ).toBeInTheDocument();
     expect(saasService.updateCompanySubscription).not.toHaveBeenCalled();
   });
+
+  it('renders the secondary header and navigates back to Subscription Hub when clicked', async () => {
+    const onNavigate = vi.fn();
+    render(<CompanySubscriptionsView onNavigate={onNavigate} />);
+    expect(
+      await screen.findByRole('heading', { name: 'COMPANY SUBSCRIPTIONS', level: 1 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Platform SaaS')).toBeInTheDocument();
+
+    const hubBreadcrumb = screen.getByRole('button', { name: 'Subscription System Hub' });
+    await userEvent.click(hubBreadcrumb);
+    expect(onNavigate).toHaveBeenCalledWith('subscription-system-hub');
+
+    const hubButtons = screen.getAllByRole('button', { name: /subscription hub/i });
+    await userEvent.click(hubButtons[0]);
+    expect(onNavigate).toHaveBeenCalledWith('subscription-system-hub');
+  });
+
+  it('navigates to company subscription detail view when clicking inspect button', async () => {
+    const onNavigate = vi.fn();
+    render(<CompanySubscriptionsView onNavigate={onNavigate} />);
+    await screen.findByRole('table');
+
+    const inspectBtn = screen.getByRole('button', {
+      name: 'Inspect subscription of Acme Corp',
+    });
+    await userEvent.click(inspectBtn);
+
+    expect(onNavigate).toHaveBeenCalledWith('company-subscription-detail', undefined, 3);
+  });
 });
 
 describe('toUpdateDto', () => {

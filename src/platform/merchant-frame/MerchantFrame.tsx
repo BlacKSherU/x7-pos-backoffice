@@ -1,3 +1,4 @@
+// src/platform/merchant-frame/MerchantFrame.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -39,6 +40,13 @@ import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
 import { clearAuthSession, getStoredUser, setPreviewUserRole } from '@/platform/auth/lib/auth-storage';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
+import {
+  isPlatformSaasContextTab,
+  matchPlatformSaasRoute,
+  pathForPlatformSaasTab,
+  PLATFORM_SAAS_TABS,
+} from '@/modules/platform-saas/companies/lib/platform-saas-routes';
+
 import type { AllocationsContext, MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
 import { FeatureInDevelopmentView } from '@/shared/components/PlaceholderViews';
 import { MerchantHomeDashboard } from '@/modules/platform-saas/client-backoffice/views/dashboard/MerchantHomeDashboard';
@@ -56,6 +64,10 @@ interface MerchantStaffUser {
   shiftRole?: string | null;
   collaboratorName?: string | null;
 }
+
+// Pestañas /platform-saas/... (companies, merchants, users con ids en la URL): cuelgan de la
+// aplicación Companies de Platform SaaS en el menú.
+const SAAS_CONTEXT_APP_ID = 'saas-companies';
 
 const PLATFORM_FALLBACK_USERS: MerchantStaffUser[] = [
   { id: 14, email: 'superadmin@x7pos.com', username: 'superadmin', role: 'super_admin' },
@@ -89,6 +101,7 @@ export const MerchantFrame: React.FC = () => {
   const [itemsPaymentFilter, setItemsPaymentFilter] = useState<SupplierPayment | null>(null);
   const [allocationsContext, setAllocationsContext] = useState<AllocationsContext | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
 
   const SAAS_VIEW_TAB_MAP: Record<string, string> = {
     'subscription': 'sub-plans-core',
@@ -96,6 +109,12 @@ export const MerchantFrame: React.FC = () => {
     'subscription-features': 'features-control',
     'subscription-plan-applications': 'plan-apps-rules',
     'subscription-plan-features': 'plan-features-mapping',
+    'company-subscriptions': 'company-subscriptions',
+    'subscription-company-subscriptions': 'company-subscriptions',
+    'company-subscription': 'company-subscription-detail',
+    'company-subscription-detail': 'company-subscription-detail',
+    'merchant-subscriptions': 'merchant-subs-link',
+    'subscription-merchant-subscriptions': 'merchant-subs-link',
   };
 
   const handleViewChange = (view: string) => {
@@ -107,7 +126,10 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter(null);
     setAllocationsContext(null);
     setActiveTab(featureId);
-    if (location.pathname !== '/dashboard') {
+    const saasPath = pathForPlatformSaasTab(featureId);
+    if (saasPath) {
+      if (location.pathname !== saasPath) navigate(saasPath);
+    } else if (location.pathname !== '/dashboard') {
       navigate('/dashboard', { state: { activeTab: featureId, activeCategory } });
     }
     const mainEl = document.querySelector('main');
@@ -136,8 +158,9 @@ export const MerchantFrame: React.FC = () => {
     return () => clearTimeout(timer);
   }, [activeTab]);
 
-  const handleNavigateView = (view: string, plan?: SubscriptionPlan) => {
+  const handleNavigateView = (view: string, plan?: SubscriptionPlan, companyId?: number) => {
     if (plan) setSelectedPlan(plan);
+    if (companyId !== undefined) setSelectedCompanyId(companyId);
     setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
   };
 
@@ -162,7 +185,12 @@ export const MerchantFrame: React.FC = () => {
         routeNav.category === 'saas' ||
         routeNav.tab === 'saas-dashboard';
 
-      if (isSaaSCat && !isPlatformStaff) {
+      // El Company/Merchant Administrator también abre las vistas de su company con contexto en la
+      // URL (/platform-saas/...): el backend limita los datos a su propia company.
+      const isCompanyAdminContext =
+        effectiveProfileRole === 'merchant_admin' && isPlatformSaasContextTab(routeNav.tab);
+
+      if (isSaaSCat && !isPlatformStaff && !isCompanyAdminContext) {
         setActiveCategory('core');
         setActiveTab('dashboard');
       } else {
@@ -183,6 +211,7 @@ export const MerchantFrame: React.FC = () => {
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
 
   // Auto-expand category strictly when activeTab changes (single accordion model)
@@ -197,7 +226,8 @@ export const MerchantFrame: React.FC = () => {
           app.id === featureHub?.appId ||
           app.id === activeCommandHub?.appId ||
           activeTab === `${app.id}-hub` ||
-          activeTab === app.id,
+          activeTab === app.id ||
+          (app.id === SAAS_CONTEXT_APP_ID && isPlatformSaasContextTab(activeTab)),
       ),
     );
     const matchedCat =
@@ -462,7 +492,10 @@ export const MerchantFrame: React.FC = () => {
     const previewUserId =
       isRealSuperAdmin && selectedPreviewUser ? selectedPreviewUser.id : undefined;
 
-    const isPortalStaff = effectiveRole === 'portal_admin' || effectiveRole === 'portal_user';
+    const isPortalStaff =
+      effectiveRole === 'portal_admin' ||
+      effectiveRole === 'portal_user' ||
+      effectiveRole === 'SaaS Owner';
     const isSuperAdmin =
       effectiveRole === 'super_admin' || effectiveRole === 'Super Admin (All Access)';
     let ignore = false;
@@ -540,7 +573,7 @@ export const MerchantFrame: React.FC = () => {
           if (menu.length > 0) {
             const directTargets: Record<string, string> = {
               'central-backoffice': 'saas-dashboard',
-              'saas-companies': 'companies-registry',
+              'saas-companies': PLATFORM_SAAS_TABS.companiesHub,
               'saas-merchants': 'global-merchants-directory',
               'saas-users': 'users-auth-profiles',
               'client-backoffice': 'dashboard',
@@ -560,7 +593,7 @@ export const MerchantFrame: React.FC = () => {
                   activeTab === `${app.id}-hub` ||
                   activeTab === app.id,
               ),
-            );
+            ) || isPlatformSaasContextTab(activeTab);
 
             if (!isTabAllowed) {
               const firstCat = menu[0];
@@ -600,6 +633,7 @@ export const MerchantFrame: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger, profile?.role, selectedPreviewUser]);
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   const [isReservationOpen, setIsReservationOpen] = useState<boolean>(false);
@@ -709,6 +743,16 @@ export const MerchantFrame: React.FC = () => {
 
   // Latido keepalive continuo de estaciones de cocina en Backoffice mientras el usuario tenga sesión activa de comercio
   useEffect(() => {
+    const activeRole = profile?.role ?? getStoredUser()?.role;
+    const isPortalStaff =
+      activeRole === 'portal_admin' ||
+      activeRole === 'portal_user' ||
+      activeRole === 'SaaS Owner';
+
+    if (isPortalStaff) {
+      return;
+    }
+
     const role = profile?.role ?? getStoredUser()?.role;
     if (!role || role === 'portal_admin' || role === 'portal_user') {
       return;
@@ -793,6 +837,8 @@ export const MerchantFrame: React.FC = () => {
     onNavigate: handleViewChange,
     onStaffNavigate: handleStaffNavigate,
     onSaasNavigate: handleNavigateView,
+    selectedCompanyId,
+    setSelectedCompanyId,
     navigateToFeature,
     setActiveTab,
     goToDashboard,
@@ -803,6 +849,8 @@ export const MerchantFrame: React.FC = () => {
     setItemsPaymentFilter,
     allocationsContext,
     setAllocationsContext,
+    routeParams: matchPlatformSaasRoute(location.pathname)?.params ?? {},
+    navigateToPath: (path: string) => navigate(path),
   };
 
   const renderSPAView = () => {
@@ -935,7 +983,8 @@ export const MerchantFrame: React.FC = () => {
                       activeCommandHub?.appId === app.id ||
                       featureHub?.appId === app.id ||
                       activeTab === `${app.id}-hub` ||
-                      activeTab === app.id,
+                      activeTab === app.id ||
+                      (app.id === SAAS_CONTEXT_APP_ID && isPlatformSaasContextTab(activeTab)),
                   ),
                 ) ??
                 navCategories.find(
@@ -980,13 +1029,21 @@ export const MerchantFrame: React.FC = () => {
                           featureHub?.appId === app.id ||
                           featureHub?.hubId === hubId ||
                           activeTab === hubId ||
-                          activeTab === app.id;
+                          activeTab === app.id ||
+                          (app.id === SAAS_CONTEXT_APP_ID && isPlatformSaasContextTab(activeTab));
+                        const isAppExpanded =
+                          sidebarSearchQuery.trim() !== '' ||
+                          Boolean(expandedApps[app.id]) ||
+                          isAppSelected;
 
                         const handleNavigateTarget = (targetId: string, route?: string) => {
                           setActiveCategory(cat.id);
                           setActiveTab(targetId);
+                          const saasPath = pathForPlatformSaasTab(targetId);
                           if (route) {
                             navigate(route, { state: { activeTab: targetId, activeCategory: cat.id } });
+                          } else if (saasPath) {
+                            navigate(saasPath);
                           } else if (targetId === 'products') {
                             navigate('/dashboard/products');
                           } else if (targetId === 'categories') {
@@ -1008,7 +1065,7 @@ export const MerchantFrame: React.FC = () => {
 
                         const DIRECT_APP_TARGETS: Record<string, string> = {
                           'central-backoffice': 'saas-dashboard',
-                          'saas-companies': 'companies-registry',
+                          'saas-companies': PLATFORM_SAAS_TABS.companiesHub,
                           'saas-merchants': 'global-merchants-directory',
                           'saas-users': 'users-auth-profiles',
                           'client-backoffice': 'dashboard',
@@ -1022,25 +1079,74 @@ export const MerchantFrame: React.FC = () => {
                           (app.features.length === 1 ? app.features[0].id : hubId);
 
                         return (
-                          <div
-                            key={app.id}
-                            onClick={() => {
-                              handleNavigateTarget(primaryTargetId);
-                            }}
-                            className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
-                              isAppSelected
-                                ? 'text-[#d51f2c] font-semibold bg-white/5'
-                                : 'text-white/70 hover:text-white'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                  isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/40'
-                                }`}
-                              />
-                              <span className="truncate">{app.name}</span>
+                          <div key={app.id} className="w-full text-left">
+                            <div
+                              className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
+                                isAppSelected
+                                  ? 'text-[#d51f2c] font-semibold bg-white/5'
+                                  : 'text-white/70 hover:text-white'
+                              }`}
+                            >
+                              <div
+                                onClick={() => {
+                                  if (app.id === 'subscription-system') {
+                                    handleNavigateTarget('subscription-system-hub', '/platform-saas/subscription/hub');
+                                  } else if (DIRECT_APP_TARGETS[app.id]) {
+                                    handleNavigateTarget(primaryTargetId);
+                                  } else if (app.features.length === 1) {
+                                    handleNavigateTarget(app.features[0].id, app.features[0].route);
+                                  } else {
+                                    handleNavigateTarget(hubId);
+                                  }
+                                }}
+                                className="flex items-center gap-2.5 flex-1 min-w-0"
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/40'
+                                  }`}
+                                />
+                                <span className="truncate">{app.name}</span>
+                              </div>
+
+                              {app.id !== 'subscription-system' && app.features.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const isCurrentlyExpanded = !!expandedApps[app.id];
+                                    setExpandedApps(isCurrentlyExpanded ? {} : { [app.id]: true });
+                                  }}
+                                  className="p-1 text-white/40 hover:text-white transition-colors"
+                                  title={isAppExpanded ? 'Collapse submenus' : 'Expand submenus'}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">
+                                    {isAppExpanded ? 'expand_more' : 'chevron_right'}
+                                  </span>
+                                </button>
+                              )}
                             </div>
+
+                            {app.id !== 'subscription-system' && isAppExpanded && app.features.length > 1 && (
+                              <div className="ml-12 mt-1 border-l border-white/10 space-y-0.5">
+                                {app.features.map((feat) => {
+                                  const isFeatActive = activeTab === feat.id;
+                                  return (
+                                    <div
+                                      key={feat.id}
+                                      onClick={() => handleNavigateTarget(feat.id, feat.route)}
+                                      className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
+                                        isFeatActive
+                                          ? 'bg-white/20 text-white font-semibold border-l-2 border-[#d51f2c] -ml-[2px]'
+                                          : 'text-white/60 hover:text-white hover:bg-white/5'
+                                      }`}
+                                    >
+                                      {feat.name}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1106,6 +1212,9 @@ export const MerchantFrame: React.FC = () => {
                 onNavigate={navigateToFeature}
               />
             </>
+          ) : isPlatformSaasContextTab(activeTab) ? (
+            // Las vistas /platform-saas/... montan su propia barra inferior (SaasNavBar): mismo hueco.
+            <div aria-hidden="true" className="h-16 shrink-0" />
           ) : null}
         </div>
       </main>

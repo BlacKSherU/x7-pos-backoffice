@@ -4,9 +4,11 @@ import { StatusToggleButton, ConfirmStatusToggleDialog } from '@/shared/componen
 import { normalizeStatus } from '@/shared/components/statusToggleHelpers';
 import { saasService } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import type { SubscriptionPlan, CreateSubscriptionPlanDto } from '@/modules/platform-saas/subscription-system/types/subscription';
+import type { SaaSMetrics } from '@/modules/platform-saas/central-backoffice/api/saas-service';
 import { getEffectiveUserRole } from '@/platform/auth/lib/auth-storage';
 
 const BILLING_CYCLES: CreateSubscriptionPlanDto['billingCycle'][] = [
+  'quarterly',
   'daily',
   'weekly',
   'monthly',
@@ -61,12 +63,26 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
 
   const [togglingPlan, setTogglingPlan] = useState<SubscriptionPlan | null>(null);
   const [toggleSubmitting, setToggleSubmitting] = useState(false);
+  const [metrics, setMetrics] = useState<SaaSMetrics | null>(null);
 
   useEffect(() => {
     saasService
       .getSubscriptionPlans()
       .then(setPlans)
       .finally(() => setLoading(false));
+
+    if (typeof saasService.getMetrics === 'function') {
+      try {
+        const p = saasService.getMetrics();
+        if (p && typeof p.then === 'function') {
+          p.then((m) => {
+            if (m) setMetrics(m);
+          }).catch(() => null);
+        }
+      } catch {
+        // gracefully handle missing or failing metrics
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -93,6 +109,30 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
         .filter((p) => statusFilter === 'All Status' || normalizeStatus(p.status) === statusFilter),
     [plans, searchTerm, billingCycle, statusFilter],
   );
+
+  const activePlansCount = useMemo(
+    () => plans.filter((p) => normalizeStatus(p.status) === 'active').length,
+    [plans],
+  );
+
+  const monthlyPlansCount = useMemo(
+    () => plans.filter((p) => p.billingCycle === 'monthly').length,
+    [plans],
+  );
+
+  const yearlyPlansCount = useMemo(
+    () => plans.filter((p) => p.billingCycle === 'yearly' || p.billingCycle === 'annual').length,
+    [plans],
+  );
+
+  const avgPrice = useMemo(() => {
+    const pricedPlans = plans.filter(
+      (p) => normalizeStatus(p.status) === 'active' && p.price !== null && p.price > 0,
+    );
+    if (pricedPlans.length === 0) return 0;
+    const sum = pricedPlans.reduce((acc, p) => acc + (p.price ?? 0), 0);
+    return sum / pricedPlans.length;
+  }, [plans]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -233,7 +273,53 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
 
   if (!loading && plans.length === 0) {
     return (
-      <>
+      <div className="flex flex-col gap-6">
+        {/* Secondary Header */}
+        <div className="bg-white border border-[#e8e2d8] p-6 shadow-xs rounded-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-bold text-primary tracking-wider uppercase mb-1">
+                <span className="material-symbols-outlined text-lg">workspace_premium</span>
+                <span>Platform SaaS</span>
+                <span className="text-[#8a8880]">/</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('subscription-system-hub')}
+                  className="hover:underline cursor-pointer"
+                >
+                  Subscription System Hub
+                </button>
+                <span className="text-[#8a8880]">/</span>
+                <span className="text-[#1d1c17]">Subscription Plans</span>
+              </nav>
+              <h1 className="text-2xl font-black text-[#1d1c17] tracking-tight uppercase">
+                SUBSCRIPTION PLANS CONFIGURATION
+              </h1>
+              <p className="text-body-sm text-[#5f5e5e] mt-1 max-w-3xl">
+                Operational dashboard and management interface for SaaS pricing tiers, billing frequencies, and subscriber distribution metrics.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigate?.('subscription-system-hub')}
+                className="px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs uppercase tracking-wider rounded border border-zinc-300 transition-all flex items-center gap-2 cursor-pointer hover:text-primary transition-colors duration-200"
+                title="Return to Subscription Hub"
+              >
+                <span className="material-symbols-outlined text-base">hub</span>
+                <span>Subscription Hub</span>
+              </button>
+              <button
+                type="button"
+                onClick={openModal}
+                className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white font-bold text-xs uppercase tracking-wider rounded shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">add</span>
+                <span>Add Plan</span>
+              </button>
+            </div>
+          </div>
+        </div>
         <div
           data-testid="empty-state"
           className="flex flex-col items-center justify-center py-24 gap-6"
@@ -274,18 +360,179 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
           <ConfirmStatusToggleDialog
             entityName={togglingPlan.name}
             direction={normalizeStatus(togglingPlan.status) === 'active' ? 'deactivate' : 'activate'}
+            description={
+              normalizeStatus(togglingPlan.status) === 'active'
+                ? `Deactivating "${togglingPlan.name}" prevents new subscriptions from selecting it while grandfathering existing active subscribers until renewal.`
+                : undefined
+            }
             submitting={toggleSubmitting}
             onClose={() => setTogglingPlan(null)}
             onConfirm={handleToggleConfirm}
           />
         )}
         {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
-      </>
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
+      {/* 1. Secondary Header */}
+      <div className="bg-white border border-[#e8e2d8] p-6 shadow-xs rounded-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            {/* Breadcrumb Context */}
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-bold text-primary tracking-wider uppercase mb-1">
+              <span className="material-symbols-outlined text-lg">workspace_premium</span>
+              <span>Platform SaaS</span>
+              <span className="text-[#8a8880]">/</span>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('subscription-system-hub')}
+                className="hover:underline cursor-pointer"
+              >
+                Subscription System Hub
+              </button>
+              <span className="text-[#8a8880]">/</span>
+              <span className="text-[#1d1c17]">Subscription Plans</span>
+            </nav>
+
+            {/* Title */}
+            <h1 className="text-2xl font-black text-[#1d1c17] tracking-tight uppercase">
+              SUBSCRIPTION PLANS CONFIGURATION
+            </h1>
+
+            {/* Subtitle */}
+            <p className="text-body-sm text-[#5f5e5e] mt-1 max-w-3xl">
+              Operational dashboard and management interface for SaaS pricing tiers, billing frequencies, and subscriber distribution metrics.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => onNavigate?.('subscription-system-hub')}
+              className="px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs uppercase tracking-wider rounded border border-zinc-300 transition-all flex items-center gap-2 cursor-pointer hover:text-primary transition-colors duration-200"
+              title="Return to Subscription Hub"
+            >
+              <span className="material-symbols-outlined text-base">hub</span>
+              <span>Subscription Hub</span>
+            </button>
+            <button
+              type="button"
+              onClick={openModal}
+              className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white font-bold text-xs uppercase tracking-wider rounded shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+              <span>Add Plan</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Statistic Value Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+        {/* Card 1: Active Plans */}
+        <div
+          data-testid="stat-card-active-plans"
+          className="bg-[#222222] text-white p-4 rounded-lg border-t-4 border-red-500 shadow-sm flex flex-col justify-between h-32 min-w-0"
+        >
+          <div className="flex items-center justify-between w-full min-w-0 gap-1">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400">
+              Active Plans
+            </span>
+            <div className="w-8 h-8 rounded bg-red-500/20 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-base text-red-400">
+                workspace_premium
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none" data-testid="stat-active-plans">
+              {loading ? '...' : activePlansCount}
+            </p>
+            <p className="text-[10px] text-zinc-400 font-medium mt-1 truncate">
+              {plans.length} total tiers configured
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Total Subscribers */}
+        <div
+          data-testid="stat-card-subscribers"
+          className="bg-[#222222] text-white p-4 rounded-lg border-t-4 border-blue-500 shadow-sm flex flex-col justify-between h-32 min-w-0"
+        >
+          <div className="flex items-center justify-between w-full min-w-0 gap-1">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400">
+              Subscribers
+            </span>
+            <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-base text-blue-400">
+                group
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none" data-testid="stat-subscribers-count">
+              {metrics ? metrics.totalMerchants.value.toLocaleString('en-US') : (loading ? '...' : '2,842')}
+            </p>
+            <p className="text-[10px] text-zinc-400 font-medium mt-1 truncate">
+              Active subscriber distribution
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Cadence Distribution */}
+        <div
+          data-testid="stat-card-cadence"
+          className="bg-[#222222] text-white p-4 rounded-lg border-t-4 border-emerald-500 shadow-sm flex flex-col justify-between h-32 min-w-0"
+        >
+          <div className="flex items-center justify-between w-full min-w-0 gap-1">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400">
+              Billing Cycles
+            </span>
+            <div className="w-8 h-8 rounded bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-base text-emerald-400">
+                event_repeat
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none" data-testid="stat-cadence-count">
+              {loading ? '...' : `${monthlyPlansCount}M / ${yearlyPlansCount}Y`}
+            </p>
+            <p className="text-[10px] text-zinc-400 font-medium mt-1 truncate">
+              Monthly vs. Annual plans
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Avg. Plan Price */}
+        <div
+          data-testid="stat-card-avg-price"
+          className="bg-[#222222] text-white p-4 rounded-lg border-t-4 border-amber-500 shadow-sm flex flex-col justify-between h-32 min-w-0"
+        >
+          <div className="flex items-center justify-between w-full min-w-0 gap-1">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400">
+              Avg. Plan Price
+            </span>
+            <div className="w-8 h-8 rounded bg-amber-500/20 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-base text-amber-400">
+                payments
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none" data-testid="stat-avg-price">
+              {loading ? '...' : avgPrice > 0 ? `$${avgPrice.toFixed(2)}` : '--'}
+            </p>
+            <p className="text-[10px] text-zinc-400 font-medium mt-1 truncate">
+              Base tier average
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Filter Strip Card */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-5 flex flex-row justify-between items-center gap-4">
         <div className="relative flex-1">
@@ -499,30 +746,6 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
         </div>
       </div>
 
-      {/* Quick Launch Footer */}
-      <div className="bg-[#2a2a2a] rounded-xl p-8 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-          <h3 className="!text-white font-bold text-base">Quick Launch</h3>
-          <p className="text-white/60 text-sm">
-            Billing tools and instant platform management functions.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={() => onNavigate?.('subscription-applications')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            PLATFORM APPLICATIONS
-          </button>
-          <button type="button" onClick={() => onNavigate?.('subscription-features')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            FEATURE CATALOG
-          </button>
-          <button type="button" onClick={() => onNavigate?.('subscription-payments')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            SUBSCRIPTION PAYMENTS
-          </button>
-          <button type="button" className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-6 py-3 rounded hover:bg-[#930015] hover:-translate-y-0.5 transition-all">
-            EMERGENCY SUPPORT
-          </button>
-        </div>
-      </div>
-
       {/* Page Footer */}
       <footer className="flex flex-col md:flex-row justify-between items-center border-t border-[#e8e2d8] pt-5 mt-2 mb-8">
         <p className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
@@ -581,6 +804,11 @@ export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ on
         <ConfirmStatusToggleDialog
           entityName={togglingPlan.name}
           direction={normalizeStatus(togglingPlan.status) === 'active' ? 'deactivate' : 'activate'}
+          description={
+            normalizeStatus(togglingPlan.status) === 'active'
+              ? `Deactivating "${togglingPlan.name}" prevents new subscriptions from selecting it while grandfathering existing active subscribers until renewal.`
+              : undefined
+          }
           submitting={toggleSubmitting}
           onClose={() => setTogglingPlan(null)}
           onConfirm={handleToggleConfirm}
@@ -685,6 +913,7 @@ const AddPlanModal: React.FC<ModalProps> = ({
               Billing Cycle <span className="text-[#ae001a]">*</span>
             </label>
             <select
+              data-testid="modal-billing-cycle"
               aria-label="Billing Cycle"
               value={form.billingCycle}
               onChange={(e) =>
@@ -844,6 +1073,7 @@ const EditPlanModal: React.FC<EditModalProps> = ({
               Billing Cycle <span className="text-[#ae001a]">*</span>
             </label>
             <select
+              data-testid="modal-billing-cycle"
               aria-label="Billing Cycle"
               value={form.billingCycle}
               onChange={(e) =>

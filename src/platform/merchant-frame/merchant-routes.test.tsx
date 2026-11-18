@@ -94,3 +94,28 @@ describe('getNavFromPath', () => {
     expect(getNavFromPath('/tips/unknown')).toBeNull();
   });
 });
+
+describe('Platform SaaS company / merchant / user routes', () => {
+  it.each([
+    ['/platform-saas/companies/hub', 'saas-companies-hub'],
+    ['/platform-saas/companies/directory', 'saas-companies-directory'],
+    ['/platform-saas/companies/3/hub', 'saas-company-hub'],
+    ['/platform-saas/companies/3/profile', 'saas-company-profile'],
+    ['/platform-saas/companies/3/configuration', 'saas-company-configuration'],
+    ['/platform-saas/companies/3/merchants', 'saas-company-merchants'],
+    ['/platform-saas/companies/3/merchants/8/hub', 'saas-merchant-hub'],
+    ['/platform-saas/companies/3/merchants/8/profile', 'saas-merchant-profile'],
+    ['/platform-saas/companies/3/merchants/8/terminals', 'saas-merchant-terminals'],
+    ['/platform-saas/merchants/8/users', 'saas-merchant-users'],
+    ['/platform-saas/merchants/8/users/21', 'saas-merchant-user-detail'],
+  ])('%s opens MerchantFrame on %s', (path, tab) => {
+    expect(getNavFromPath(path)).toEqual({ category: 'platform-saas', tab });
+    renderAt(path);
+    expect(screen.getByTestId('merchant-frame')).toHaveTextContent(path);
+  });
+
+  it('does not resolve unknown platform-saas URLs to a tab', () => {
+    expect(getNavFromPath('/platform-saas/companies/abc/hub')).toBeNull();
+  });
+});
+

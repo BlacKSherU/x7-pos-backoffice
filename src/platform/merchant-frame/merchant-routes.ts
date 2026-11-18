@@ -1,5 +1,9 @@
 import { featureIdForDeliveryPath } from '@/modules/commerce/delivery-management/lib/delivery-navigation';
 import { featureIdForReservationPath } from '@/modules/restaurant-operations/reservations/lib/reservation-navigation';
+import {
+  PLATFORM_SAAS_CATEGORY,
+  matchPlatformSaasRoute,
+} from '@/modules/platform-saas/companies/lib/platform-saas-routes';
 
 /**
  * Rutas del backoffice del merchant. Todas renderizan MerchantFrame; la URL solo decide qué
@@ -16,6 +20,7 @@ export interface NavigationLocationState {
   activeTab?: string;
   activeCategory?: string;
   merchantId?: string | number;
+  companyId?: string | number;
 }
 
 const OPS = 'restaurant-operations';
@@ -29,11 +34,28 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('legal', 'terms-of-service', '/legal/terms-of-service'),
   ...routes('support', 'help-center', '/support/help-center'),
 
+  ...routes('platformsaas', 'merchant-directory', '/dashboard/merchants'),
+  ...routes('platformsaas', 'user-management', '/dashboard/users'),
+  ...routes('platformsaas', 'company-profile', '/dashboard/company-profile'),
+  ...routes('platformsaas', 'company-configurations', '/dashboard/company-configurations'),
+  ...routes('platformsaas', 'subscription-system-hub', '/platform-saas/subscription/hub', '/subscription/hub'),
+  ...routes('platformsaas', 'sub-plans-core', '/platform-saas/subscription/plans', '/subscription/plans'),
+  ...routes('platformsaas', 'apps-config', '/platform-saas/subscription/applications', '/subscription/applications'),
+  ...routes('platformsaas', 'features-control', '/platform-saas/subscription/features', '/subscription/features'),
+  ...routes('platformsaas', 'plan-apps-rules', '/platform-saas/subscription/plan-applications', '/subscription/plan-applications'),
+  ...routes('platformsaas', 'plan-features-mapping', '/platform-saas/subscription/plan-features', '/subscription/plan-features'),
+  ...routes('platformsaas', 'company-subscriptions', '/platform-saas/subscription/company-subscriptions', '/subscription/company-subscriptions'),
+  ...routes('platformsaas', 'company-subscription-detail', '/platform-saas/subscription/company-subscription', '/platform-saas/companies/subscription'),
+  ...routes('platformsaas', 'merchant-subs-link', '/platform-saas/subscription/merchant-subscriptions', '/subscription/merchant-subscriptions'),
+  ...routes('platformsaas', 'sub-payments-billing', '/platform-saas/subscription/payments', '/subscription/payments'),
+  ...routes('platformsaas', 'sub-apps-mapping', '/platform-saas/subscription/subscription-applications', '/subscription/subscription-applications'),
   ...routes('merchant-portal', 'merchant-directory', '/dashboard/merchants'),
   ...routes('merchant-portal', 'user-management', '/dashboard/users'),
   ...routes('merchant-portal', 'company-profile', '/dashboard/company-profile'),
   ...routes('merchant-portal', 'company-configurations', '/dashboard/company-configurations'),
 
+  ...routes('core', 'customers', '/customers', '/core/customers', '/dashboard/customers', '/business-partners/customers'),
+  ...routes('core', 'suppliers', '/suppliers', '/core/suppliers', '/dashboard/suppliers', '/business-partners/suppliers'),
   ...routes('core', 'journal-entries', '/inventory/journal-entries'),
 
   // Personal: turnos y asistencia
@@ -89,6 +111,11 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('commerce', 'online-order-items', '/online-ordering/order-items'),
   ...routes('commerce', 'online-delivery-info', '/online-ordering/delivery', '/online-ordering/delivery-info'),
 
+  // POS: cobros con tarjeta, pasarelas y terminales
+  ...routes(OPS, 'order-payments', '/app/pos/order-payments', '/pos/order-payments'),
+  ...routes(OPS, 'payment-gateway-configs', '/app/pos/payment-gateway-configs', '/pos/payment-gateway-configs'),
+  ...routes(OPS, 'payment-terminals', '/app/pos/payment-terminals', '/pos/payment-terminals'),
+
   // Cocina (KDS)
   ...routes(OPS, 'kitchen-kds-hub', '/kitchen-kds-hub', '/kds', '/app/kitchen-display-system', '/app/kitchen-display-system/hub'),
   ...routes(OPS, 'kitchen-stations', '/kitchen-stations', '/kds/stations', '/app/kitchen-display-system/kitchen-stations'),
@@ -110,6 +137,8 @@ const SECTION_PREFIXES = [
   '/kds',
   '/app',
   '/hub',
+  // Companies / merchants / users de Platform SaaS con ids en la URL (platform-saas-routes.ts).
+  '/platform-saas',
 ];
 
 /** Rutas que App.tsx registra para MerchantFrame. */
@@ -134,6 +163,11 @@ export function getNavFromPath(
       category: locationState?.activeCategory || 'core',
       tab: `${appCode}-hub`,
     };
+  }
+
+  const saasRoute = matchPlatformSaasRoute(path);
+  if (saasRoute) {
+    return { category: PLATFORM_SAAS_CATEGORY, tab: saasRoute.tab };
   }
 
   if (path.startsWith('/reservations/')) {

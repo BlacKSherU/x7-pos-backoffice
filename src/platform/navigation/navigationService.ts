@@ -339,7 +339,11 @@ export const navigationService = {
           const appCode = app.code || String(app.id);
 
           // Map features/screens (kind !== 'hub')
-          const features: NavFeature[] = (app.items || [])
+          // Subscription System sub-modules are exclusively accessed from its Command Hub or persistent bar
+          const isSubscriptionSystem = appCode === 'subscription-system';
+          const features: NavFeature[] = isSubscriptionSystem
+            ? []
+            : (app.items || [])
             .filter((item) => item.kind !== 'hub')
             .map((item) => {
               const resolvedIcon = resolveNavIcon(item.code, item.icon);

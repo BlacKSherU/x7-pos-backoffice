@@ -2,6 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCompanyConfigurations } from '@/modules/platform-saas/companies/api/companies';
 import {
+  getSaasCompanyConfigurations,
+  getSaasCompanyHub,
+} from '@/modules/platform-saas/companies/api/saas-companies';
+import { rememberCompanyContext } from '@/modules/platform-saas/companies/lib/company-context';
+import { platformSaasPaths } from '@/modules/platform-saas/companies/lib/platform-saas-routes';
+import { companyTrail, withCurrent } from '@/modules/platform-saas/companies/lib/saas-breadcrumbs';
+import {
+  SaasEmptyState,
+  SaasErrorState,
+  SaasLoadingState,
+  SaasNavBar,
+  SaasPageHeader,
+  SaasPanel,
+  SaasStatCards,
+} from '@/components/MerchantFrame/views/platform-saas/SaasViewKit';
+import { SAAS } from '@/components/MerchantFrame/views/platform-saas/saas-scale';
+import { companyNav } from '@/modules/platform-saas/companies/lib/saas-nav';
+import {
   getConfigurationStatusClass,
 } from '@/modules/platform-saas/companies/lib/company-configurations';
 import { navigateToDashboardFeature } from '@/modules/platform-saas/merchants/lib/merchant-directory-navigation';
@@ -28,8 +46,18 @@ const CONFIGURATION_MODULES = [
   },
 ] as const;
 
-export const CompanyConfigurationsView: React.FC = () => {
+export interface CompanyConfigurationsViewProps {
+  /**
+   * Company a mostrar (Platform SaaS, /platform-saas/companies/:id/configuration). Sin él, la
+   * vista es la configuración de la company propia (/dashboard/company-configurations).
+   */
+  companyId?: number;
+}
+
+export const CompanyConfigurationsView: React.FC<CompanyConfigurationsViewProps> = ({ companyId }) => {
   const navigate = useNavigate();
+  const isTenantView = companyId != null;
+  const [companyName, setCompanyName] = useState<string | null>(null);
   const [data, setData] = useState<CompanyConfigurationsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +67,12 @@ export const CompanyConfigurationsView: React.FC = () => {
     setError(null);
 
     try {
-      const response = await getCompanyConfigurations();
+      const response =
+        companyId != null
+          ? await getSaasCompanyConfigurations(companyId)
+          : await getCompanyConfigurations();
       setData(response);
+      if (companyId != null) rememberCompanyContext(companyId);
     } catch (err) {
       const message =
         err instanceof Error
@@ -56,10 +88,147 @@ export const CompanyConfigurationsView: React.FC = () => {
     void Promise.resolve().then(() => {
       void loadConfigurations();
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recarga solo al cambiar de company
+  }, [companyId]);
+
+  // Nombre de la company para las migas (no bloquea la vista si falla).
+  useEffect(() => {
+    if (companyId == null) return;
+    let active = true;
+    getSaasCompanyHub(companyId)
+      .then((hub) => {
+        if (active) setCompanyName(hub.company.name);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [companyId]);
+
+  // Platform SaaS (/platform-saas/companies/:id/configuration): mismas piezas y escala que el
+  // resto de vistas de companies (SaasViewKit) y la barra inferior de navegación.
+  if (companyId != null) {
+    return (
+      <div className={SAAS.page}>
+        <SaasPageHeader
+          breadcrumbs={withCurrent(companyTrail(companyId, companyName), 'Company Configuration')}
+          icon="settings"
+          title="COMPANY CONFIGURATION"
+          description="Tenant configuration records (tax, tips, payroll and overtime rules) of every branch of the company."
+          actions={[
+            {
+              label: 'Back to Company Hub',
+              icon: 'arrow_back',
+              variant: 'secondary',
+              onClick: () => navigate(platformSaasPaths.companyHub(companyId)),
+            },
+          ]}
+        />
+
+        {isLoading && !data ? (
+          <SaasLoadingState label="Loading company configurations..." />
+        ) : error ? (
+          <SaasErrorState message={error} onRetry={() => void loadConfigurations()} />
+        ) : data ? (
+          <>
+            <SaasStatCards
+              stats={[
+                {
+                  id: 'total-configurations',
+                  label: 'Configuration Records',
+                  value: data.summary.totalConfigurations,
+                  hint: 'Records of every branch',
+                  icon: 'tune',
+                },
+                {
+                  id: 'active-configurations',
+                  label: 'Active Configurations',
+                  value: data.summary.activeConfigurations,
+                  hint: 'Currently applied',
+                  icon: 'check_circle',
+                },
+                {
+                  id: 'configuration-types',
+                  label: 'Configuration Types',
+                  value: data.summary.configurationTypes,
+                  hint: 'Tax, tips, payroll, overtime',
+                  icon: 'category',
+                },
+              ]}
+            />
+            <SaasPanel title="Configuration Registry" metaTestId="configurations-count" meta={`${data.items.length} records`}>
+              {data.items.length === 0 ? (
+                <SaasEmptyState
+                  icon="settings"
+                  title="No configuration records found for this company yet."
+                  description="Configuration records appear here once the company branches define tax, tips, payroll or overtime rules."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className={SAAS.table}>
+                    <thead className={SAAS.thead}>
+                      <tr>
+                        <th className={SAAS.th}>Configuration Type</th>
+                        <th className={SAAS.th}>Branch</th>
+                        <th className={SAAS.th}>Status</th>
+                        <th className={`${SAAS.th} hidden sm:table-cell`}>Last Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e8e2d8]">
+                      {data.items.map((item) => (
+                        <tr key={item.id} data-testid={`configuration-row-${item.id}`} className={SAAS.row}>
+                          <td className={SAAS.td}>
+                            <p className={SAAS.rowTitle}>{item.configurationLabel}</p>
+                          </td>
+                          <td className={SAAS.td}>
+                            <p className="text-sm text-[#1d1c17] break-words">{item.merchantName}</p>
+                            <p className={SAAS.rowSubtitle}>Branch ID: {item.merchantId}</p>
+                          </td>
+                          <td className={SAAS.td}>
+                            <span
+                              className={`inline-flex items-center h-6 px-2 rounded border border-transparent text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getConfigurationStatusClass(item.status)}`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className={`${SAAS.td} hidden sm:table-cell whitespace-nowrap`}>{item.updatedAt}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SaasPanel>
+          </>
+        ) : null}
+
+        <SaasNavBar
+          backLabel="Back to Company Hub"
+          backTo={platformSaasPaths.companyHub(companyId)}
+          items={companyNav(companyId, 'company-configuration')}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-left">
+    <div className="flex flex-col gap-6 animate-fade-in text-left min-w-0">
+      {isTenantView ? (
+        <SaasPageHeader
+          breadcrumbs={withCurrent(companyTrail(companyId, companyName), 'Company Configuration')}
+          icon="settings"
+          title="COMPANY CONFIGURATION"
+          description="Tenant configuration records (tax, tips, payroll and overtime rules) of every branch of the company."
+          actions={[
+            {
+              label: 'Back to Company Hub',
+              icon: 'arrow_back',
+              variant: 'secondary',
+              onClick: () => navigate(platformSaasPaths.companyHub(companyId)),
+            },
+          ]}
+        />
+      ) : (
       <div className="flex justify-end">
         <button
           type="button"
@@ -69,6 +238,7 @@ export const CompanyConfigurationsView: React.FC = () => {
           Back to Company Profile
         </button>
       </div>
+      )}
 
       {isLoading ? (
         <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm">
@@ -101,8 +271,9 @@ export const CompanyConfigurationsView: React.FC = () => {
                 CORPORATE SYSTEM CONFIGURATIONS
               </span>
               <p className="text-white/80 text-body-sm mt-2 max-w-3xl">
-                Global system variables and branch-level configuration records
-                linked to your parent company.
+                {isTenantView
+                  ? 'Branch-level configuration records linked to this company.'
+                  : 'Global system variables and branch-level configuration records linked to your parent company.'}
               </p>
             </div>
 
@@ -125,6 +296,7 @@ export const CompanyConfigurationsView: React.FC = () => {
                 />
               </div>
 
+              {!isTenantView && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {CONFIGURATION_MODULES.map((module) => (
                   <button
@@ -145,6 +317,7 @@ export const CompanyConfigurationsView: React.FC = () => {
                   </button>
                 ))}
               </div>
+              )}
 
               <div className="border border-[#e8e2d8] rounded overflow-hidden">
                 <div className="bg-[#ece8e0] px-6 py-3 border-b border-[#e8e2d8]">
@@ -163,8 +336,9 @@ export const CompanyConfigurationsView: React.FC = () => {
                         No configuration records found for this company yet.
                       </p>
                       <p className="text-body-sm text-secondary font-sans leading-relaxed">
-                        Use the module shortcuts above to create payroll, overtime,
-                        or tips policies for your corporate branches.
+                        {isTenantView
+                          ? 'Configuration records appear here once the company branches define tax, tips, payroll or overtime rules.'
+                          : 'Use the module shortcuts above to create payroll, overtime, or tips policies for your corporate branches.'}
                       </p>
                     </div>
                   </div>

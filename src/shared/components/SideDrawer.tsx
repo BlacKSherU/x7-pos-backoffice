@@ -28,13 +28,18 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   const titleId = useId();
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-end bg-black/50 backdrop-blur-sm" role="presentation">
+    <div
+      className="fixed inset-0 z-[9999] flex justify-end bg-black/50 backdrop-blur-sm"
+      role="presentation"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         className="h-full w-full bg-white shadow-2xl flex flex-col overflow-hidden animate-fade-in font-sans"
-        style={{ maxWidth }}
+        style={{ maxWidth: `${maxWidth}px`, width: '100%' }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-[#222222] p-4 text-white flex justify-between items-center gap-4 shrink-0">
           <div className="min-w-0">
@@ -50,7 +55,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
             onClick={onClose}
             disabled={closeDisabled}
             aria-label="Close drawer"
-            className="text-white/70 hover:text-white transition-colors duration-200 disabled:opacity-50 shrink-0"
+            className="text-white/70 hover:text-white transition-colors duration-200 disabled:opacity-50 shrink-0 cursor-pointer"
           >
             <span className="material-symbols-outlined" aria-hidden="true">
               close

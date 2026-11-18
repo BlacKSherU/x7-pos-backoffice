@@ -23,6 +23,8 @@ describe('ModuleCommandHubView', () => {
       'Order Items & Course Routing',
       'Order Modifiers & Upcharges',
       'Order Payment Tenders',
+      'Payment Gateway Configs',
+      'Payment Terminals',
       'Order Taxes & Surcharges',
       'Point of Sale Orders & Bills',
     ]) {
@@ -31,6 +33,10 @@ describe('ModuleCommandHubView', () => {
 
     await user.click(screen.getByText('Order Payment Tenders', { exact: true }));
     expect(onNavigate).toHaveBeenCalledWith('order-payments');
+    await user.click(screen.getByText('Payment Gateway Configs', { exact: true }));
+    expect(onNavigate).toHaveBeenCalledWith('payment-gateway-configs');
+    await user.click(screen.getByText('Payment Terminals', { exact: true }));
+    expect(onNavigate).toHaveBeenCalledWith('payment-terminals');
   });
 
   it('reports how many workspaces are available and how many are still in development', () => {
