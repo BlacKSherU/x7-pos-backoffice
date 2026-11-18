@@ -121,10 +121,14 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes(OPS, 'kitchen-order-items', '/kitchen-order-items', '/kds/order-items', '/app/kitchen-display-system/kitchen-order-items'),
   ...routes(OPS, 'kitchen-event-log', '/kitchen-event-log', '/kds/event-log', '/app/kitchen-display-system/kitchen-event-log'),
   ...routes(OPS, 'kitchen-performance', '/kitchen-analytics', '/kitchen-performance', '/kds/analytics', '/app/kitchen-display-system/kitchen-performance', '/app/kitchen-display-system/kitchen-analytics'),
+
+  // Finance & HR - Payrolls
+  ...routes('finance-hr', 'payroll-entries', '/finance-hr/payrolls/entries', '/dashboard/payroll-entries', '/payrolls/entries'),
 ]);
 
 /** Secciones cuyas sub-URLs abren MerchantFrame aunque no estén en la tabla. */
 const SECTION_PREFIXES = [
+  '/finance-hr',
   '/staff-management',
   '/store-operations',
   '/tips',
