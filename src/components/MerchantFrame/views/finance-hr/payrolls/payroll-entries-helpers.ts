@@ -176,3 +176,139 @@ export const isPayrollEntrySoftDeleted = (entry: PayrollEntry): boolean => {
   return entry.deleted_at !== null && entry.deleted_at !== undefined && entry.deleted_at !== '';
 };
 
+/**
+ * Re-computes gross_total and net_total formulas for a single payroll entry:
+ * - gross_total = (base_pay + overtime_pay + double_overtime_pay + tips_amount + bonuses) - deductions
+ * - net_total = gross_total - tax_total
+ */
+export const recalculatePayrollEntryCalculations = (entry: PayrollEntry): PayrollEntry => {
+  const base = parseMonetaryValue(entry.base_pay);
+  const ot = parseMonetaryValue(entry.overtime_pay);
+  const dot = parseMonetaryValue(entry.double_overtime_pay);
+  const tips = parseMonetaryValue(entry.tips_amount ?? entry.tips);
+  const bonuses = parseMonetaryValue(entry.bonuses);
+  const deductions = parseMonetaryValue(entry.deductions);
+  const tax = parseMonetaryValue(entry.tax_total);
+
+  const grossTotal = Number((base + ot + dot + tips + bonuses - deductions).toFixed(2));
+  const netTotal = Number((grossTotal - tax).toFixed(2));
+
+  return {
+    ...entry,
+    gross_total: grossTotal,
+    net_total: netTotal,
+  };
+};
+
+/**
+ * Re-computes gross/net formulas across a list of entries, optionally targeting selected entry IDs.
+ * If no specific selection is provided, recalculates all entries.
+ */
+export const recalculatePayrollEntries = (
+  entries: PayrollEntry[],
+  selectedIds?: (string | number)[],
+): PayrollEntry[] => {
+  const hasSelection = selectedIds !== undefined && selectedIds.length > 0;
+  const idSet = hasSelection ? new Set(selectedIds.map(String)) : null;
+
+  return entries.map((entry) => {
+    const isSelected =
+      !idSet ||
+      idSet.has(String(entry.id)) ||
+      (entry.entry_id !== undefined && idSet.has(String(entry.entry_id)));
+
+    if (isSelected) {
+      return recalculatePayrollEntryCalculations(entry);
+    }
+    return entry;
+  });
+};
+
+/**
+ * Generates an escape-safe CSV string containing the collaborator breakdown from a dataset.
+ */
+export const generatePayrollSummaryCsv = (entries: PayrollEntry[]): string => {
+  const headers = [
+    'Collaborator Name',
+    'Collaborator ID',
+    'Entry ID',
+    'Payroll Run ID',
+    'Base Pay',
+    'Overtime Pay',
+    'Double Overtime Pay',
+    'Tips Amount',
+    'Bonuses',
+    'Deductions',
+    'Gross Total',
+    'Tax Total',
+    'Net Total',
+    'Status',
+    'Created At',
+  ];
+
+  const escapeCsv = (val: unknown): string => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const rows = entries.map((entry) => {
+    const name = getPayrollCollaboratorName(entry);
+    const colId = entry.collaborator_id ?? entry.collaborator?.id ?? '';
+    const entryId = getPayrollEntryIdentifier(entry);
+    const runId = entry.payroll_run_id ?? '';
+    const base = formatCurrency(entry.base_pay);
+    const ot = formatCurrency(entry.overtime_pay);
+    const dot = formatCurrency(entry.double_overtime_pay ?? 0);
+    const tips = formatCurrency(entry.tips_amount ?? entry.tips ?? 0);
+    const bonuses = formatCurrency(entry.bonuses ?? 0);
+    const deductions = formatCurrency(entry.deductions ?? 0);
+    const gross = formatCurrency(entry.gross_total ?? 0);
+    const tax = formatCurrency(entry.tax_total ?? 0);
+    const net = formatCurrency(entry.net_total);
+    const status = entry.status ?? (entry.deleted_at ? 'DELETED' : 'ACTIVE');
+    const created = entry.created_at ?? '';
+
+    return [
+      escapeCsv(name),
+      escapeCsv(colId),
+      escapeCsv(entryId),
+      escapeCsv(runId),
+      escapeCsv(base),
+      escapeCsv(ot),
+      escapeCsv(dot),
+      escapeCsv(tips),
+      escapeCsv(bonuses),
+      escapeCsv(deductions),
+      escapeCsv(gross),
+      escapeCsv(tax),
+      escapeCsv(net),
+      escapeCsv(status),
+      escapeCsv(created),
+    ].join(',');
+  });
+
+  return [headers.join(','), ...rows].join('\n');
+};
+
+/**
+ * Triggers a browser download of the payroll summary CSV/Excel export.
+ */
+export const downloadPayrollSummaryCsv = (
+  entries: PayrollEntry[],
+  filename = `payroll_summary_${new Date().toISOString().slice(0, 10)}.csv`,
+): string => {
+  const csvContent = generatePayrollSummaryCsv(entries);
+  if (typeof document !== 'undefined') {
+    const encodedUri = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', filename);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  return csvContent;
+};
+

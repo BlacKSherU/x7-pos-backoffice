@@ -117,3 +117,33 @@ export interface PayrollEntriesHeaderProps {
   children?: React.ReactNode;
 }
 
+export interface PayrollEntriesQuickLaunchProps {
+  /** The current grid dataset of payroll entries */
+  entries?: PayrollEntry[];
+  /** Optional set or list of selected entry IDs */
+  selectedRowIds?: (string | number)[];
+  /** Optional list of selected entries */
+  selectedEntries?: PayrollEntry[];
+  /** Callback when net pay recalculation is triggered */
+  onRecalculateNetPay?: (recalculatedEntries: PayrollEntry[]) => void;
+  /** Callback when bulk adjustments action is clicked */
+  onBulkAdjustments?: () => void;
+  /** Callback when export payroll summary is triggered (receives CSV content) */
+  onExportPayrollSummary?: (csvContent: string) => void;
+  /** Callback when audit taxes action is clicked */
+  onAuditTaxes?: () => void;
+  /** Callback when entries change as a result of recalculation */
+  onEntriesChange?: (updatedEntries: PayrollEntry[]) => void;
+  /** Whether recalculation or export is currently processing */
+  isLoading?: boolean;
+  /** Custom export filename */
+  exportFilename?: string;
+  /** Custom class name */
+  className?: string;
+  /** Whether the quick launch bar is persistent above footer (default true) */
+  isPersistent?: boolean;
+  /** Custom children or extra actions slot */
+  children?: React.ReactNode;
+}
+
+
