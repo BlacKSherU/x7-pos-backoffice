@@ -291,6 +291,38 @@ export interface PayrollAdjustmentsGridProps {
   className?: string;
 }
 
+export interface PayrollAdjustmentsQuickLaunchProps {
+  /** The current dataset of adjustments */
+  adjustments?: PayrollAdjustment[];
+  /** Associated payroll entries to re-sync against */
+  payrollEntries?: PayrollEntry[];
+  /** Optional set or list of selected adjustment IDs */
+  selectedRowIds?: (string | number)[];
+  /** Optional list of selected adjustments */
+  selectedAdjustments?: PayrollAdjustment[];
+  /** Callback when [ APPLY BULK BONUS ] is clicked */
+  onApplyBulkBonus?: () => void;
+  /** Callback when [ IMPORT DEDUCTIONS CSV ] is clicked */
+  onImportDeductionsCsv?: (file?: File) => void;
+  /** Callback when [ RE-SYNC WITH ENTRIES ] is clicked (receives recalculated PayrollEntry[]) */
+  onReSyncWithEntries?: (recalculatedEntries: PayrollEntry[]) => void;
+  /** Callback when [ ADJUSTMENT REPORT ] is clicked (receives CSV content) */
+  onAdjustmentReport?: (csvContent: string) => void;
+  /** Callback when payroll entries change following re-sync */
+  onEntriesChange?: (updatedEntries: PayrollEntry[]) => void;
+  /** Loading/busy state */
+  isLoading?: boolean;
+  /** Custom report filename */
+  reportFilename?: string;
+  /** Custom class name */
+  className?: string;
+  /** Whether the quick launch bar is persistent above footer (default true) */
+  isPersistent?: boolean;
+  /** Custom children or extra actions slot */
+  children?: React.ReactNode;
+}
+
+
 
 
 

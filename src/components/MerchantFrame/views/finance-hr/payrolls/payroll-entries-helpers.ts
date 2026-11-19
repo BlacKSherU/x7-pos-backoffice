@@ -546,6 +546,122 @@ export const recalculatePayrollEntryFromAdjustmentDeletion = (
   };
 };
 
+/**
+ * Re-syncs an array of PayrollEntry records with active (non-soft-deleted) PayrollAdjustment records.
+ * Forces recalculation of entry.bonuses and entry.deductions fields along with gross_total and net_total.
+ */
+export const resyncPayrollEntriesWithAdjustments = (
+  entries: PayrollEntry[],
+  adjustments: PayrollAdjustment[],
+): PayrollEntry[] => {
+  return entries.map((entry) => {
+    // Find all active adjustments associated with this entry
+    const entryAdjustments = adjustments.filter(
+      (adj) =>
+        !isPayrollAdjustmentSoftDeleted(adj) &&
+        String(adj.payroll_entry_id) === String(entry.id),
+    );
+
+    let totalBonuses = 0;
+    let totalDeductions = 0;
+
+    for (const adj of entryAdjustments) {
+      const amt = parseMonetaryValue(adj.amount);
+      const type = String(adj.adjustment_type || '').toUpperCase().trim();
+      if (type === 'BONUS') {
+        totalBonuses += amt;
+      } else if (type === 'DEDUCTION') {
+        totalDeductions += amt;
+      }
+    }
+
+    const basePay = parseMonetaryValue(entry.base_pay);
+    const ot = parseMonetaryValue(entry.overtime_pay);
+    const dot = parseMonetaryValue(entry.double_overtime_pay);
+    const tips = parseMonetaryValue(entry.tips_amount ?? entry.tips);
+    const tax = parseMonetaryValue(entry.tax_total);
+
+    const grossTotal = basePay + ot + dot + tips + totalBonuses - totalDeductions;
+    const netTotal = grossTotal - tax;
+
+    return {
+      ...entry,
+      bonuses: totalBonuses,
+      deductions: totalDeductions,
+      gross_total: grossTotal,
+      net_total: netTotal,
+    };
+  });
+};
+
+/**
+ * Generates CSV content for a Payroll Adjustment report.
+ */
+export const generateAdjustmentsReportCsv = (
+  adjustments: PayrollAdjustment[],
+): string => {
+  const headers = [
+    'Adjustment ID',
+    'Payroll Entry ID',
+    'Collaborator Name',
+    'Type',
+    'Reason / Description',
+    'Amount',
+    'Status',
+    'Created At',
+  ];
+
+  const escapeCsv = (str: unknown): string => {
+    const val = str === null || str === undefined ? '' : String(str);
+    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+      return `"${val.replace(/"/g, '""')}"`;
+    }
+    return val;
+  };
+
+  const rows = adjustments.map((adj) => {
+    const colName =
+      adj.collaborator_name ||
+      adj.collaborator?.name ||
+      (adj.collaborator_id ? `Collaborator #${adj.collaborator_id}` : '');
+
+    return [
+      escapeCsv(adj.id),
+      escapeCsv(adj.payroll_entry_id || ''),
+      escapeCsv(colName),
+      escapeCsv(adj.adjustment_type),
+      escapeCsv(adj.description || adj.reason || adj.name || ''),
+      escapeCsv(parseMonetaryValue(adj.amount).toFixed(2)),
+      escapeCsv(isPayrollAdjustmentSoftDeleted(adj) ? 'DELETED' : adj.status || 'ACTIVE'),
+      escapeCsv(adj.created_at || ''),
+    ].join(',');
+  });
+
+  return [headers.join(','), ...rows].join('\n');
+};
+
+/**
+ * Triggers a browser download of the adjustments report CSV.
+ */
+export const downloadAdjustmentsReportCsv = (
+  adjustments: PayrollAdjustment[],
+  filename = `payroll_adjustments_report_${new Date().toISOString().slice(0, 10)}.csv`,
+): string => {
+  const csvContent = generateAdjustmentsReportCsv(adjustments);
+  if (typeof document !== 'undefined') {
+    const encodedUri = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', filename);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  return csvContent;
+};
+
+
 
 
 
