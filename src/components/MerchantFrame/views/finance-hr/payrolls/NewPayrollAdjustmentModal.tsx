@@ -162,7 +162,7 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
       }}
     >
       <div
-        className="relative w-full max-w-xl bg-white border border-[#e8e2d8] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto shrink-0"
+        className="relative w-full max-w-[580px] bg-white border border-[#e8e2d8] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] my-auto shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Modal Header ────────────────────────────────────────── */}
