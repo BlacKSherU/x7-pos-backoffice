@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { PayrollEntry } from './types';
 import { formatCurrency, parseMonetaryValue } from './payroll-entries-helpers';
 import { apiRequest } from '@/shared/api/http';
@@ -151,20 +152,23 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
     }
   };
 
-  return (
+  const modalContent = (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="manual-payroll-entry-title"
       data-testid="manual-payroll-entry-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-['Poppins',sans-serif] animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm font-['Poppins',sans-serif] animate-in fade-in duration-200 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-2xl bg-white border border-[#e8e2d8] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div
+        className="relative w-full max-w-2xl bg-white border border-[#e8e2d8] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* ── Modal Header ────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e8e2d8] bg-[#fbfaf8]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e8e2d8] bg-[#fbfaf8] shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-50 text-[#ae001a] border border-red-100 flex items-center justify-center shrink-0 shadow-xs">
               <span className="material-symbols-outlined text-2xl font-bold" aria-hidden="true">
@@ -445,4 +449,6 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
