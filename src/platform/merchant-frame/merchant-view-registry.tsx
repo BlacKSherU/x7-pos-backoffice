@@ -94,6 +94,7 @@ import { DiningTablesView } from '@/modules/restaurant-operations/dining-system/
 import { TableAssignmentsView } from '@/modules/restaurant-operations/dining-system/views/TableAssignmentsView';
 import { CollaboratorsView } from '@/modules/finance-hr/hr/views/CollaboratorsView';
 import { PayrollEntriesView } from '@/components/MerchantFrame/views/finance-hr/payrolls/PayrollEntriesView';
+import { PayrollAdjustmentsView } from '@/components/MerchantFrame/views/finance-hr/payrolls/PayrollAdjustmentsView';
 import { TimeEntriesView as HrTimeEntriesView } from '@/modules/finance-hr/hr/views/TimeEntriesView';
 import { ContractsView } from '@/modules/finance-hr/hr/views/ContractsView';
 import { ReservationsView } from '@/modules/restaurant-operations/reservations/views/ReservationsView';
@@ -460,6 +461,9 @@ view('collaborators', (ctx) => <CollaboratorsView onNavigate={ctx.onNavigate} me
 view('collaborators-contracts', (ctx) => <ContractsView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
 view(['payroll-entries', 'payrolls-entries', '/finance-hr/payrolls/entries'], (ctx) => (
   <PayrollEntriesView onNavigate={ctx.onNavigate} />
+));
+view(['payroll-adjustments', 'payrolls-adjustments', '/finance-hr/payrolls/adjustments'], (ctx) => (
+  <PayrollAdjustmentsView onNavigate={ctx.onNavigate} />
 ));
 view('reservations', (ctx) => <ReservationsView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
 view('reservation-tables', (ctx) => <ReservationTablesView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);

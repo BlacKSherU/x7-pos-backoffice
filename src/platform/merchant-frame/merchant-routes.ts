@@ -124,6 +124,7 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
 
   // Finance & HR - Payrolls
   ...routes('finance-hr', 'payroll-entries', '/finance-hr/payrolls/entries', '/dashboard/payroll-entries', '/payrolls/entries'),
+  ...routes('finance-hr', 'payroll-adjustments', '/finance-hr/payrolls/adjustments', '/dashboard/payroll-adjustments', '/payrolls/adjustments'),
 ]);
 
 /** Secciones cuyas sub-URLs abren MerchantFrame aunque no estén en la tabla. */

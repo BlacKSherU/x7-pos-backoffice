@@ -8,4 +8,5 @@ export * from './PayrollEntriesView';
 export * from './PayrollAdjustmentsHeader';
 export * from './PayrollAdjustmentsGrid';
 export * from './PayrollAdjustmentsQuickLaunch';
+export * from './PayrollAdjustmentsView';
 

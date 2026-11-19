@@ -192,7 +192,7 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     icon: 'account_balance_wallet',
     description: 'Payroll runs, per-employee entries, tax detail and adjustments.',
     items: [
-      { featureId: 'payroll-adjustments', label: 'Payroll Adjustments & Bonuses', icon: 'tune', live: false, description: 'Apply discretionary bonuses, staff advances, performance commissions, and manual deductions.' },
+      { featureId: 'payroll-adjustments', label: 'Payroll Adjustments & Bonuses', icon: 'tune', live: true, description: 'Apply discretionary bonuses, staff advances, performance commissions, and manual deductions.' },
       { featureId: 'payroll-entries', label: 'Employee Payroll Entries', icon: 'list_alt', live: true, description: 'Inspect per-collaborator gross pay, overtime additions, tips earned, deductions, and final net pay.' },
       { featureId: 'payroll-runs', label: 'Payroll Calculation Runs', icon: 'play_circle', live: false, description: 'Open, compute, verify, and finalize periodic payroll runs for restaurant staff across all branches.' },
       { featureId: 'payroll-tax-detail', label: 'Payroll Tax Detail & Withholdings', icon: 'percent', live: false, description: 'Audit statutory income tax withholdings, social security contributions, and employer tax liabilities.' },
