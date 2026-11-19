@@ -6,4 +6,5 @@ export * from './PayrollEntriesQuickLaunch';
 export * from './PayrollNavHub';
 export * from './PayrollEntriesView';
 export * from './PayrollAdjustmentsHeader';
+export * from './PayrollAdjustmentsGrid';
 

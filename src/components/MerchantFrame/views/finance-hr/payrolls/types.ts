@@ -256,6 +256,42 @@ export interface PayrollAdjustmentsHeaderProps {
   children?: React.ReactNode;
 }
 
+export interface PayrollAdjustmentsGridProps {
+  /** The payroll run ID used to hydrate adjustments via GET /api/v1/payroll-adjustments?payrollRunId={id} */
+  payrollRunId?: string | number;
+  /** Optional payroll entry ID to filter adjustments specifically for that entry */
+  payrollEntryId?: string | number;
+  /** Pre-loaded adjustments dataset (overrides or provides initial data) */
+  adjustments?: PayrollAdjustment[];
+  /** Associated payroll entries to recalculate when an adjustment is deleted */
+  payrollEntries?: PayrollEntry[];
+  /** Controlled search query to filter rows */
+  searchQuery?: string;
+  /** Controlled adjustment type filter ('ALL' | 'BONUS' | 'DEDUCTION') */
+  selectedType?: 'ALL' | PayrollAdjustmentType | string;
+  /** Callback when an adjustment row is clicked/inspected */
+  onSelectAdjustment?: (adjustment: PayrollAdjustment) => void;
+  /** Callback when edit action is clicked */
+  onEditAdjustment?: (adjustment: PayrollAdjustment) => void;
+  /** Callback when soft delete is triggered */
+  onDeleteAdjustment?: (adjustment: PayrollAdjustment) => Promise<void> | void;
+  /** Callback when adjustments dataset changes (e.g. after soft-delete) */
+  onAdjustmentsChange?: (adjustments: PayrollAdjustment[]) => void;
+  /** Callback when an associated payroll entry is recalculated following an adjustment deletion */
+  onPayrollEntryRecalculated?: (updatedEntry: PayrollEntry, adjustment: PayrollAdjustment) => void;
+  /** Callback for refresh */
+  onRefresh?: () => void;
+  /** Loading state override */
+  isLoading?: boolean;
+  /** Whether to show soft-deleted records (default false) */
+  includeDeleted?: boolean;
+  /** Currency code (default USD) */
+  currency?: string;
+  /** Custom class name */
+  className?: string;
+}
+
+
 
 
 

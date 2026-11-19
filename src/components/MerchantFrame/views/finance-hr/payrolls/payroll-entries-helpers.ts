@@ -467,5 +467,85 @@ export const filterPayrollAdjustments = (
   });
 };
 
+/**
+ * Checks if a PayrollAdjustment is soft-deleted.
+ */
+export const isPayrollAdjustmentSoftDeleted = (adjustment: PayrollAdjustment): boolean => {
+  return (
+    adjustment.deleted_at !== null &&
+    adjustment.deleted_at !== undefined &&
+    adjustment.deleted_at !== ''
+  );
+};
+
+/**
+ * Formats an adjustment amount:
+ * - BONUS: +$amount
+ * - DEDUCTION: -$amount
+ */
+export const formatAdjustmentAmount = (
+  amount: unknown,
+  type: PayrollAdjustmentType | string,
+  currency = 'USD',
+): { formatted: string; isBonus: boolean; isDeduction: boolean } => {
+  const num = parseMonetaryValue(amount);
+  const typeUpper = String(type || '').toUpperCase().trim();
+  const isBonus = typeUpper === 'BONUS';
+  const isDeduction = typeUpper === 'DEDUCTION';
+
+  const baseFormatted = formatCurrency(Math.abs(num), currency);
+  const formatted = isBonus ? `+${baseFormatted}` : isDeduction ? `-${baseFormatted}` : baseFormatted;
+
+  return { formatted, isBonus, isDeduction };
+};
+
+/**
+ * Recalculates associated PayrollEntry totals when an adjustment is soft-deleted or restored.
+ * - BONUS soft-deleted: decreases bonuses, which decreases gross_total and net_total.
+ * - DEDUCTION soft-deleted: decreases deductions, which increases gross_total and net_total.
+ */
+export const recalculatePayrollEntryFromAdjustmentDeletion = (
+  entry: PayrollEntry,
+  adjustment: PayrollAdjustment,
+  isSoftDeleting = true,
+): PayrollEntry => {
+  const amount = parseMonetaryValue(adjustment.amount);
+  const type = String(adjustment.adjustment_type || '').toUpperCase().trim();
+
+  let currentBonuses = parseMonetaryValue(entry.bonuses);
+  let currentDeductions = parseMonetaryValue(entry.deductions);
+  const basePay = parseMonetaryValue(entry.base_pay);
+  const ot = parseMonetaryValue(entry.overtime_pay);
+  const dot = parseMonetaryValue(entry.double_overtime_pay);
+  const tips = parseMonetaryValue(entry.tips_amount ?? entry.tips);
+  const tax = parseMonetaryValue(entry.tax_total);
+
+  if (type === 'BONUS') {
+    if (isSoftDeleting) {
+      currentBonuses = Math.max(0, currentBonuses - amount);
+    } else {
+      currentBonuses += amount;
+    }
+  } else if (type === 'DEDUCTION') {
+    if (isSoftDeleting) {
+      currentDeductions = Math.max(0, currentDeductions - amount);
+    } else {
+      currentDeductions += amount;
+    }
+  }
+
+  const grossTotal = basePay + ot + dot + tips + currentBonuses - currentDeductions;
+  const netTotal = grossTotal - tax;
+
+  return {
+    ...entry,
+    bonuses: currentBonuses,
+    deductions: currentDeductions,
+    gross_total: grossTotal,
+    net_total: netTotal,
+  };
+};
+
+
 
 
