@@ -90,6 +90,7 @@ describe('PayrollAdjustmentsView', () => {
       expect(apiRequest).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/payroll-adjustments?payrollRunId=42'),
         expect.objectContaining({ method: 'GET' }),
+        expect.any(String),
       );
     });
 

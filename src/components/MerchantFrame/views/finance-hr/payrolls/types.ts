@@ -162,7 +162,7 @@ export interface PayrollNavHubItem {
 
 export interface PayrollNavHubProps {
   /** The currently active tab ID */
-  activeTab?: PayrollSubModuleId;
+  activeTab?: PayrollSubModuleId | 'adjustments' | 'entries' | 'runs' | 'tax-detail' | (string & {});
   /** Current URL route path, e.g. '/finance-hr/payrolls/entries' */
   currentRoute?: string;
   /** Callback when a navigation tab is clicked */
@@ -186,6 +186,8 @@ export interface PayrollNavHubProps {
 }
 
 export type PayrollAdjustmentType = 'BONUS' | 'DEDUCTION';
+
+export type PayrollAdjustmentFilterType = 'ALL' | PayrollAdjustmentType;
 
 export interface PayrollAdjustment {
   id: string | number;
@@ -226,8 +228,12 @@ export interface PayrollAdjustmentsHeaderProps {
   metrics?: Partial<PayrollAdjustmentsMetrics>;
   /** Selected adjustment type filter ('ALL' | 'BONUS' | 'DEDUCTION') */
   selectedType?: 'ALL' | PayrollAdjustmentType | string;
+  /** Alias for selectedType */
+  selectedFilter?: 'ALL' | PayrollAdjustmentType | string;
   /** Callback when adjustment type filter changes */
   onTypeFilterChange?: (type: 'ALL' | PayrollAdjustmentType) => void;
+  /** Alias for onTypeFilterChange */
+  onFilterChange?: (type: 'ALL' | PayrollAdjustmentType) => void;
   /** Controlled search query */
   searchQuery?: string;
   /** Callback when search input query changes */
@@ -269,6 +275,8 @@ export interface PayrollAdjustmentsGridProps {
   searchQuery?: string;
   /** Controlled adjustment type filter ('ALL' | 'BONUS' | 'DEDUCTION') */
   selectedType?: 'ALL' | PayrollAdjustmentType | string;
+  /** Alias for selectedType */
+  selectedTypeFilter?: 'ALL' | PayrollAdjustmentType | string;
   /** Callback when an adjustment row is clicked/inspected */
   onSelectAdjustment?: (adjustment: PayrollAdjustment) => void;
   /** Callback when edit action is clicked */

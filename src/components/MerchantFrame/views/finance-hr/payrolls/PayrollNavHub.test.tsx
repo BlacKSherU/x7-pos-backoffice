@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import React from 'react';
 import { PayrollNavHub } from './PayrollNavHub';
 import { DEFAULT_PAYROLL_NAV_ITEMS } from './payroll-entries-helpers';
 

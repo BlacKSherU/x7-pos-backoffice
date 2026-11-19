@@ -29,6 +29,7 @@ export const PayrollAdjustmentsGrid: React.FC<PayrollAdjustmentsGridProps> = ({
   payrollEntries = [],
   searchQuery = '',
   selectedType = 'ALL',
+  selectedTypeFilter,
   onSelectAdjustment,
   onEditAdjustment,
   onDeleteAdjustment,
@@ -109,8 +110,9 @@ export const PayrollAdjustmentsGrid: React.FC<PayrollAdjustmentsGridProps> = ({
       dataset = dataset.filter((adj) => String(adj.payroll_entry_id) === String(payrollEntryId));
     }
 
-    return filterPayrollAdjustments(dataset, searchQuery, selectedType);
-  }, [includeDeleted, internalAdjustments, payrollEntryId, searchQuery, selectedType]);
+    const effectiveFilterType = selectedTypeFilter ?? selectedType;
+    return filterPayrollAdjustments(dataset, searchQuery, effectiveFilterType);
+  }, [includeDeleted, internalAdjustments, payrollEntryId, searchQuery, selectedType, selectedTypeFilter]);
 
   // Row Inspection Click
   const handleRowClick = (adj: PayrollAdjustment) => {

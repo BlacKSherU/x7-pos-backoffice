@@ -32,6 +32,7 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
       const res = await apiRequest<{ data?: PayrollAdjustment[] } | PayrollAdjustment[]>(
         `/api/v1/payroll-adjustments?payrollRunId=${encodeURIComponent(payrollRunId)}`,
         { method: 'GET' },
+        'Failed to fetch payroll adjustments',
       );
       const list = Array.isArray(res) ? res : res?.data;
       if (Array.isArray(list)) {
@@ -98,8 +99,8 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
         adjustments={adjustments}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        selectedFilter={selectedFilter}
-        onFilterChange={setSelectedFilter}
+        selectedType={selectedFilter}
+        onTypeFilterChange={setSelectedFilter}
         onNewAdjustmentClick={handleNewAdjustment}
         onNavigate={onNavigate}
         isLoading={isLoading}
@@ -109,7 +110,7 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
       <PayrollAdjustmentsGrid
         adjustments={adjustments}
         searchQuery={searchQuery}
-        selectedTypeFilter={selectedFilter}
+        selectedType={selectedFilter}
         onAdjustmentsChange={setAdjustments}
         payrollRunId={payrollRunId}
         isLoading={isLoading}

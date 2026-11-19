@@ -17,7 +17,9 @@ export const PayrollAdjustmentsHeader: React.FC<PayrollAdjustmentsHeaderProps> =
   dataset,
   metrics: manualMetrics,
   selectedType: controlledType,
+  selectedFilter,
   onTypeFilterChange,
+  onFilterChange,
   searchQuery: controlledSearchQuery,
   onSearchChange,
   onFilteredAdjustmentsChange,
@@ -45,8 +47,10 @@ export const PayrollAdjustmentsHeader: React.FC<PayrollAdjustmentsHeaderProps> =
   const currentSearch = controlledSearchQuery !== undefined ? controlledSearchQuery : internalSearch;
 
   // Type filter state (controlled or internal: 'ALL' | 'BONUS' | 'DEDUCTION')
+  const effectiveControlledType = controlledType !== undefined ? controlledType : selectedFilter;
+  const effectiveOnTypeFilterChange = onTypeFilterChange ?? onFilterChange;
   const [internalType, setInternalType] = useState<'ALL' | PayrollAdjustmentType>('ALL');
-  const currentType = (controlledType !== undefined ? controlledType : internalType) as
+  const currentType = (effectiveControlledType !== undefined ? effectiveControlledType : internalType) as
     | 'ALL'
     | PayrollAdjustmentType;
 
@@ -76,10 +80,10 @@ export const PayrollAdjustmentsHeader: React.FC<PayrollAdjustmentsHeaderProps> =
   };
 
   const handleTypeSelect = (type: 'ALL' | PayrollAdjustmentType) => {
-    if (controlledType === undefined) {
+    if (effectiveControlledType === undefined) {
       setInternalType(type);
     }
-    onTypeFilterChange?.(type);
+    effectiveOnTypeFilterChange?.(type);
   };
 
   const handleNewAction = () => {
