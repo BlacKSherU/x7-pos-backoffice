@@ -185,5 +185,77 @@ export interface PayrollNavHubProps {
   items?: PayrollNavHubItem[];
 }
 
+export type PayrollAdjustmentType = 'BONUS' | 'DEDUCTION';
+
+export interface PayrollAdjustment {
+  id: string | number;
+  payroll_run_id?: string | number;
+  payroll_entry_id?: string | number;
+  collaborator_id?: string | number;
+  collaborator_name?: string;
+  collaborator?: PayrollEntryCollaborator;
+  adjustment_type: PayrollAdjustmentType | string;
+  name?: string;
+  reason?: string;
+  description?: string;
+  amount: number | string;
+  category?: string;
+  status?: 'applied' | 'pending' | 'cancelled' | string;
+  effective_date?: string;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PayrollAdjustmentsMetrics {
+  totalBonuses: number;
+  totalDeductions: number;
+  netAdjustmentTotal: number;
+  bonusCount: number;
+  deductionCount: number;
+  totalCount: number;
+}
+
+export interface PayrollAdjustmentsHeaderProps {
+  /** The dataset of payroll adjustments */
+  adjustments?: PayrollAdjustment[];
+  /** Alias for adjustments */
+  dataset?: PayrollAdjustment[];
+  /** Optional pre-computed metrics override */
+  metrics?: Partial<PayrollAdjustmentsMetrics>;
+  /** Selected adjustment type filter ('ALL' | 'BONUS' | 'DEDUCTION') */
+  selectedType?: 'ALL' | PayrollAdjustmentType | string;
+  /** Callback when adjustment type filter changes */
+  onTypeFilterChange?: (type: 'ALL' | PayrollAdjustmentType) => void;
+  /** Controlled search query */
+  searchQuery?: string;
+  /** Callback when search input query changes */
+  onSearchChange?: (query: string) => void;
+  /** Callback with the filtered adjustments (type + search filtered) */
+  onFilteredAdjustmentsChange?: (filtered: PayrollAdjustment[]) => void;
+  /** Primary action handler for + NEW ADJUSTMENT */
+  onNewAdjustmentClick?: () => void;
+  /** Alias for onNewAdjustmentClick */
+  onAddAdjustment?: () => void;
+  /** Alias for onNewAdjustmentClick */
+  onOpenCreateModal?: () => void;
+  /** Navigation handler for breadcrumbs */
+  onNavigate?: (route: string) => void;
+  /** Optional title override (defaults to PAYROLL ADJUSTMENTS CONTROL) */
+  title?: string;
+  /** Optional subtitle/description */
+  description?: string;
+  /** Loading state */
+  isLoading?: boolean;
+  /** Currency code (default USD) */
+  currency?: string;
+  /** Scope metric cards calculation to current filters instead of total dataset */
+  scopeMetricsToFilter?: boolean;
+  /** Additional custom controls slot */
+  children?: React.ReactNode;
+}
+
+
 
 

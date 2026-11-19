@@ -1,4 +1,7 @@
 import type {
+  PayrollAdjustment,
+  PayrollAdjustmentType,
+  PayrollAdjustmentsMetrics,
   PayrollCalculationVerification,
   PayrollEntry,
   PayrollMetrics,
@@ -379,5 +382,90 @@ export const resolveActivePayrollTab = (
 
   return 'payroll-entries';
 };
+
+/**
+ * Calculates summary metrics for Payroll Adjustments:
+ * - Total Bonuses: SUM(amount) where adjustment_type === 'BONUS'
+ * - Total Deductions: SUM(amount) where adjustment_type === 'DEDUCTION'
+ * - Net Adjustment Impact: Total Bonuses - Total Deductions
+ */
+export const calculatePayrollAdjustmentsMetrics = (
+  adjustments: PayrollAdjustment[],
+): PayrollAdjustmentsMetrics => {
+  let totalBonuses = 0;
+  let totalDeductions = 0;
+  let bonusCount = 0;
+  let deductionCount = 0;
+
+  for (const adj of adjustments) {
+    if (adj.deleted_at) continue;
+
+    const amt = parseMonetaryValue(adj.amount);
+    const typeUpper = String(adj.adjustment_type || '').toUpperCase().trim();
+
+    if (typeUpper === 'BONUS') {
+      totalBonuses += amt;
+      bonusCount++;
+    } else if (typeUpper === 'DEDUCTION') {
+      totalDeductions += amt;
+      deductionCount++;
+    }
+  }
+
+  const netAdjustmentTotal = totalBonuses - totalDeductions;
+
+  return {
+    totalBonuses,
+    totalDeductions,
+    netAdjustmentTotal,
+    bonusCount,
+    deductionCount,
+    totalCount: adjustments.length,
+  };
+};
+
+/**
+ * Filters adjustments by search term and adjustment type ('ALL' | 'BONUS' | 'DEDUCTION').
+ */
+export const filterPayrollAdjustments = (
+  adjustments: PayrollAdjustment[],
+  searchQuery = '',
+  selectedType: 'ALL' | PayrollAdjustmentType | string = 'ALL',
+): PayrollAdjustment[] => {
+  const term = searchQuery.trim().toLowerCase();
+  const typeFilter = String(selectedType).toUpperCase().trim();
+
+  return adjustments.filter((adj) => {
+    // 1. Adjustment Type Filter
+    if (typeFilter !== 'ALL') {
+      const adjType = String(adj.adjustment_type || '').toUpperCase().trim();
+      if (adjType !== typeFilter) return false;
+    }
+
+    // 2. Search Query Filter
+    if (!term) return true;
+
+    const id = String(adj.id || '').toLowerCase();
+    const name = String(adj.name || '').toLowerCase();
+    const reason = String(adj.reason || '').toLowerCase();
+    const desc = String(adj.description || '').toLowerCase();
+    const category = String(adj.category || '').toLowerCase();
+    const colName = String(
+      adj.collaborator_name ||
+        adj.collaborator?.name ||
+        `${adj.collaborator?.first_name || ''} ${adj.collaborator?.last_name || ''}`,
+    ).toLowerCase();
+
+    return (
+      id.includes(term) ||
+      name.includes(term) ||
+      reason.includes(term) ||
+      desc.includes(term) ||
+      category.includes(term) ||
+      colName.includes(term)
+    );
+  });
+};
+
 
 
