@@ -355,27 +355,47 @@ export const DEFAULT_PAYROLL_NAV_ITEMS: PayrollNavHubItem[] = [
  * Determines which tab is active based on explicit activeTab or route string.
  */
 export const resolveActivePayrollTab = (
-  activeTab?: PayrollSubModuleId,
+  activeTab?: PayrollSubModuleId | string,
   currentRoute?: string,
 ): PayrollSubModuleId => {
-  if (activeTab) return activeTab;
+  if (activeTab) {
+    const tabLower = activeTab.toLowerCase();
+    if (tabLower.includes('adjustment')) return 'payroll-adjustments';
+    if (tabLower.includes('tax')) return 'payroll-tax-detail';
+    if (tabLower.includes('run')) return 'payroll-runs';
+    if (tabLower.includes('entri')) return 'payroll-entries';
+    return activeTab as PayrollSubModuleId;
+  }
 
   if (currentRoute) {
     const routeLower = currentRoute.toLowerCase();
-    if (routeLower.includes('/payrolls/runs') || routeLower.endsWith('/runs')) {
-      return 'payroll-runs';
-    }
-    if (routeLower.includes('/payrolls/adjustments') || routeLower.endsWith('/adjustments')) {
+    if (
+      routeLower.includes('adjustment') ||
+      routeLower.includes('/payrolls/adjustments') ||
+      routeLower.endsWith('/adjustments')
+    ) {
       return 'payroll-adjustments';
     }
     if (
-      routeLower.includes('/payrolls/tax-detail') ||
+      routeLower.includes('tax-detail') ||
       routeLower.includes('/payrolls/tax') ||
-      routeLower.endsWith('/tax-detail')
+      routeLower.endsWith('/tax-detail') ||
+      routeLower.endsWith('/taxes')
     ) {
       return 'payroll-tax-detail';
     }
-    if (routeLower.includes('/payrolls/entries') || routeLower.endsWith('/entries')) {
+    if (
+      routeLower.includes('payroll-run') ||
+      routeLower.includes('/payrolls/runs') ||
+      routeLower.endsWith('/runs')
+    ) {
+      return 'payroll-runs';
+    }
+    if (
+      routeLower.includes('payroll-entri') ||
+      routeLower.includes('/payrolls/entries') ||
+      routeLower.endsWith('/entries')
+    ) {
       return 'payroll-entries';
     }
   }

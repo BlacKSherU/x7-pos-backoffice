@@ -92,8 +92,43 @@ describe('PayrollNavHub', () => {
     expect(entriesTab).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('correctly reflects route /finance-hr/payrolls/adjustments', () => {
+  it('correctly reflects route /finance-hr/payrolls/adjustments and applies active styling', () => {
     render(<PayrollNavHub currentRoute="/finance-hr/payrolls/adjustments" />);
+
+    const adjustmentsTab = screen.getByTestId('nav-tab-payroll-adjustments');
+    expect(adjustmentsTab).toHaveAttribute('aria-selected', 'true');
+    expect(adjustmentsTab).toHaveAttribute('aria-current', 'page');
+    expect(adjustmentsTab).toHaveAttribute('data-active', 'true');
+    expect(adjustmentsTab.className).toContain('font-bold');
+    expect(adjustmentsTab.className).toContain('text-white');
+
+    // Corporate red underline indicator
+    const underline = adjustmentsTab.querySelector('[data-testid="active-tab-underline"]');
+    expect(underline).toBeInTheDocument();
+    expect(underline?.className).toContain('bg-[#ae001a]');
+
+    // Corporate red icon accent
+    const icon = adjustmentsTab.querySelector('.material-symbols-outlined');
+    expect(icon?.className).toContain('text-[#ae001a]');
+
+    // Other tabs should be inactive
+    expect(screen.getByTestId('nav-tab-payroll-runs')).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByTestId('nav-tab-payroll-entries')).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByTestId('nav-tab-payroll-tax-detail')).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('highlights PAYROLL ADJUSTMENTS with active styling when activeTab is payroll-adjustments', () => {
+    render(<PayrollNavHub activeTab="payroll-adjustments" />);
+
+    const adjustmentsTab = screen.getByTestId('nav-tab-payroll-adjustments');
+    expect(adjustmentsTab).toHaveAttribute('aria-selected', 'true');
+    expect(adjustmentsTab).toHaveAttribute('data-active', 'true');
+    expect(adjustmentsTab.className).toContain('font-bold');
+    expect(adjustmentsTab.querySelector('[data-testid="active-tab-underline"]')).toBeInTheDocument();
+  });
+
+  it('normalizes shorthand activeTab or route containing adjustments', () => {
+    render(<PayrollNavHub activeTab="adjustments" currentRoute="/dashboard/payroll-adjustments" />);
 
     const adjustmentsTab = screen.getByTestId('nav-tab-payroll-adjustments');
     expect(adjustmentsTab).toHaveAttribute('aria-selected', 'true');
