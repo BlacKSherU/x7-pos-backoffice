@@ -119,6 +119,33 @@ describe('PayrollEntriesView', () => {
     });
   });
 
+  it('opens ManualPayrollEntryModal on button click and adds newly saved entry to the grid', async () => {
+    vi.mocked(httpModule.apiRequest).mockResolvedValueOnce({ data: SAMPLE_ENTRIES });
+
+    render(<PayrollEntriesView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Carlos Mendoza')).toBeInTheDocument();
+    });
+
+    const manualBtn = screen.getByRole('button', { name: /manual payroll entry/i });
+    fireEvent.click(manualBtn);
+
+    expect(screen.getByTestId('manual-payroll-entry-modal')).toBeInTheDocument();
+
+    // Fill form in modal
+    fireEvent.change(screen.getByTestId('input-collaborator-name'), { target: { value: 'Mateo Morales' } });
+    fireEvent.change(screen.getByTestId('input-base-pay'), { target: { value: '2500' } });
+
+    // Submit modal
+    fireEvent.click(screen.getByTestId('submit-payroll-entry-btn'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('manual-payroll-entry-modal')).toBeNull();
+      expect(screen.getByText('Mateo Morales')).toBeInTheDocument();
+    });
+  });
+
   it('handles empty state when no records are returned by API', async () => {
     vi.mocked(httpModule.apiRequest).mockResolvedValueOnce({ data: [] });
 

@@ -3,6 +3,8 @@ import type { PayrollEntry } from './types';
 import { PayrollEntriesHeader } from './PayrollEntriesHeader';
 import { PayrollEntriesGrid } from './PayrollEntriesGrid';
 import { PayrollEntriesQuickLaunch } from './PayrollEntriesQuickLaunch';
+import { PayrollNavHub } from './PayrollNavHub';
+import { ManualPayrollEntryModal } from './ManualPayrollEntryModal';
 import { apiRequest } from '@/shared/api/http';
 
 export interface PayrollEntriesViewProps {
@@ -19,6 +21,7 @@ export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
   const [selectedRowIds, setSelectedRowIds] = useState<(string | number)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   // Hydrate entries from backend API
   const hydrateEntries = useCallback(async () => {
@@ -27,6 +30,7 @@ export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
       const res = await apiRequest<{ data?: PayrollEntry[] } | PayrollEntry[]>(
         `/api/v1/payroll-entries?payrollRunId=${encodeURIComponent(payrollRunId)}`,
         { method: 'GET' },
+        'Failed to fetch payroll entries',
       );
       const list = Array.isArray(res) ? res : res?.data;
       if (Array.isArray(list)) {
@@ -44,8 +48,13 @@ export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
   }, [hydrateEntries]);
 
   const handleManualEntryClick = () => {
-    setStatusNotice('Manual Payroll Entry modal requested.');
-    setTimeout(() => setStatusNotice(null), 3500);
+    setIsManualModalOpen(true);
+  };
+
+  const handleSaveEntry = (newEntry: PayrollEntry) => {
+    setEntries((prev) => [newEntry, ...prev]);
+    setStatusNotice(`Successfully registered payroll entry for ${newEntry.collaborator_name}.`);
+    setTimeout(() => setStatusNotice(null), 4000);
   };
 
   const handleBulkAdjustments = () => {
@@ -60,7 +69,7 @@ export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
 
   return (
     <div
-      className="w-full space-y-6 font-['Poppins',sans-serif] pb-16"
+      className="w-full space-y-6 font-['Poppins',sans-serif] pb-24"
       data-testid="payroll-entries-view"
     >
       {statusNotice && (
@@ -106,6 +115,22 @@ export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
         onBulkAdjustments={handleBulkAdjustments}
         onAuditTaxes={handleAuditTaxes}
         isPersistent={false}
+      />
+
+      {/* ── Persistent Lower Navigation Bar (NavHub) ───────────────────── */}
+      <PayrollNavHub
+        activeTab="payroll-entries"
+        currentRoute="/finance-hr/payrolls/entries"
+        onNavigate={(tabId, path) => onNavigate?.(tabId || path)}
+        isPersistent={true}
+      />
+
+      {/* ── Manual Payroll Entry Modal ──────────────────────────────────── */}
+      <ManualPayrollEntryModal
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        onSave={handleSaveEntry}
+        payrollRunId={payrollRunId}
       />
     </div>
   );
