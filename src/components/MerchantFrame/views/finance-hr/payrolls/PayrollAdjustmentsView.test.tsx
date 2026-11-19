@@ -122,12 +122,26 @@ describe('PayrollAdjustmentsView', () => {
     expect(elements.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('handles new adjustment action from header', async () => {
+  it('opens NewPayrollAdjustmentModal on header action and adds newly saved adjustment to grid', async () => {
     render(<PayrollAdjustmentsView />);
 
     const newBtn = screen.getByTestId('new-adjustment-btn');
     fireEvent.click(newBtn);
 
-    expect(await screen.findByText(/new payroll adjustment modal opened/i)).toBeInTheDocument();
+    expect(screen.getByTestId('new-payroll-adjustment-modal')).toBeInTheDocument();
+
+    // Fill form in modal
+    fireEvent.change(screen.getByTestId('input-adj-collaborator-name'), { target: { value: 'Mateo Morales' } });
+    fireEvent.change(screen.getByTestId('input-adj-amount'), { target: { value: '450' } });
+    fireEvent.change(screen.getByTestId('input-adj-description'), { target: { value: 'Performance bonus' } });
+
+    // Submit modal
+    fireEvent.click(screen.getByTestId('submit-adjustment-btn'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('new-payroll-adjustment-modal')).toBeNull();
+      expect(screen.getByText('Mateo Morales')).toBeInTheDocument();
+      expect(screen.getByText('Performance bonus')).toBeInTheDocument();
+    });
   });
 });

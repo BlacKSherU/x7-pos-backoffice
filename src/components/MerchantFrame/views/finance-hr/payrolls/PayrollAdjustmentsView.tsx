@@ -8,6 +8,7 @@ import { PayrollAdjustmentsHeader } from './PayrollAdjustmentsHeader';
 import { PayrollAdjustmentsGrid } from './PayrollAdjustmentsGrid';
 import { PayrollAdjustmentsQuickLaunch } from './PayrollAdjustmentsQuickLaunch';
 import { PayrollNavHub } from './PayrollNavHub';
+import { NewPayrollAdjustmentModal } from './NewPayrollAdjustmentModal';
 import { apiRequest } from '@/shared/api/http';
 
 export interface PayrollAdjustmentsViewProps {
@@ -24,6 +25,7 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<PayrollAdjustmentFilterType>('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
 
   // Hydrate adjustments from backend API
   const hydrateAdjustments = useCallback(async () => {
@@ -50,8 +52,15 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
   }, [hydrateAdjustments]);
 
   const handleNewAdjustment = () => {
-    setStatusNotice('New Payroll Adjustment modal opened.');
-    setTimeout(() => setStatusNotice(null), 3500);
+    setIsNewModalOpen(true);
+  };
+
+  const handleSaveAdjustment = (newAdj: PayrollAdjustment) => {
+    setAdjustments((prev) => [newAdj, ...prev]);
+    setStatusNotice(
+      `Successfully created ${newAdj.adjustment_type.toLowerCase()} of $${Number(newAdj.amount).toFixed(2)} for ${newAdj.collaborator_name}.`,
+    );
+    setTimeout(() => setStatusNotice(null), 4000);
   };
 
   const handleApplyBulkBonus = (amount = 100, description?: string) => {
@@ -133,6 +142,14 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
         currentRoute="/finance-hr/payrolls/adjustments"
         onNavigate={(tabId, path) => onNavigate?.(tabId || path)}
         isPersistent={true}
+      />
+
+      {/* ── New Payroll Adjustment Modal ─────────────────────────────────── */}
+      <NewPayrollAdjustmentModal
+        isOpen={isNewModalOpen}
+        onClose={() => setIsNewModalOpen(false)}
+        onSave={handleSaveAdjustment}
+        payrollRunId={payrollRunId}
       />
     </div>
   );

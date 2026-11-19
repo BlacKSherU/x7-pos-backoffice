@@ -10,4 +10,5 @@ export * from './PayrollAdjustmentsHeader';
 export * from './PayrollAdjustmentsGrid';
 export * from './PayrollAdjustmentsQuickLaunch';
 export * from './PayrollAdjustmentsView';
+export * from './NewPayrollAdjustmentModal';
 
