@@ -12,6 +12,18 @@ export interface ModuleNavItem {
   icon: string;
   live: boolean;
   description: string;
+  /**
+   * Enlaces a hubs de OTRAS aplicaciones que la NavHubBar añade solo cuando esta opción está
+   * activa (p. ej. la sincronización facturación ↔ inventario enlaza los hubs de inventario).
+   * No registran la feature en este hub: navHubForFeature sigue ignorándolos.
+   */
+  crossLinks?: ModuleNavCrossLink[];
+}
+
+export interface ModuleNavCrossLink {
+  featureId: string;
+  label: string;
+  icon: string;
 }
 
 export interface ModuleNavHub {
@@ -305,6 +317,17 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
       { featureId: 'receipt-items', label: 'Itemized Receipt Line Items', icon: 'list', live: false, description: 'Inspect itemized charges printed on each customer sales receipt, applied item discounts, seat numbers, and quantity breakdowns.' },
       { featureId: 'receipt-orders', label: 'Customer Sales Receipts', icon: 'receipt_long', live: false, description: 'Archive of issued customer sales receipts, POS register terminals, settlement tenders, customer copies, and fiscal audit logs.' },
       { featureId: 'receipt-taxes', label: 'Receipt Tax Line Breakdown', icon: 'percent', live: false, description: 'Detailed breakdown of sales tax brackets, VAT rates, local municipal surcharges, and tax-exempt balances allocated per receipt.' },
+      {
+        featureId: 'billing-inventory-sync',
+        label: 'Inventory & Billing Stock Sync',
+        icon: 'inventory_2',
+        live: true,
+        description: 'Audit which warehouse stock each receipt line depleted, validate stock before billing, and jump to stock levels without losing billing context.',
+        crossLinks: [
+          { featureId: 'inventory-dashboard', label: 'Products Hub', icon: 'inventory_2' },
+          { featureId: 'raw-materials-dashboard', label: 'Raw Materials Hub', icon: 'warehouse' },
+        ],
+      },
     ],
   },
   {

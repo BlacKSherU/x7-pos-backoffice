@@ -70,6 +70,7 @@ import { KitchenAnalyticsView } from '@/modules/restaurant-operations/kitchen-di
 import { LedgerAccountsView } from '@/modules/core/financial-engine/views/LedgerAccountsView';
 import { JournalEntriesView } from '@/modules/core/financial-engine/views/JournalEntriesView';
 import { JournalEntryLinesView } from '@/modules/core/financial-engine/views/JournalEntryLinesView';
+import { BillingInventorySyncView } from '@/components/MerchantFrame/views/core/billing/BillingInventorySyncView';
 
 import { SuppliersView } from '@/modules/core/business-partners/views/SuppliersView';
 import { CustomersView } from '@/modules/core/business-partners/views/CustomersView';
@@ -419,6 +420,11 @@ view('journal-entries-lines', (ctx) => (
       ctx.setActiveTab(next);
     }}
   />
+));
+
+// ---- Facturación ↔ Inventario ----
+view('billing-inventory-sync', (ctx) => (
+  <BillingInventorySyncView onNavigate={ctx.onNavigate} navigateToPath={ctx.navigateToPath} />
 ));
 
 // ---- Business Partners / Clientes ----

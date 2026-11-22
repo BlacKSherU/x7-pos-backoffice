@@ -50,6 +50,11 @@ describe('module NavHubBars', () => {
     expect(navHubForFeature('kitchen-stations')?.appId).toBe(
       'kitchen-display-system',
     );
+    expect(navHubForFeature('billing-inventory-sync')?.appId).toBe(
+      'billing-transactions',
+    );
+    // Los enlaces cruzados a inventario no convierten sus hubs en opciones de facturación.
+    expect(navHubForFeature('inventory-dashboard')).toBeNull();
     expect(navHubById('pos-hub')?.appId).toBe('pos');
     expect(navHubById('collaborators')).toBeNull();
   });

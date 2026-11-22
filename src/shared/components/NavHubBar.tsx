@@ -131,6 +131,7 @@ const ITEM_ID_SHORTCUTS: Record<string, string> = {
   'receipt-items': 'RECEIPT ITEMS',
   'receipt-orders': 'RECEIPTS',
   'receipt-taxes': 'RECEIPT TAXES',
+  'billing-inventory-sync': 'INVENTORY SYNC',
 
   // Financial Engine
   'journal-entries': 'ENTRIES',
@@ -376,6 +377,7 @@ const SPECIFIC_SHORTCUTS: Record<string, string> = {
   'RECEIPT ORDERS': 'RECEIPTS',
   'RECEIPT TAX LINE BREAKDOWN': 'RECEIPT TAXES',
   'RECEIPTS TAXES': 'RECEIPT TAXES',
+  'INVENTORY & BILLING STOCK SYNC': 'INVENTORY SYNC',
 
   // Financial Engine
   'GENERAL JOURNAL ENTRIES': 'ENTRIES',
