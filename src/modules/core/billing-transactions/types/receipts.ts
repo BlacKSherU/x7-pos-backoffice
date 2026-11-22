@@ -1,0 +1,142 @@
+// Tipos del recurso Receipt (back-end: src/core/billing-transactions/receipts).
+
+export type ReceiptType = 'INVOICE' | 'RECEIPT';
+
+/** Filtro por `is_active`: activos, dados de baja (baja lógica) o todos. */
+export type ReceiptStatusFilter = 'active' | 'inactive' | 'all';
+
+export type ReceiptSortBy = 'createdAt' | 'type' | 'invoiceNumber' | 'grandTotal';
+
+export interface Receipt {
+  id: number;
+  order_id: number;
+  merchant_id: number;
+  invoice_number: string | null;
+  type: ReceiptType;
+  fiscal_data: string | null;
+  subtotal: number;
+  total_tax: number;
+  total_discount: number;
+  grand_total: number;
+  currency: string;
+  is_active: boolean;
+  is_locked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Rango de fechas de creación (YYYY-MM-DD, ambos extremos inclusive). */
+export interface ReceiptDateRange {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface ReceiptListQuery extends ReceiptDateRange {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: ReceiptType | '';
+  status?: ReceiptStatusFilter;
+  sortBy?: ReceiptSortBy;
+  sortOrder?: 'ASC' | 'DESC';
+}
+
+export interface PaginatedReceipts {
+  data: Receipt[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+/** Cuerpo de POST /receipts. `invoiceNumber` vacío = el back-end asigna el siguiente INV-######. */
+export interface CreateReceiptPayload {
+  orderId: number;
+  type: ReceiptType;
+  currency: string;
+  fiscalData?: string;
+  invoiceNumber?: string;
+}
+
+/** Cuerpo de PATCH /receipts/:id (solo los campos que cambian). */
+export type UpdateReceiptPayload = Partial<CreateReceiptPayload>;
+
+/** GET /receipts/summary — KPIs del Command Hub Header. */
+export interface ReceiptSummary {
+  status: ReceiptStatusFilter;
+  date_from?: string | null;
+  date_to?: string | null;
+  total_receipts: number;
+  active_receipts: number;
+  inactive_receipts: number;
+  locked_receipts: number;
+  /** Moneda de los importes: la que tiene más recibos. */
+  currency: string;
+  grand_total: number;
+  subtotal: number;
+  total_tax: number;
+  total_discount: number;
+  average_ticket: number;
+  by_type: Array<{ type: ReceiptType; receipts: number; grand_total: number }>;
+  by_currency: Array<{ currency: string; receipts: number; grand_total: number; total_tax: number }>;
+}
+
+export interface ReceiptSummaryQuery extends ReceiptDateRange {
+  status?: ReceiptStatusFilter;
+}
+
+export type ReceiptTaxScope = 'RECEIPT' | 'ITEM';
+
+export interface ReceiptDetailItem {
+  id: number;
+  name: string;
+  sku: string | null;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  discount_amount: number;
+  total: number;
+}
+
+export interface ReceiptDetailTax {
+  id: number;
+  /** Ítem al que aplica (null = impuesto a nivel de recibo). */
+  receipt_item_id: number | null;
+  name: string;
+  /** Tasa en porcentaje (19 = 19 %). */
+  rate: number;
+  amount: number;
+  scope: ReceiptTaxScope;
+}
+
+/** GET /receipts/:id/details — fila maestro-detalle de la tabla. */
+export interface ReceiptDetails {
+  receipt: Receipt;
+  items: ReceiptDetailItem[];
+  taxes: ReceiptDetailTax[];
+  items_total: number;
+  taxes_total: number;
+}
+
+export interface ReceiptTaxBreakdownEntry {
+  name: string;
+  rate: number;
+  currency: string;
+  total_amount: number;
+  tax_lines: number;
+  receipts: number;
+}
+
+/** GET /receipts/tax-breakdown — impuesto cobrado por tipo (nombre + tasa), según status y fechas. */
+export interface ReceiptTaxBreakdown {
+  status: ReceiptStatusFilter;
+  date_from: string | null;
+  date_to: string | null;
+  /** Moneda de total_tax: la que tiene más líneas de impuesto. */
+  currency: string;
+  total_tax: number;
+  by_tax: ReceiptTaxBreakdownEntry[];
+  by_currency: Array<{ currency: string; total_amount: number; tax_lines: number }>;
+}
