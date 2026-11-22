@@ -3,6 +3,7 @@ import { Toast, type ToastState } from '@/shared/components/Toast';
 import { ConfirmStatusToggleDialog } from '@/shared/components/StatusToggle';
 import {
   createReceipt,
+  getReceiptActivityLog,
   getReceiptDetails,
   getReceiptTaxBreakdown,
   getReceiptsSummary,
@@ -28,6 +29,7 @@ import { BILLING_HUB_ID, ReceiptsCommandHeader } from './ReceiptsCommandHeader';
 import { ReceiptsQuickLaunch } from './ReceiptsQuickLaunch';
 import { ReceiptTaxBreakdownCards } from './ReceiptTaxBreakdownCards';
 import { ConfirmLockReceiptDialog } from './ConfirmLockReceiptDialog';
+import { ReceiptActivityLogDrawer } from './ReceiptActivityLogDrawer';
 
 export interface ReceiptsViewProps {
   onNavigate?: (view: string) => void;
@@ -46,7 +48,8 @@ const STATUS_OPTIONS: Array<{ value: ReceiptStatusFilter; label: string }> = [
  * Receipts (Billing & Transactions): listado central de recibos del merchant con búsqueda
  * alfanumérica (invoice_number / fiscal_data), filtros por tipo, estado y fecha de creación,
  * paginación del servidor, filas maestro-detalle (items e impuestos), tarjetas de desglose de
- * impuestos, ficha de detalle, edición (PATCH), baja lógica y bloqueo fiscal (LOCK RECEIPT).
+ * impuestos, ficha de detalle, edición (PATCH), baja lógica, bloqueo fiscal (LOCK RECEIPT) y
+ * audit trail de cada recibo (VIEW ACTIVITY LOG, Historia 6).
  * Historia 11: los recibos bloqueados o dados de baja son inmutables (sin edición ni reactivación).
  */
 export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
@@ -88,6 +91,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [lockTarget, setLockTarget] = useState<Receipt | null>(null);
   const [lockSubmitting, setLockSubmitting] = useState(false);
+  const [activityReceipt, setActivityReceipt] = useState<Receipt | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const showToast = useCallback((message: string, type: ToastState['type'] = 'success') => {
@@ -395,6 +399,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
           onEdit={(receipt) => setForm({ mode: 'edit', receipt })}
           onToggleStatus={setStatusTarget}
           onLock={setLockTarget}
+          onViewActivity={setActivityReceipt}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
           loadDetails={getReceiptDetails}
@@ -421,6 +426,19 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
           }}
           onToggleStatus={setStatusTarget}
           onLock={setLockTarget}
+          onViewActivity={(receipt) => {
+            setDetailReceipt(null);
+            setActivityReceipt(receipt);
+          }}
+        />
+      )}
+
+      {activityReceipt && (
+        <ReceiptActivityLogDrawer
+          key={activityReceipt.id}
+          receipt={activityReceipt}
+          loadActivityLog={getReceiptActivityLog}
+          onClose={() => setActivityReceipt(null)}
         />
       )}
 

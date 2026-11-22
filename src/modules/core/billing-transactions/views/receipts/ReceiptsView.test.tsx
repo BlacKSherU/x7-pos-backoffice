@@ -887,3 +887,159 @@ describe('ReceiptsView — fiscal lock (Historia 11)', () => {
     expect(await screen.findByText('Receipt is fiscally locked and cannot be modified.')).toBeInTheDocument();
   });
 });
+
+describe('ReceiptsView — activity log (Historia 6)', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  const activityLog = {
+    receipt_id: 1,
+    invoice_number: 'INV-000001',
+    currency: 'USD',
+    events: [
+      {
+        id: 11,
+        action: 'CREATED',
+        user_id: 7,
+        user_name: 'ana',
+        role: 'merchant_admin',
+        previous_values: null,
+        new_values: { subtotal: 0, total_tax: 0, total_discount: 0, grand_total: 0 },
+        metadata: { source: 'manual' },
+        created_at: '2026-11-01T10:00:00.120Z',
+      },
+      {
+        id: 12,
+        action: 'ITEM_MODIFIED',
+        user_id: 7,
+        user_name: 'ana',
+        role: 'merchant_admin',
+        previous_values: { subtotal: 0, total_tax: 0, total_discount: 0, grand_total: 0 },
+        new_values: { subtotal: 100, total_tax: 0, total_discount: 5.5, grand_total: 94.5 },
+        metadata: { operation: 'CREATED', name: 'Burger Combo' },
+        created_at: '2026-11-01T10:05:00.000Z',
+      },
+      {
+        id: 13,
+        action: 'TAX_MODIFIED',
+        user_id: 8,
+        user_name: null,
+        role: 'merchant_user',
+        previous_values: { subtotal: 100, total_tax: 0, total_discount: 5.5, grand_total: 94.5 },
+        new_values: { subtotal: 100, total_tax: 19, total_discount: 5.5, grand_total: 113.5 },
+        metadata: { operation: 'CREATED', name: 'VAT', rate: 19 },
+        created_at: '2026-11-01T10:06:00.000Z',
+      },
+      {
+        id: 14,
+        action: 'MODIFICATION_BLOCKED',
+        user_id: 8,
+        user_name: null,
+        role: 'merchant_user',
+        previous_values: { subtotal: 100, total_tax: 19, total_discount: 5.5, grand_total: 113.5 },
+        new_values: { subtotal: 100, total_tax: 19, total_discount: 5.5, grand_total: 113.5 },
+        metadata: { method: 'DELETE', path: '/api/receipts/1', reason: 'LOCKED' },
+        created_at: '2026-11-01T10:06:00.000Z',
+      },
+    ],
+  };
+
+  it('VIEW ACTIVITY LOG opens a timeline with user, role, exact timestamp and totals before / after', async () => {
+    const fetchMock = backend({
+      '/receipts': page([invoice, receipt]),
+      '/receipts/1/activity-log': { data: activityLog },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    const row = await screen.findByTestId('receipt-row-1');
+    const action = within(row).getByRole('button', { name: 'View activity log for INV-000001' });
+    expect(action).toHaveAttribute('title', 'VIEW ACTIVITY LOG');
+    // También en recibos bloqueados: el audit trail es de solo lectura.
+    expect(
+      within(screen.getByTestId('receipt-row-2')).getByRole('button', { name: 'View activity log for INV-000002' }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(action);
+    const drawer = await screen.findByRole('dialog', { name: 'INV-000001' });
+    expect(within(drawer).getByText('ACTIVITY LOG')).toBeInTheDocument();
+    const timeline = await within(drawer).findByRole('list', { name: 'Activity timeline' });
+    expect(calledRoutes(fetchMock)).toContain('GET /receipts/1/activity-log');
+
+    // Orden cronológico exacto del servidor (created_at, id).
+    const events = within(timeline).getAllByRole('listitem');
+    expect(events.map((el) => el.getAttribute('data-testid'))).toEqual([
+      'activity-event-11',
+      'activity-event-12',
+      'activity-event-13',
+      'activity-event-14',
+    ]);
+    expect(within(drawer).getByTestId('activity-log-count')).toHaveTextContent('4 events');
+    expect(within(drawer).getByTestId('activity-event-11-action')).toHaveTextContent('Created');
+    expect(within(drawer).getByTestId('activity-event-11-user')).toHaveTextContent('ana (#7) · merchant_admin');
+    expect(within(drawer).getByTestId('activity-event-13-user')).toHaveTextContent(/User #8 · merchant_user$/);
+    expect(within(drawer).getByTestId('activity-event-13-user')).not.toHaveTextContent('(#8)');
+    expect(within(drawer).getByTestId('activity-event-11-time')).toHaveAttribute(
+      'dateTime',
+      '2026-11-01T10:00:00.120Z',
+    );
+    expect(within(drawer).getByTestId('activity-event-11-time').textContent).toMatch(/\d{2}:\d{2}:\d{2}\.120$/);
+
+    // Totales antes / después del recálculo.
+    const tax = within(drawer).getByTestId('activity-event-13-totals');
+    expect(within(tax).getByTestId('activity-event-13-total_tax')).toHaveAttribute('data-changed', 'true');
+    expect(within(tax).getByTestId('activity-event-13-total_tax')).toHaveTextContent('0.0019.00+19.00');
+    expect(within(tax).getByTestId('activity-event-13-grand_total')).toHaveTextContent('94.50113.50+19.00');
+    expect(within(tax).getByTestId('activity-event-13-subtotal')).toHaveAttribute('data-changed', 'false');
+    expect(within(tax).queryByTestId('activity-event-13-total_discount')).not.toBeInTheDocument();
+    expect(within(drawer).getByTestId('activity-event-12-total_discount')).toHaveTextContent('0.005.50+5.50');
+    expect(within(drawer).getByText('Tax "VAT" (19%) added.')).toBeInTheDocument();
+    expect(within(drawer).getByText('Blocked DELETE /api/receipts/1: the receipt is locked.')).toBeInTheDocument();
+
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Close drawer' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens the activity log from the receipt details drawer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      backend({
+        '/receipts': page([receipt]),
+        '/receipts/2/activity-log': { data: { ...activityLog, receipt_id: 2, events: [] } },
+      }),
+    );
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View INV-000002' }));
+    const details = await screen.findByRole('dialog');
+    await userEvent.click(within(details).getByRole('button', { name: /VIEW ACTIVITY LOG/ }));
+
+    const drawer = await screen.findByRole('dialog', { name: 'INV-000002' });
+    expect(within(drawer).getByText('ACTIVITY LOG')).toBeInTheDocument();
+    expect(await within(drawer).findByTestId('activity-log-empty')).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('shows the load error and retries', async () => {
+    let fail = true;
+    const fetchMock = backend({
+      '/receipts': page([invoice]),
+      '/receipts/1/activity-log': () =>
+        fail
+          ? jsonResponse({ statusCode: 500, message: 'Activity log unavailable' }, 500)
+          : jsonResponse({ data: activityLog }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View activity log for INV-000001' }));
+    const drawer = await screen.findByRole('dialog');
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent('Activity log unavailable');
+
+    fail = false;
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Retry' }));
+    expect(await within(drawer).findByRole('list', { name: 'Activity timeline' })).toBeInTheDocument();
+  });
+});

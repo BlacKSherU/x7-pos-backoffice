@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { calledRoutes, fakeBackend, jsonResponse } from '@/test/fetch';
 import {
+  getReceiptActivityLog,
   getReceiptDetails,
   getReceiptTaxBreakdown,
   getReceiptsSummary,
@@ -233,3 +234,64 @@ describe('receipts-api', () => {
   });
 });
 
+describe('getReceiptActivityLog (Historia 6)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('GET /receipts/:id/activity-log keeps the server order and normalizes the totals', async () => {
+    const fetchMock = fakeBackend({
+      '/receipts/5/activity-log': {
+        data: {
+          receipt_id: 5,
+          invoice_number: 'INV-000005',
+          currency: null,
+          events: [
+            {
+              id: 3,
+              action: 'CREATED',
+              user_id: 7,
+              user_name: 'ana',
+              role: 'merchant_admin',
+              previous_values: null,
+              new_values: { subtotal: '0.00', total_tax: '0.00', total_discount: '0.00', grand_total: '0.00' },
+              metadata: { source: 'manual' },
+              created_at: '2026-11-22T10:00:00.123Z',
+            },
+            {
+              id: 4,
+              action: 'ITEM_MODIFIED',
+              user_id: null,
+              previous_values: { subtotal: '0', total_tax: '0', total_discount: '0', grand_total: '0' },
+              new_values: { subtotal: '25.50', total_tax: '4.85', total_discount: '0', grand_total: '30.35' },
+              created_at: '2026-11-22T10:00:00.123Z',
+            },
+          ],
+        },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const log = await getReceiptActivityLog(5);
+
+    expect(calledRoutes(fetchMock)).toEqual(['GET /receipts/5/activity-log']);
+    expect(log.currency).toBe('USD');
+    expect(log.events.map((e) => e.id)).toEqual([3, 4]);
+    expect(log.events[0].new_values).toEqual({ subtotal: 0, total_tax: 0, total_discount: 0, grand_total: 0 });
+    expect(log.events[1]).toMatchObject({
+      user_id: null,
+      user_name: null,
+      role: null,
+      metadata: null,
+      new_values: { subtotal: 25.5, total_tax: 4.85, total_discount: 0, grand_total: 30.35 },
+    });
+  });
+
+  it('surfaces the server error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fakeBackend({
+        '/receipts/5/activity-log': () => jsonResponse({ statusCode: 404, message: 'Receipt not found' }, 404),
+      }),
+    );
+    await expect(getReceiptActivityLog(5)).rejects.toThrow('Receipt not found');
+  });
+});

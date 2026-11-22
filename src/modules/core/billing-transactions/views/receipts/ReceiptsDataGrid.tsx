@@ -27,6 +27,8 @@ export interface ReceiptsDataGridProps {
   onToggleStatus: (receipt: Receipt) => void;
   /** LOCK RECEIPT (Historia 11): bloqueo fiscal de un recibo activo sin bloquear. */
   onLock?: (receipt: Receipt) => void;
+  /** VIEW ACTIVITY LOG (Historia 6): audit trail del recibo, en cualquier estado. */
+  onViewActivity?: (receipt: Receipt) => void;
   hasActiveFilters?: boolean;
   onClearFilters?: () => void;
   /** Carga las líneas e impuestos de un recibo al expandir su fila (GET /receipts/:id/details). */
@@ -79,6 +81,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
   onEdit,
   onToggleStatus,
   onLock,
+  onViewActivity,
   hasActiveFilters = false,
   onClearFilters,
   loadDetails,
@@ -307,6 +310,19 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                               visibility
                             </span>
                           </button>
+                          {onViewActivity && (
+                            <button
+                              type="button"
+                              onClick={() => onViewActivity(receipt)}
+                              aria-label={`View activity log for ${label}`}
+                              title="VIEW ACTIVITY LOG"
+                              className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                                history
+                              </span>
+                            </button>
+                          )}
                           {/* Historia 11: un recibo bloqueado o dado de baja es inmutable: sin editar,
                               bloquear ni dar de baja (y ya no se reactiva). */}
                           {isReceiptMutable(receipt) && (

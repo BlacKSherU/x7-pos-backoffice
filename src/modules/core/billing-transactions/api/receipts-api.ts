@@ -3,11 +3,13 @@ import type {
   CreateReceiptPayload,
   PaginatedReceipts,
   Receipt,
+  ReceiptActivityLog,
   ReceiptDetails,
   ReceiptListQuery,
   ReceiptSummary,
   ReceiptSummaryQuery,
   ReceiptTaxBreakdown,
+  ReceiptTotalsSnapshot,
   UpdateReceiptPayload,
 } from '../types/receipts';
 
@@ -192,6 +194,43 @@ export async function getReceiptTaxBreakdown(query: ReceiptSummaryQuery = {}): P
       currency: entry.currency || 'USD',
       total_amount: Number(entry.total_amount ?? 0),
       tax_lines: Number(entry.tax_lines ?? 0),
+    })),
+  };
+}
+
+function normalizeTotals(raw: ReceiptTotalsSnapshot | null | undefined): ReceiptTotalsSnapshot | null {
+  if (!raw) return null;
+  return {
+    subtotal: Number(raw.subtotal ?? 0),
+    total_tax: Number(raw.total_tax ?? 0),
+    total_discount: Number(raw.total_discount ?? 0),
+    grand_total: Number(raw.grand_total ?? 0),
+  };
+}
+
+/**
+ * GET /receipts/:id/activity-log — audit trail del recibo (Historia 6): eventos en orden
+ * cronológico exacto con usuario, rol y totales antes / después de cada uno.
+ */
+export async function getReceiptActivityLog(id: number): Promise<ReceiptActivityLog> {
+  const json = await apiRequest<Envelope<ReceiptActivityLog>>(
+    `${BASE}/${id}/activity-log`,
+    { method: 'GET' },
+    'Failed to load the activity log.',
+  );
+  const data = json.data;
+  return {
+    receipt_id: data.receipt_id,
+    invoice_number: data.invoice_number ?? null,
+    currency: data.currency || 'USD',
+    events: (data.events ?? []).map((event) => ({
+      ...event,
+      user_id: event.user_id ?? null,
+      user_name: event.user_name ?? null,
+      role: event.role ?? null,
+      previous_values: normalizeTotals(event.previous_values),
+      new_values: normalizeTotals(event.new_values),
+      metadata: event.metadata ?? null,
     })),
   };
 }

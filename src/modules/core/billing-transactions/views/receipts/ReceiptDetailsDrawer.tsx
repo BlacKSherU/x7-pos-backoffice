@@ -26,6 +26,8 @@ interface ReceiptDetailsDrawerProps {
   onToggleStatus: (receipt: Receipt) => void;
   /** LOCK RECEIPT (Historia 11). */
   onLock?: (receipt: Receipt) => void;
+  /** VIEW ACTIVITY LOG (Historia 6). */
+  onViewActivity?: (receipt: Receipt) => void;
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -42,6 +44,7 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
   onEdit,
   onToggleStatus,
   onLock,
+  onViewActivity,
 }) => {
   const mutable = isReceiptMutable(receipt);
   const exemption = resolveTaxExemption(receipt.fiscal_data);
@@ -166,6 +169,18 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
       </div>
 
       <div className="p-4 border-t border-[#e8e2d8] bg-white flex flex-wrap justify-end gap-3 shrink-0 font-poppins">
+        {onViewActivity && (
+          <button
+            type="button"
+            onClick={() => onViewActivity(receipt)}
+            className="mr-auto px-4 py-2 rounded border border-[#e8e2d8] text-[#1d1c17] hover:border-[#ae001a] hover:text-[#ae001a] text-[11px] font-bold uppercase tracking-widest transition-colors cursor-pointer inline-flex items-center gap-1.5"
+          >
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+              history
+            </span>
+            VIEW ACTIVITY LOG
+          </button>
+        )}
         {mutable ? (
           <>
             <button

@@ -144,3 +144,44 @@ export interface ReceiptTaxBreakdown {
   by_tax: ReceiptTaxBreakdownEntry[];
   by_currency: Array<{ currency: string; total_amount: number; tax_lines: number }>;
 }
+
+/** Eventos del audit trail de un recibo (Historia 6, GET /receipts/:id/activity-log). */
+export type ReceiptAuditAction =
+  | 'CREATED'
+  | 'UPDATED'
+  | 'LOCKED'
+  | 'TAX_MODIFIED'
+  | 'ITEM_MODIFIED'
+  | 'DEACTIVATED'
+  | 'MODIFICATION_BLOCKED'
+  | 'ADJUSTMENT_ISSUED';
+
+/** Totales críticos del recibo antes / después de un evento. */
+export interface ReceiptTotalsSnapshot {
+  subtotal: number;
+  total_tax: number;
+  total_discount: number;
+  grand_total: number;
+}
+
+export interface ReceiptActivityEvent {
+  id: number;
+  action: ReceiptAuditAction;
+  user_id: number | null;
+  /** Username (o email) del usuario que ejecutó la acción. */
+  user_name: string | null;
+  role: string | null;
+  previous_values: ReceiptTotalsSnapshot | null;
+  new_values: ReceiptTotalsSnapshot | null;
+  metadata: Record<string, unknown> | null;
+  /** Timestamp exacto del evento (ISO). */
+  created_at: string;
+}
+
+/** GET /receipts/:id/activity-log — eventos en orden cronológico exacto (created_at, id). */
+export interface ReceiptActivityLog {
+  receipt_id: number;
+  invoice_number: string | null;
+  currency: string;
+  events: ReceiptActivityEvent[];
+}
