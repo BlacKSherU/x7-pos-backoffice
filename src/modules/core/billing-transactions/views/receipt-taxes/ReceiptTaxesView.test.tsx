@@ -227,4 +227,19 @@ describe('ReceiptTaxesView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByTestId('receipt-tax-row-1')).toBeInTheDocument();
   });
+
+  it('offers the Quick Launch to the sibling billing screens through SPA navigation', async () => {
+    const onNavigate = vi.fn();
+    render(<ReceiptTaxesView onNavigate={onNavigate} />);
+    await screen.findByTestId('receipt-tax-row-1');
+
+    const shortcuts = screen.getByRole('navigation', { name: 'Billing and transactions shortcuts' });
+    expect(within(shortcuts).getByText('RECEIPTS TAXES')).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(within(shortcuts).getByRole('button', { name: 'RECEIPTS' }));
+    fireEvent.click(within(shortcuts).getByRole('button', { name: 'RECEIPT ITEMS' }));
+    expect(onNavigate.mock.calls.map(([id]) => id)).toEqual(['receipt-orders', 'receipt-items']);
+
+    // The fixed bottom NavHubBar is mounted once by MerchantFrame, never inside the view.
+    expect(screen.queryByRole('navigation', { name: /module navigation/i })).toBeNull();
+  });
 });

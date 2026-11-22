@@ -18,6 +18,7 @@ import type {
 } from '../../types/receipt-taxes';
 import { ReceiptTaxFormDrawer, type ReceiptTaxFormPayload } from './ReceiptTaxFormDrawer';
 import { ReceiptTaxesHeader } from './ReceiptTaxesHeader';
+import { ReceiptTaxesQuickLinks } from './ReceiptTaxesQuickLinks';
 import {
   SCOPE_BADGE_CLASSES,
   SCOPE_ICONS,
@@ -48,7 +49,12 @@ function totalsSummary(tax: ReceiptTax): string {
   return `${label} totals updated: tax ${formatMoney(tax.receipt_total_tax, tax.currency)} · grand total ${formatMoney(tax.receipt_grand_total, tax.currency)}.`;
 }
 
-export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
+/**
+ * Receipt Taxes workspace (Billing & Transactions). The bottom NavHubBar of the module is
+ * mounted by MerchantFrame (ModuleNavHubBar) for every feature of the billing hub, with
+ * RECEIPTS TAXES active; this view adds the in-flow Quick Launch to the sibling screens.
+ */
+export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = ({ onNavigate }) => {
   const [rows, setRows] = useState<ReceiptTax[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -481,6 +487,8 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
           </div>
         )}
       </div>
+
+      <ReceiptTaxesQuickLinks onNavigate={onNavigate} />
 
       {drawer && (
         <ReceiptTaxFormDrawer
