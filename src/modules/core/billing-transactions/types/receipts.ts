@@ -25,7 +25,13 @@ export interface Receipt {
   updated_at: string;
 }
 
-export interface ReceiptListQuery {
+/** Rango de fechas de creación (YYYY-MM-DD, ambos extremos inclusive). */
+export interface ReceiptDateRange {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface ReceiptListQuery extends ReceiptDateRange {
   page?: number;
   limit?: number;
   search?: string;
@@ -60,6 +66,8 @@ export type UpdateReceiptPayload = Partial<CreateReceiptPayload>;
 /** GET /receipts/summary — KPIs del Command Hub Header. */
 export interface ReceiptSummary {
   status: ReceiptStatusFilter;
+  date_from?: string | null;
+  date_to?: string | null;
   total_receipts: number;
   active_receipts: number;
   inactive_receipts: number;
@@ -75,6 +83,60 @@ export interface ReceiptSummary {
   by_currency: Array<{ currency: string; receipts: number; grand_total: number; total_tax: number }>;
 }
 
-export interface ReceiptSummaryQuery {
+export interface ReceiptSummaryQuery extends ReceiptDateRange {
   status?: ReceiptStatusFilter;
+}
+
+export type ReceiptTaxScope = 'RECEIPT' | 'ITEM';
+
+export interface ReceiptDetailItem {
+  id: number;
+  name: string;
+  sku: string | null;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  discount_amount: number;
+  total: number;
+}
+
+export interface ReceiptDetailTax {
+  id: number;
+  /** Ítem al que aplica (null = impuesto a nivel de recibo). */
+  receipt_item_id: number | null;
+  name: string;
+  /** Tasa en porcentaje (19 = 19 %). */
+  rate: number;
+  amount: number;
+  scope: ReceiptTaxScope;
+}
+
+/** GET /receipts/:id/details — fila maestro-detalle de la tabla. */
+export interface ReceiptDetails {
+  receipt: Receipt;
+  items: ReceiptDetailItem[];
+  taxes: ReceiptDetailTax[];
+  items_total: number;
+  taxes_total: number;
+}
+
+export interface ReceiptTaxBreakdownEntry {
+  name: string;
+  rate: number;
+  currency: string;
+  total_amount: number;
+  tax_lines: number;
+  receipts: number;
+}
+
+/** GET /receipts/tax-breakdown — impuesto cobrado por tipo (nombre + tasa), según status y fechas. */
+export interface ReceiptTaxBreakdown {
+  status: ReceiptStatusFilter;
+  date_from: string | null;
+  date_to: string | null;
+  /** Moneda de total_tax: la que tiene más líneas de impuesto. */
+  currency: string;
+  total_tax: number;
+  by_tax: ReceiptTaxBreakdownEntry[];
+  by_currency: Array<{ currency: string; total_amount: number; tax_lines: number }>;
 }

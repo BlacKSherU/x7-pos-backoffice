@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TablePaginationFooter } from '@/shared/components/TableOptionsMenu';
-import type { Receipt } from '../../types/receipts';
+import type { Receipt, ReceiptDetails } from '../../types/receipts';
 import {
   RECEIPT_TYPE_BADGE,
   RECEIPT_TYPE_LABELS,
@@ -9,6 +9,7 @@ import {
   receiptLabel,
   summarizeFiscalData,
 } from '../../lib/receipts-format';
+import { ReceiptLineDetails, type ReceiptDetailsState } from './ReceiptLineDetails';
 
 export interface ReceiptsDataGridProps {
   receipts: Receipt[];
@@ -23,9 +24,16 @@ export interface ReceiptsDataGridProps {
   onToggleStatus: (receipt: Receipt) => void;
   hasActiveFilters?: boolean;
   onClearFilters?: () => void;
+  /** Carga las líneas e impuestos de un recibo al expandir su fila (GET /receipts/:id/details). */
+  loadDetails: (receiptId: number) => Promise<ReceiptDetails>;
+  /** Al cambiar (p. ej. tras "Reload") se descarta la caché de detalles y se recargan las filas abiertas. */
+  detailsVersion?: number;
 }
 
-const COLUMN_COUNT = 9;
+const COLUMN_COUNT = 10;
+
+type DetailsCache = { version: number; entries: Record<number, ReceiptDetailsState> };
+const NO_ENTRIES: Record<number, ReceiptDetailsState> = {};
 
 const headerCell =
   'px-4 py-3 text-[10.5px] font-bold uppercase tracking-widest text-[#5f5e5e] font-poppins whitespace-nowrap';
@@ -47,6 +55,10 @@ const Money: React.FC<{ value: number; currency: string; strong?: boolean; testI
  * Tabla central de Receipts: número de factura, orden, tipo, subtotal, impuestos, descuentos y
  * total (2 decimales + moneda), estado y acciones (ver, editar, baja lógica / reactivar).
  * La paginación es del servidor: el contenedor pasa la página actual y el total.
+ *
+ * Maestro-detalle: el chevron de cada fila la expande y muestra sus líneas e impuestos, que se
+ * piden al expandir (una vez por recibo; quedan en caché). Las filas abiertas y la caché viven
+ * aquí, así que expandir o colapsar no toca la página ni los filtros del contenedor.
  */
 export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
   receipts,
@@ -61,7 +73,53 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
   onToggleStatus,
   hasActiveFilters = false,
   onClearFilters,
+  loadDetails,
+  detailsVersion = 0,
 }) => {
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [cache, setCache] = useState<DetailsCache>({ version: detailsVersion, entries: {} });
+  // Una caché de otra versión (antes de un "Reload") equivale a vacía.
+  const details = cache.version === detailsVersion ? cache.entries : NO_ENTRIES;
+
+  const fetchDetails = useCallback(
+    (receiptId: number) => {
+      const version = detailsVersion;
+      const put = (state: ReceiptDetailsState) =>
+        setCache((prev) => {
+          const base = prev.version === version ? prev.entries : {};
+          return { version, entries: { ...base, [receiptId]: state } };
+        });
+      const settle = (state: ReceiptDetailsState) =>
+        setCache((prev) =>
+          prev.version === version ? { version, entries: { ...prev.entries, [receiptId]: state } } : prev,
+        );
+      put({ status: 'loading' });
+      loadDetails(receiptId)
+        .then((data) => settle({ status: 'loaded', data }))
+        .catch((err: unknown) =>
+          settle({
+            status: 'error',
+            message: err instanceof Error ? err.message : 'Failed to load the receipt details.',
+          }),
+        );
+    },
+    [detailsVersion, loadDetails],
+  );
+
+  // Carga asíncrona de las filas abiertas que aún no tienen detalle (al expandir o tras recargar).
+  useEffect(() => {
+    for (const receipt of receipts) {
+      if (expanded[receipt.id] && !details[receipt.id]) fetchDetails(receipt.id);
+    }
+  }, [receipts, expanded, details, fetchDetails]);
+
+  const toggleExpanded = (receiptId: number) => {
+    const willExpand = !expanded[receiptId];
+    setExpanded((prev) => ({ ...prev, [receiptId]: willExpand }));
+    // Reabrir una fila cuyo detalle falló lo vuelve a pedir.
+    if (willExpand && details[receiptId]?.status === 'error') fetchDetails(receiptId);
+  };
+
   return (
     <div className="bg-white border border-[#e8e2d8] rounded-xl overflow-hidden shadow-sm font-poppins">
       <div className="px-4 py-3 bg-[#222222] flex items-center justify-between gap-3">
@@ -77,6 +135,9 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
         <table className="w-full border-collapse text-sm" aria-label="Receipts">
           <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
             <tr>
+              <th className={`${headerCell} w-10`}>
+                <span className="sr-only">Expand</span>
+              </th>
               <th className={`${headerCell} text-left`}>Invoice #</th>
               <th className={`${headerCell} text-left`}>Order ID</th>
               <th className={`${headerCell} text-left`}>Type</th>
@@ -127,125 +188,167 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
               receipts.map((receipt) => {
                 const label = receiptLabel(receipt);
                 const fiscalSummary = summarizeFiscalData(receipt.fiscal_data);
+                const isExpanded = Boolean(expanded[receipt.id]);
+                const detailsId = `receipt-${receipt.id}-details`;
                 return (
-                  <tr
-                    key={receipt.id}
-                    data-testid={`receipt-row-${receipt.id}`}
-                    className={`group border-l-2 border-l-transparent hover:border-l-[#ae001a] hover:bg-[#ae001a]/[0.04] transition-colors duration-150 ${
-                      receipt.is_active ? '' : 'opacity-70'
-                    }`}
-                  >
-                    <td className="px-4 py-3 align-top">
-                      <button
-                        type="button"
-                        onClick={() => onView(receipt)}
-                        className="font-bold text-[#1d1c17] group-hover:text-[#ae001a] hover:underline transition-colors cursor-pointer text-left font-poppins"
-                      >
-                        {receipt.invoice_number ?? <span className="italic text-[#8c857b]">Not assigned</span>}
-                      </button>
-                      <div className="text-[11px] text-[#8c857b] font-poppins">
-                        {formatReceiptDate(receipt.created_at)}
-                      </div>
-                      {fiscalSummary && (
-                        <div className="text-[11px] text-[#5f5e5e] font-poppins truncate max-w-[220px]" title={receipt.fiscal_data ?? ''}>
-                          {fiscalSummary}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 align-top font-mono text-xs text-[#1d1c17]">#{receipt.order_id}</td>
-                    <td className="px-4 py-3 align-top">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider font-poppins ${RECEIPT_TYPE_BADGE[receipt.type]}`}
-                      >
-                        {RECEIPT_TYPE_LABELS[receipt.type] ?? receipt.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 align-top text-right">
-                      <Money value={receipt.subtotal} currency={receipt.currency} testId={`receipt-${receipt.id}-subtotal`} />
-                    </td>
-                    <td className="px-4 py-3 align-top text-right">
-                      <Money value={receipt.total_tax} currency={receipt.currency} testId={`receipt-${receipt.id}-tax`} />
-                    </td>
-                    <td className="px-4 py-3 align-top text-right">
-                      <Money
-                        value={receipt.total_discount}
-                        currency={receipt.currency}
-                        testId={`receipt-${receipt.id}-discount`}
-                      />
-                    </td>
-                    <td className="px-4 py-3 align-top text-right">
-                      <Money
-                        value={receipt.grand_total}
-                        currency={receipt.currency}
-                        strong
-                        testId={`receipt-${receipt.id}-grand-total`}
-                      />
-                    </td>
-                    <td className="px-4 py-3 align-top text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider font-poppins ${
-                            receipt.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-700'
+                  <React.Fragment key={receipt.id}>
+                    <tr
+                      data-testid={`receipt-row-${receipt.id}`}
+                      className={`group border-l-2 hover:border-l-[#ae001a] hover:bg-[#ae001a]/[0.04] transition-colors duration-150 ${
+                        isExpanded ? 'border-l-[#ae001a] bg-[#ae001a]/[0.03]' : 'border-l-transparent'
+                      } ${receipt.is_active ? '' : 'opacity-70'}`}
+                    >
+                      <td className="pl-3 pr-0 py-3 align-top">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(receipt.id)}
+                          aria-expanded={isExpanded}
+                          aria-controls={isExpanded ? detailsId : undefined}
+                          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${label}`}
+                          title={isExpanded ? 'Hide items and taxes' : 'Show items and taxes'}
+                          className={`h-7 w-7 flex items-center justify-center rounded transition-colors cursor-pointer ${
+                            isExpanded
+                              ? 'text-[#ae001a] bg-[#ae001a]/10'
+                              : 'text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10'
                           }`}
                         >
-                          {receipt.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                        {receipt.is_locked && (
                           <span
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold uppercase font-poppins"
-                            title="Fiscally locked"
+                            className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${
+                              isExpanded ? 'rotate-90' : ''
+                            }`}
+                            aria-hidden="true"
                           >
-                            <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
-                              lock
-                            </span>
-                            Locked
+                            chevron_right
                           </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <div className="flex items-center justify-end gap-1">
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 align-top">
                         <button
                           type="button"
                           onClick={() => onView(receipt)}
-                          aria-label={`View ${label}`}
-                          title="View details"
-                          className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                          className="font-bold text-[#1d1c17] group-hover:text-[#ae001a] hover:underline transition-colors cursor-pointer text-left font-poppins"
                         >
-                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
-                            visibility
-                          </span>
+                          {receipt.invoice_number ?? <span className="italic text-[#8c857b]">Not assigned</span>}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onEdit(receipt)}
-                          disabled={!receipt.is_active}
-                          aria-label={`Edit ${label}`}
-                          title={receipt.is_active ? 'Edit receipt' : 'Reactivate the receipt to edit it'}
-                          className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#5f5e5e]"
+                        <div className="text-[11px] text-[#8c857b] font-poppins">
+                          {formatReceiptDate(receipt.created_at)}
+                        </div>
+                        {fiscalSummary && (
+                          <div className="text-[11px] text-[#5f5e5e] font-poppins truncate max-w-[220px]" title={receipt.fiscal_data ?? ''}>
+                            {fiscalSummary}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-top font-mono text-xs text-[#1d1c17]">#{receipt.order_id}</td>
+                      <td className="px-4 py-3 align-top">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider font-poppins ${RECEIPT_TYPE_BADGE[receipt.type]}`}
                         >
-                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
-                            edit
+                          {RECEIPT_TYPE_LABELS[receipt.type] ?? receipt.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 align-top text-right">
+                        <Money value={receipt.subtotal} currency={receipt.currency} testId={`receipt-${receipt.id}-subtotal`} />
+                      </td>
+                      <td className="px-4 py-3 align-top text-right">
+                        <Money value={receipt.total_tax} currency={receipt.currency} testId={`receipt-${receipt.id}-tax`} />
+                      </td>
+                      <td className="px-4 py-3 align-top text-right">
+                        <Money
+                          value={receipt.total_discount}
+                          currency={receipt.currency}
+                          testId={`receipt-${receipt.id}-discount`}
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top text-right">
+                        <Money
+                          value={receipt.grand_total}
+                          currency={receipt.currency}
+                          strong
+                          testId={`receipt-${receipt.id}-grand-total`}
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider font-poppins ${
+                              receipt.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-700'
+                            }`}
+                          >
+                            {receipt.is_active ? 'Active' : 'Inactive'}
                           </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onToggleStatus(receipt)}
-                          aria-label={receipt.is_active ? `Deactivate ${label}` : `Reactivate ${label}`}
-                          title={receipt.is_active ? 'Logical delete (keeps the financial history)' : 'Reactivate receipt'}
-                          className={`p-1.5 rounded transition-colors cursor-pointer ${
-                            receipt.is_active
-                              ? 'text-[#5f5e5e] hover:text-red-700 hover:bg-red-50'
-                              : 'text-[#5f5e5e] hover:text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
-                            {receipt.is_active ? 'block' : 'restore'}
-                          </span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                          {receipt.is_locked && (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold uppercase font-poppins"
+                              title="Fiscally locked"
+                            >
+                              <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
+                                lock
+                              </span>
+                              Locked
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onView(receipt)}
+                            aria-label={`View ${label}`}
+                            title="View details"
+                            className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                              visibility
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEdit(receipt)}
+                            disabled={!receipt.is_active}
+                            aria-label={`Edit ${label}`}
+                            title={receipt.is_active ? 'Edit receipt' : 'Reactivate the receipt to edit it'}
+                            className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#5f5e5e]"
+                          >
+                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                              edit
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onToggleStatus(receipt)}
+                            aria-label={receipt.is_active ? `Deactivate ${label}` : `Reactivate ${label}`}
+                            title={receipt.is_active ? 'Logical delete (keeps the financial history)' : 'Reactivate receipt'}
+                            className={`p-1.5 rounded transition-colors cursor-pointer ${
+                              receipt.is_active
+                                ? 'text-[#5f5e5e] hover:text-red-700 hover:bg-red-50'
+                                : 'text-[#5f5e5e] hover:text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                              {receipt.is_active ? 'block' : 'restore'}
+                            </span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr id={detailsId} data-testid={detailsId} className="bg-[#faf8f5]">
+                        <td colSpan={COLUMN_COUNT} className="px-4 sm:px-6 py-4 border-l-2 border-l-[#ae001a]">
+                          <div className="animate-fade-in">
+                            <ReceiptLineDetails
+                              receiptId={receipt.id}
+                              label={label}
+                              currency={receipt.currency}
+                              state={details[receipt.id]}
+                              onRetry={() => fetchDetails(receipt.id)}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })
             )}

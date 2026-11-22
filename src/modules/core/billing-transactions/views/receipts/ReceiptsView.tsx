@@ -3,6 +3,8 @@ import { Toast, type ToastState } from '@/shared/components/Toast';
 import { ConfirmStatusToggleDialog } from '@/shared/components/StatusToggle';
 import {
   createReceipt,
+  getReceiptDetails,
+  getReceiptTaxBreakdown,
   getReceiptsSummary,
   listReceipts,
   setReceiptStatus,
@@ -13,6 +15,7 @@ import type {
   Receipt,
   ReceiptStatusFilter,
   ReceiptSummary,
+  ReceiptTaxBreakdown,
   ReceiptType,
   UpdateReceiptPayload,
 } from '../../types/receipts';
@@ -22,6 +25,7 @@ import { ReceiptDetailsDrawer } from './ReceiptDetailsDrawer';
 import { ReceiptFormDrawer, type ReceiptFormMode } from './ReceiptFormDrawer';
 import { BILLING_HUB_ID, ReceiptsCommandHeader } from './ReceiptsCommandHeader';
 import { ReceiptsQuickLaunch } from './ReceiptsQuickLaunch';
+import { ReceiptTaxBreakdownCards } from './ReceiptTaxBreakdownCards';
 
 export interface ReceiptsViewProps {
   onNavigate?: (view: string) => void;
@@ -38,8 +42,9 @@ const STATUS_OPTIONS: Array<{ value: ReceiptStatusFilter; label: string }> = [
 
 /**
  * Receipts (Billing & Transactions): listado central de recibos del merchant con búsqueda
- * alfanumérica (invoice_number / fiscal_data), filtros por tipo y estado, paginación del
- * servidor, ficha de detalle, edición (PATCH) y baja lógica / reactivación.
+ * alfanumérica (invoice_number / fiscal_data), filtros por tipo, estado y fecha de creación,
+ * paginación del servidor, filas maestro-detalle (items e impuestos), tarjetas de desglose de
+ * impuestos, ficha de detalle, edición (PATCH) y baja lógica / reactivación.
  */
 export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   // Filtros
@@ -47,6 +52,9 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ReceiptType | ''>('');
   const [statusFilter, setStatusFilter] = useState<ReceiptStatusFilter>('active');
+  // Rango de fechas de creación (YYYY-MM-DD, inclusive); '' = sin límite.
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
 
   // Datos
@@ -63,6 +71,12 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const summarySeq = useRef(0);
+
+  // Tarjetas de desglose de impuestos (GET /receipts/tax-breakdown)
+  const [breakdown, setBreakdown] = useState<ReceiptTaxBreakdown | null>(null);
+  const [breakdownLoading, setBreakdownLoading] = useState(true);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
+  const breakdownSeq = useRef(0);
 
   // Paneles
   const [detailReceipt, setDetailReceipt] = useState<Receipt | null>(null);
@@ -91,7 +105,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
     const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
-    listReceipts({ page, limit: PAGE_SIZE, search, type: typeFilter, status: statusFilter })
+    listReceipts({ page, limit: PAGE_SIZE, search, type: typeFilter, status: statusFilter, dateFrom, dateTo })
       .then((result) => {
         if (seq !== requestSeq.current) return;
         // Si una baja deja vacía la última página, se retrocede una.
@@ -110,14 +124,14 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
       .finally(() => {
         if (seq === requestSeq.current) setLoading(false);
       });
-  }, [page, search, typeFilter, statusFilter, reloadKey]);
+  }, [page, search, typeFilter, statusFilter, dateFrom, dateTo, reloadKey]);
 
-  // Los KPIs siguen el filtro de estado del listado y se recalculan tras cada alta/edición/baja.
+  // Los KPIs siguen los filtros de estado y fecha del listado y se recalculan tras cada alta/baja.
   useEffect(() => {
     const seq = ++summarySeq.current;
     setSummaryLoading(true);
     setSummaryError(null);
-    getReceiptsSummary({ status: statusFilter })
+    getReceiptsSummary({ status: statusFilter, dateFrom, dateTo })
       .then((data) => {
         if (seq === summarySeq.current) setSummary(data);
       })
@@ -128,22 +142,55 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
       .finally(() => {
         if (seq === summarySeq.current) setSummaryLoading(false);
       });
-  }, [statusFilter, reloadKey]);
+  }, [statusFilter, dateFrom, dateTo, reloadKey]);
+
+  // El desglose de impuestos sigue el rango de fechas (y el estado) activos.
+  useEffect(() => {
+    const seq = ++breakdownSeq.current;
+    setBreakdownLoading(true);
+    setBreakdownError(null);
+    getReceiptTaxBreakdown({ status: statusFilter, dateFrom, dateTo })
+      .then((data) => {
+        if (seq === breakdownSeq.current) setBreakdown(data);
+      })
+      .catch((err: unknown) => {
+        if (seq !== breakdownSeq.current) return;
+        setBreakdownError(err instanceof Error ? err.message : 'Failed to load the tax breakdown.');
+      })
+      .finally(() => {
+        if (seq === breakdownSeq.current) setBreakdownLoading(false);
+      });
+  }, [statusFilter, dateFrom, dateTo, reloadKey]);
 
   const reload = () => setReloadKey((k) => k + 1);
+
+  // El rango se mantiene coherente: mover un extremo más allá del otro arrastra a ese otro.
+  const changeDateFrom = (value: string) => {
+    setDateFrom(value);
+    if (value && dateTo && value > dateTo) setDateTo(value);
+    setPage(1);
+  };
+
+  const changeDateTo = (value: string) => {
+    setDateTo(value);
+    if (value && dateFrom && value < dateFrom) setDateFrom(value);
+    setPage(1);
+  };
 
   const changeTypeFilter = (type: ReceiptType | '') => {
     setTypeFilter(type);
     setPage(1);
   };
 
-  const hasActiveFilters = Boolean(search || typeFilter || statusFilter !== 'active');
+  const hasActiveFilters = Boolean(search || typeFilter || statusFilter !== 'active' || dateFrom || dateTo);
 
   const clearFilters = () => {
     setSearchInput('');
     setSearch('');
     setTypeFilter('');
     setStatusFilter('active');
+    setDateFrom('');
+    setDateTo('');
     setPage(1);
   };
 
@@ -194,6 +241,15 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
         onRefresh={reload}
       />
 
+      <ReceiptTaxBreakdownCards
+        breakdown={breakdown}
+        loading={breakdownLoading}
+        error={breakdownError}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onRetry={reload}
+      />
+
       {/* Búsqueda y filtros */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 shadow-sm flex flex-col gap-3">
         <div className="relative w-full">
@@ -229,6 +285,32 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
                 </option>
               ))}
             </select>
+            <div className="flex items-center gap-1.5" role="group" aria-label="Filter by creation date">
+              <span className="material-symbols-outlined text-[18px] text-[#8c857b]" aria-hidden="true">
+                date_range
+              </span>
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => changeDateFrom(e.target.value)}
+                aria-label="Created from"
+                title="Created from"
+                className="h-9 px-2 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-xs font-semibold text-[#1d1c17] outline-none focus:border-[#ae001a] cursor-pointer font-poppins"
+              />
+              <span className="text-[11px] text-[#8c857b] font-poppins" aria-hidden="true">
+                to
+              </span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => changeDateTo(e.target.value)}
+                aria-label="Created to"
+                title="Created to"
+                className="h-9 px-2 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-xs font-semibold text-[#1d1c17] outline-none focus:border-[#ae001a] cursor-pointer font-poppins"
+              />
+            </div>
             {hasActiveFilters && (
               <button
                 type="button"
@@ -293,6 +375,8 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
           onToggleStatus={setStatusTarget}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
+          loadDetails={getReceiptDetails}
+          detailsVersion={reloadKey}
         />
       )}
 

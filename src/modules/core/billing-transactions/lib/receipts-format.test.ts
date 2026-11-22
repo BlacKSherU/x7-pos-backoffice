@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeDateRange,
   formatAmount,
   formatMoney,
+  formatQuantity,
+  formatRate,
   parseFiscalData,
   receiptLabel,
   summarizeFiscalData,
+  taxLabel,
   validateFiscalDataInput,
 } from './receipts-format';
 
@@ -49,5 +53,28 @@ describe('receipts-format', () => {
     expect(validateFiscalDataInput('{"tax_id":"1"}')).toBeNull();
     expect(validateFiscalDataInput('[1,2]')).toMatch(/JSON object/);
     expect(validateFiscalDataInput('{bad')).toMatch(/valid JSON/);
+  });
+
+  it('formats tax rates and quantities without trailing zeros (Historia 13)', () => {
+    expect(formatRate(19)).toBe('19%');
+    expect(formatRate('8.50')).toBe('8.5%');
+    expect(formatRate(null)).toBe('0%');
+    expect(formatQuantity('2.00')).toBe('2');
+    expect(formatQuantity(1.5)).toBe('1.5');
+  });
+
+  it('labels a tax type by name and rate without repeating the rate (Historia 13)', () => {
+    expect(taxLabel('VAT', 19)).toBe('VAT 19%');
+    expect(taxLabel('Consumption Tax', 8)).toBe('Consumption Tax 8%');
+    expect(taxLabel('IVA 19%', 19)).toBe('IVA 19%');
+    expect(taxLabel('IVA 19 %', 19)).toBe('IVA 19 %');
+  });
+
+  it('describes the active date range (Historia 13)', () => {
+    expect(describeDateRange('', '')).toBe('All dates');
+    expect(describeDateRange('2026-11-01', '2026-11-30')).toBe('Nov 1, 2026 – Nov 30, 2026');
+    expect(describeDateRange('2026-11-05', '2026-11-05')).toBe('Nov 5, 2026');
+    expect(describeDateRange('2026-11-01', undefined)).toBe('Since Nov 1, 2026');
+    expect(describeDateRange(null, '2026-11-30')).toBe('Until Nov 30, 2026');
   });
 });

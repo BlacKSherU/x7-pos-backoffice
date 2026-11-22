@@ -79,3 +79,45 @@ export function validateFiscalDataInput(text: string): string | null {
     return 'Fiscal data must be valid JSON.';
   }
 }
+
+/** Tasa de impuesto en porcentaje sin ceros sobrantes: 19 → "19%", 8.5 → "8.5%". */
+export function formatRate(rate: number | string | null | undefined): string {
+  const n = typeof rate === 'number' ? rate : Number.parseFloat(String(rate ?? 0));
+  const safe = Number.isFinite(n) ? n : 0;
+  return `${safe.toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
+}
+
+/** "VAT 19%"; si el nombre ya trae la tasa ("IVA 19%") no la repite. */
+export function taxLabel(name: string, rate: number): string {
+  const rateText = formatRate(rate);
+  const compact = name.replace(/\s+/g, '');
+  return compact.includes(rateText) ? name : `${name} ${rateText}`;
+}
+
+/** Cantidad sin decimales sobrantes: 2 → "2", 1.5 → "1.5". */
+export function formatQuantity(value: number | string | null | undefined): string {
+  const n = typeof value === 'number' ? value : Number.parseFloat(String(value ?? 0));
+  const safe = Number.isFinite(n) ? n : 0;
+  return safe.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+/** YYYY-MM-DD → "Nov 1, 2026" (sin desfase de zona horaria). */
+function formatDateOnly(value: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return value;
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+/** Texto del rango de fechas activo: "All dates", "Since …", "Until …" o "… – …". */
+export function describeDateRange(dateFrom?: string | null, dateTo?: string | null): string {
+  if (dateFrom && dateTo) {
+    return dateFrom === dateTo ? formatDateOnly(dateFrom) : `${formatDateOnly(dateFrom)} – ${formatDateOnly(dateTo)}`;
+  }
+  if (dateFrom) return `Since ${formatDateOnly(dateFrom)}`;
+  if (dateTo) return `Until ${formatDateOnly(dateTo)}`;
+  return 'All dates';
+}

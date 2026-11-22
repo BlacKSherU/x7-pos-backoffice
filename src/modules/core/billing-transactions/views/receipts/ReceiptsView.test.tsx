@@ -71,9 +71,56 @@ const emptySummary = {
   by_currency: [{ currency: 'USD', receipts: 2, grand_total: 113.5, total_tax: 19 }],
 };
 
-/** Backend falso con el resumen de KPIs ya registrado. */
+const taxBreakdown = {
+  status: 'active',
+  date_from: null,
+  date_to: null,
+  currency: 'USD',
+  total_tax: 38.3,
+  by_tax: [
+    { name: 'VAT', rate: 19, currency: 'USD', total_amount: 38.2, tax_lines: 3, receipts: 2 },
+    { name: 'Consumption Tax', rate: 8, currency: 'USD', total_amount: 0.1, tax_lines: 1, receipts: 1 },
+  ],
+  by_currency: [{ currency: 'USD', total_amount: 38.3, tax_lines: 4 }],
+};
+
+const invoiceDetails = {
+  receipt: invoice,
+  items: [
+    {
+      id: 7,
+      name: 'Burger Combo',
+      sku: 'SKU-001',
+      quantity: 2,
+      unit_price: 12.5,
+      subtotal: 25,
+      discount_amount: 2.5,
+      total: 22.5,
+    },
+    { id: 8, name: 'Soda', sku: null, quantity: 1, unit_price: 3, subtotal: 3, discount_amount: 0, total: 3 },
+  ],
+  taxes: [
+    { id: 3, receipt_item_id: null, name: 'VAT', rate: 19, amount: 4.28, scope: 'RECEIPT' },
+    { id: 4, receipt_item_id: 8, name: 'Consumption Tax', rate: 8, amount: 0.24, scope: 'ITEM' },
+  ],
+  items_total: 25.5,
+  taxes_total: 4.52,
+};
+
+/** Backend falso con el resumen de KPIs y el desglose de impuestos ya registrados. */
 function backend(routes: Parameters<typeof fakeBackend>[0]) {
-  return fakeBackend({ '/receipts/summary': { data: emptySummary }, ...routes });
+  return fakeBackend({
+    '/receipts/summary': { data: emptySummary },
+    '/receipts/tax-breakdown': { data: taxBreakdown },
+    ...routes,
+  });
+}
+
+/** URLs GET de un endpoint concreto (p. ej. '/receipts/tax-breakdown'). */
+function urlsOf(fetchMock: ReturnType<typeof fakeBackend>, path: string): URL[] {
+  return fetchMock.mock.calls
+    .map(([input]) => new URL(String(input), 'http://localhost'))
+    .filter((url) => url.pathname.replace(/^\/api/, '') === path);
 }
 
 function listUrls(fetchMock: ReturnType<typeof fakeBackend>): URL[] {
@@ -366,5 +413,251 @@ describe('ReceiptsView — Command Hub Header (Historia 19)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
 
     await waitFor(() => expect(summaryCalls()).toBe(2));
+  });
+});
+
+describe('ReceiptsView — master-detail rows (Historia 13)', () => {
+  it('expands a row and loads its items (name, quantity, unit_price, total) and tax lines (name, rate, amount)', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice, receipt]), '/receipts/1/details': { data: invoiceDetails } });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    // Carga asíncrona: nada se pide hasta expandir.
+    expect(calledRoutes(fetchMock)).not.toContain('GET /receipts/1/details');
+    const toggle = screen.getByRole('button', { name: 'Expand INV-000001' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('receipt-1-details')).not.toBeInTheDocument();
+
+    await userEvent.click(toggle);
+
+    expect(screen.getByRole('button', { name: 'Collapse INV-000001' })).toHaveAttribute('aria-expanded', 'true');
+    const details = screen.getByTestId('receipt-1-details');
+    const items = await within(details).findByRole('table', { name: 'Items of INV-000001' });
+    const burger = within(items).getByTestId('receipt-1-item-7');
+    expect(burger).toHaveTextContent('Burger Combo');
+    expect(burger).toHaveTextContent('2');
+    expect(burger).toHaveTextContent('12.50 USD');
+    expect(burger).toHaveTextContent('22.50 USD');
+    expect(within(items).getByTestId('receipt-1-item-8')).toHaveTextContent('Soda');
+    expect(within(items).getByTestId('receipt-1-items-total')).toHaveTextContent('25.50 USD');
+
+    const taxes = within(details).getByRole('table', { name: 'Taxes of INV-000001' });
+    const vat = within(taxes).getByTestId('receipt-1-tax-3');
+    expect(vat).toHaveTextContent('VAT');
+    expect(vat).toHaveTextContent('19%');
+    expect(vat).toHaveTextContent('4.28 USD');
+    expect(within(taxes).getByTestId('receipt-1-tax-4')).toHaveTextContent('Consumption Tax');
+    expect(within(taxes).getByTestId('receipt-1-tax-4')).toHaveTextContent('Item #8');
+    expect(within(taxes).getByTestId('receipt-1-taxes-total')).toHaveTextContent('4.52 USD');
+
+    // Solo se expande la fila pulsada.
+    expect(screen.getByRole('button', { name: 'Expand INV-000002' })).toHaveAttribute('aria-expanded', 'false');
+    expect(calledRoutes(fetchMock).filter((r) => r === 'GET /receipts/1/details')).toHaveLength(1);
+  });
+
+  it('collapses the row and reuses the loaded details when expanding it again', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]), '/receipts/1/details': { data: invoiceDetails } });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand INV-000001' }));
+    await within(screen.getByTestId('receipt-1-details')).findByText('Burger Combo');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse INV-000001' }));
+    expect(screen.queryByTestId('receipt-1-details')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand INV-000001' }));
+    expect(within(screen.getByTestId('receipt-1-details')).getByText('Burger Combo')).toBeInTheDocument();
+    expect(calledRoutes(fetchMock).filter((r) => r === 'GET /receipts/1/details')).toHaveLength(1);
+  });
+
+  it('does not reset the page or the search filter when expanding or collapsing rows', async () => {
+    const fetchMock = backend({
+      '/receipts': page([invoice], { total: 25, totalPages: 3 }),
+      '/receipts/1/details': { data: invoiceDetails },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    fireEvent.change(screen.getByLabelText('Search receipts'), { target: { value: 'INV' } });
+    await waitFor(() => expect(listUrls(fetchMock).at(-1)?.searchParams.get('search')).toBe('INV'));
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    await waitFor(() => expect(listUrls(fetchMock).at(-1)?.searchParams.get('page')).toBe('2'));
+    await screen.findByText(/Page 2 of 3/);
+    const listCalls = listUrls(fetchMock).length;
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand INV-000001' }));
+    await within(screen.getByTestId('receipt-1-details')).findByText('Burger Combo');
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse INV-000001' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Expand INV-000001' }));
+
+    expect(listUrls(fetchMock)).toHaveLength(listCalls);
+    expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Search receipts')).toHaveValue('INV');
+    const last = listUrls(fetchMock).at(-1);
+    expect(last?.searchParams.get('page')).toBe('2');
+    expect(last?.searchParams.get('search')).toBe('INV');
+  });
+
+  it('keeps a row expanded across a list reload and refreshes its details', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]), '/receipts/1/details': { data: invoiceDetails } });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Expand INV-000001' }));
+    await within(screen.getByTestId('receipt-1-details')).findByText('Burger Combo');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reload receipts' }));
+
+    await waitFor(() =>
+      expect(calledRoutes(fetchMock).filter((r) => r === 'GET /receipts/1/details')).toHaveLength(2),
+    );
+    expect(await within(screen.getByTestId('receipt-1-details')).findByText('Burger Combo')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse INV-000001' })).toBeInTheDocument();
+  });
+
+  it('shows the error of a failed detail load with a retry', async () => {
+    let attempts = 0;
+    const fetchMock = backend({
+      '/receipts': page([invoice]),
+      '/receipts/1/details': () => {
+        attempts += 1;
+        return attempts === 1
+          ? jsonResponse({ message: 'Details unavailable' }, 500)
+          : jsonResponse({ data: invoiceDetails });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand INV-000001' }));
+    const details = screen.getByTestId('receipt-1-details');
+    expect(await within(details).findByRole('alert')).toHaveTextContent('Details unavailable');
+
+    await userEvent.click(within(details).getByRole('button', { name: 'Retry' }));
+    expect(await within(details).findByText('Burger Combo')).toBeInTheDocument();
+  });
+
+  it('shows an empty state for receipts without items or taxes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      backend({
+        '/receipts': page([invoice]),
+        '/receipts/1/details': { data: { ...invoiceDetails, items: [], taxes: [], items_total: 0, taxes_total: 0 } },
+      }),
+    );
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand INV-000001' }));
+
+    const details = screen.getByTestId('receipt-1-details');
+    expect(await within(details).findByText('No line items on this receipt.')).toBeInTheDocument();
+    expect(within(details).getByText('No tax lines on this receipt.')).toBeInTheDocument();
+  });
+});
+
+describe('ReceiptsView — tax breakdown cards (Historia 13)', () => {
+  it('shows the total tax collected per tax type at the top of the view', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    const section = screen.getByRole('region', { name: 'Tax breakdown' });
+    const vat = await within(section).findByRole('listitem', { name: 'VAT 19%: 38.20 USD' });
+    expect(vat).toHaveTextContent('2 receipts · 3 lines');
+    expect(within(section).getByRole('listitem', { name: 'Consumption Tax 8%: 0.10 USD' })).toBeInTheDocument();
+    expect(within(section).getByTestId('receipts-tax-total-card')).toHaveTextContent('38.30 USD');
+    expect(within(section).getByTestId('receipts-tax-breakdown-range')).toHaveTextContent('All dates');
+
+    // Arriba: antes de la tabla de recibos.
+    const table = await screen.findByRole('table', { name: 'Receipts' });
+    expect(section.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(urlsOf(fetchMock, '/receipts/tax-breakdown')[0].searchParams.get('status')).toBe('active');
+  });
+
+  it('recalculates the cards, the KPIs and the list when the date filter changes', async () => {
+    const fetchMock = backend({
+      '/receipts': page([invoice]),
+      '/receipts/tax-breakdown': (_init: RequestInit | undefined, url: string) =>
+        jsonResponse({
+          data: url.includes('dateFrom=2026-11-01')
+            ? {
+                ...taxBreakdown,
+                total_tax: 10,
+                by_tax: [{ name: 'VAT', rate: 19, currency: 'USD', total_amount: 10, tax_lines: 1, receipts: 1 }],
+                by_currency: [{ currency: 'USD', total_amount: 10, tax_lines: 1 }],
+              }
+            : taxBreakdown,
+        }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    const section = screen.getByRole('region', { name: 'Tax breakdown' });
+    await within(section).findByRole('listitem', { name: 'VAT 19%: 38.20 USD' });
+
+    fireEvent.change(screen.getByLabelText('Created from'), { target: { value: '2026-11-01' } });
+    fireEvent.change(screen.getByLabelText('Created to'), { target: { value: '2026-11-30' } });
+
+    expect(await within(section).findByRole('listitem', { name: 'VAT 19%: 10.00 USD' })).toBeInTheDocument();
+    expect(within(section).queryByRole('listitem', { name: /Consumption Tax/ })).not.toBeInTheDocument();
+    expect(within(section).getByTestId('receipts-tax-breakdown-range')).toHaveTextContent(
+      'Nov 1, 2026 – Nov 30, 2026',
+    );
+
+    await waitFor(() => {
+      const breakdownUrl = urlsOf(fetchMock, '/receipts/tax-breakdown').at(-1);
+      expect(breakdownUrl?.searchParams.get('dateFrom')).toBe('2026-11-01');
+      expect(breakdownUrl?.searchParams.get('dateTo')).toBe('2026-11-30');
+      const summaryUrl = urlsOf(fetchMock, '/receipts/summary').at(-1);
+      expect(summaryUrl?.searchParams.get('dateFrom')).toBe('2026-11-01');
+      expect(summaryUrl?.searchParams.get('dateTo')).toBe('2026-11-30');
+      const listUrl = listUrls(fetchMock).at(-1);
+      expect(listUrl?.searchParams.get('dateFrom')).toBe('2026-11-01');
+      expect(listUrl?.searchParams.get('dateTo')).toBe('2026-11-30');
+      expect(listUrl?.searchParams.get('page')).toBe('1');
+    });
+  });
+
+  it('keeps the date range consistent and clears it with the other filters', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    const from = screen.getByLabelText('Created from');
+    const to = screen.getByLabelText('Created to');
+    fireEvent.change(to, { target: { value: '2026-11-10' } });
+    fireEvent.change(from, { target: { value: '2026-11-20' } });
+    expect(to).toHaveValue('2026-11-20');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    expect(from).toHaveValue('');
+    expect(to).toHaveValue('');
+    await waitFor(() => {
+      const breakdownUrl = urlsOf(fetchMock, '/receipts/tax-breakdown').at(-1);
+      expect(breakdownUrl?.searchParams.has('dateFrom')).toBe(false);
+      expect(breakdownUrl?.searchParams.has('dateTo')).toBe(false);
+    });
+  });
+
+  it('shows an empty message when no taxes were collected in the range', async () => {
+    vi.stubGlobal(
+      'fetch',
+      backend({
+        '/receipts': page([invoice]),
+        '/receipts/tax-breakdown': { data: { ...taxBreakdown, total_tax: 0, by_tax: [], by_currency: [] } },
+      }),
+    );
+    render(<ReceiptsView />);
+
+    const section = screen.getByRole('region', { name: 'Tax breakdown' });
+    expect(await within(section).findByText('No taxes were collected for these receipts.')).toBeInTheDocument();
+    expect(within(section).getByTestId('receipts-tax-total-card')).toHaveTextContent('0.00 USD');
   });
 });

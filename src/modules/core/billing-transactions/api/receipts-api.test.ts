@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { calledRoutes, fakeBackend, jsonResponse } from '@/test/fetch';
-import { getReceiptsSummary, listReceipts, setReceiptStatus, toQueryString, updateReceipt } from './receipts-api';
+import {
+  getReceiptDetails,
+  getReceiptTaxBreakdown,
+  getReceiptsSummary,
+  listReceipts,
+  setReceiptStatus,
+  toQueryString,
+  updateReceipt,
+} from './receipts-api';
 
 const rawReceipt = {
   id: 1,
@@ -128,5 +136,83 @@ describe('receipts-api', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('/receipts/summary?status=active');
     expect(summary.grand_total).toBe(238);
     expect(summary.average_ticket).toBe(119);
+  });
+
+  it('sends the date range to the list and the summary (Historia 13)', async () => {
+    const fetchMock = fakeBackend({
+      '/receipts': { data: [], page: 1, limit: 10, total: 0, totalPages: 0 },
+      '/receipts/summary': { data: { status: 'active', by_type: [], by_currency: [] } },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await listReceipts({ page: 1, dateFrom: '2026-11-01', dateTo: '2026-11-30' });
+    await getReceiptsSummary({ status: 'active', dateFrom: '2026-11-01', dateTo: '' });
+
+    const urls = fetchMock.mock.calls.map(([u]) => new URL(String(u), 'http://localhost'));
+    expect(urls[0].searchParams.get('dateFrom')).toBe('2026-11-01');
+    expect(urls[0].searchParams.get('dateTo')).toBe('2026-11-30');
+    expect(urls[1].searchParams.get('dateFrom')).toBe('2026-11-01');
+    expect(urls[1].searchParams.has('dateTo')).toBe(false);
+  });
+
+  it('loads the items and tax lines of a receipt with GET /receipts/:id/details (Historia 13)', async () => {
+    const fetchMock = fakeBackend({
+      '/receipts/1/details': {
+        data: {
+          receipt: rawReceipt,
+          items: [
+            { id: 7, name: 'Burger', sku: undefined, quantity: '2.00', unit_price: '12.50', subtotal: '25.00', discount_amount: '0.00', total: '25.00' },
+          ],
+          taxes: [{ id: 3, receipt_item_id: undefined, name: 'VAT', rate: '19.00', amount: '4.75', scope: 'RECEIPT' }],
+          items_total: '25.00',
+          taxes_total: '4.75',
+        },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const details = await getReceiptDetails(1);
+
+    expect(calledRoutes(fetchMock)).toEqual(['GET /receipts/1/details']);
+    expect(details.receipt.grand_total).toBe(119);
+    expect(details.items[0]).toMatchObject({ name: 'Burger', sku: null, quantity: 2, unit_price: 12.5, total: 25 });
+    expect(details.taxes[0]).toMatchObject({ name: 'VAT', rate: 19, amount: 4.75, receipt_item_id: null });
+    expect(details.items_total).toBe(25);
+    expect(details.taxes_total).toBe(4.75);
+  });
+
+  it('loads the tax breakdown with status and date range (Historia 13)', async () => {
+    const fetchMock = fakeBackend({
+      '/receipts/tax-breakdown': {
+        data: {
+          status: 'active',
+          date_from: '2026-11-01',
+          date_to: null,
+          currency: 'USD',
+          total_tax: '38.50',
+          by_tax: [{ name: 'VAT', rate: '19.00', currency: 'USD', total_amount: '38.50', tax_lines: '3', receipts: '2' }],
+          by_currency: [{ currency: 'USD', total_amount: '38.50', tax_lines: '3' }],
+        },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const breakdown = await getReceiptTaxBreakdown({ status: 'active', dateFrom: '2026-11-01' });
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]), 'http://localhost');
+    expect(url.pathname).toMatch(/\/receipts\/tax-breakdown$/);
+    expect(url.searchParams.get('status')).toBe('active');
+    expect(url.searchParams.get('dateFrom')).toBe('2026-11-01');
+    expect(url.searchParams.has('dateTo')).toBe(false);
+    expect(breakdown.total_tax).toBe(38.5);
+    expect(breakdown.by_tax[0]).toEqual({
+      name: 'VAT',
+      rate: 19,
+      currency: 'USD',
+      total_amount: 38.5,
+      tax_lines: 3,
+      receipts: 2,
+    });
+    expect(breakdown.by_currency[0].total_amount).toBe(38.5);
   });
 });
