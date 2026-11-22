@@ -84,7 +84,17 @@ export const ReceiptAdjustmentNoteDrawer: React.FC<ReceiptAdjustmentNoteDrawerPr
     };
   }, [loadAdjustments, receipt]);
 
-  const update = (patch: Partial<AdjustmentFormState>) => setForm((prev) => ({ ...prev, ...patch }));
+  const update = (patch: Partial<AdjustmentFormState>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    // Un error ya mostrado deja de aplicar al tocar su campo; el límite del importe depende
+    // además del tipo de nota (solo las de crédito tienen tope).
+    setErrors((prev) => {
+      const next = { ...prev };
+      if ('amount' in patch || 'noteType' in patch) delete next.amount;
+      if ('reasonCode' in patch) delete next.reasonCode;
+      return next;
+    });
+  };
   const projected = summary ? projectedNet(summary, form.noteType, form.amount) : null;
 
   const handleSubmit = async (event: React.FormEvent) => {

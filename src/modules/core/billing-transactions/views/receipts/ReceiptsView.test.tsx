@@ -1132,10 +1132,17 @@ describe('ReceiptsView — adjustment notes (Historia 7)', () => {
     expect(within(drawer).getByText('Select a reason.')).toBeInTheDocument();
     expect(calledRoutes(fetchMock)).not.toContain('POST /billing/receipts/2/adjustments');
 
+    // Al pasar a nota de débito el tope de crédito ya no aplica: el error desaparece
+    await userEvent.click(within(drawer).getByRole('radio', { name: /Debit Note/ }));
+    expect(within(drawer).queryByText(/still available/)).not.toBeInTheDocument();
+    expect(within(drawer).getByLabelText('Adjustment amount (EUR) *')).not.toHaveAttribute('aria-invalid', 'true');
+    await userEvent.click(within(drawer).getByRole('radio', { name: /Credit Note/ }));
+
     const amount = within(drawer).getByLabelText('Adjustment amount (EUR) *');
     await userEvent.clear(amount);
     await userEvent.type(amount, '100');
     await userEvent.selectOptions(within(drawer).getByLabelText('Reason *'), 'REFUND');
+    expect(within(drawer).queryByText('Select a reason.')).not.toBeInTheDocument();
     expect(within(drawer).getByTestId('adjustment-projected-net')).toHaveTextContent('900.00 EUR');
     await userEvent.click(within(drawer).getByRole('button', { name: 'ISSUE ADJUSTMENT NOTE' }));
 

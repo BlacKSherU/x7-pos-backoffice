@@ -58,7 +58,7 @@ export const BillingReportsView: React.FC<BillingReportsViewProps> = ({
           </p>
         </div>
         {onNavigate && (
-          <div className="flex items-center gap-2 shrink-0" aria-label="Related screens">
+          <nav className="flex items-center gap-2 shrink-0" aria-label="Related screens">
             {RELATED_SCREENS.map((screen) => (
               <button
                 key={screen.featureId}
@@ -72,7 +72,7 @@ export const BillingReportsView: React.FC<BillingReportsViewProps> = ({
                 {screen.label}
               </button>
             ))}
-          </div>
+          </nav>
         )}
       </div>
 

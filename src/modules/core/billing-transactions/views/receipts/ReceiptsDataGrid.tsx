@@ -46,7 +46,7 @@ type DetailsCache = { version: number; entries: Record<number, ReceiptDetailsSta
 const NO_ENTRIES: Record<number, ReceiptDetailsState> = {};
 
 const headerCell =
-  'px-4 py-3 text-[10.5px] font-bold uppercase tracking-widest text-[#5f5e5e] font-poppins whitespace-nowrap';
+  'px-3 py-3 text-[10.5px] font-bold uppercase tracking-widest text-[#5f5e5e] font-poppins whitespace-nowrap';
 
 /** Monto con 2 decimales + código de moneda (p. ej. "1,234.50 USD"). */
 const Money: React.FC<{ value: number; currency: string; strong?: boolean; testId?: string }> = ({
@@ -169,7 +169,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
               [1, 2, 3].map((i) => (
                 <tr key={`skeleton-${i}`} data-testid="receipts-skeleton-row">
                   {Array.from({ length: COLUMN_COUNT }).map((_, c) => (
-                    <td key={c} className="px-4 py-4">
+                    <td key={c} className="px-3 py-4">
                       <div className="h-3.5 bg-[#ece8e0] rounded animate-pulse" />
                     </td>
                   ))}
@@ -237,7 +237,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                           </span>
                         </button>
                       </td>
-                      <td className="px-4 py-3 align-top">
+                      <td className="px-3 py-3 align-top">
                         <button
                           type="button"
                           onClick={() => onView(receipt)}
@@ -249,13 +249,13 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                           {formatReceiptDate(receipt.created_at)}
                         </div>
                         {fiscalSummary && (
-                          <div className="text-[11px] text-[#5f5e5e] font-poppins truncate max-w-[220px]" title={receipt.fiscal_data ?? ''}>
+                          <div className="text-[11px] text-[#5f5e5e] font-poppins truncate max-w-[200px]" title={receipt.fiscal_data ?? ''}>
                             {fiscalSummary}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 align-top font-mono text-xs text-[#1d1c17]">#{receipt.order_id}</td>
-                      <td className="px-4 py-3 align-top">
+                      <td className="px-3 py-3 align-top font-mono text-xs text-[#1d1c17]">#{receipt.order_id}</td>
+                      <td className="px-3 py-3 align-top">
                         <span
                           className={`inline-block px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider font-poppins ${RECEIPT_TYPE_BADGE[receipt.type]}`}
                         >
@@ -267,20 +267,20 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 align-top text-right">
+                      <td className="px-3 py-3 align-top text-right">
                         <Money value={receipt.subtotal} currency={receipt.currency} testId={`receipt-${receipt.id}-subtotal`} />
                       </td>
-                      <td className="px-4 py-3 align-top text-right">
+                      <td className="px-3 py-3 align-top text-right">
                         <Money value={receipt.total_tax} currency={receipt.currency} testId={`receipt-${receipt.id}-tax`} />
                       </td>
-                      <td className="px-4 py-3 align-top text-right">
+                      <td className="px-3 py-3 align-top text-right">
                         <Money
                           value={receipt.total_discount}
                           currency={receipt.currency}
                           testId={`receipt-${receipt.id}-discount`}
                         />
                       </td>
-                      <td className="px-4 py-3 align-top text-right">
+                      <td className="px-3 py-3 align-top text-right">
                         <Money
                           value={receipt.grand_total}
                           currency={receipt.currency}
@@ -289,7 +289,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                         />
                         <GrandTotalBalanceIndicator receipt={receipt} />
                       </td>
-                      <td className="px-4 py-3 align-top text-center">
+                      <td className="px-3 py-3 align-top text-center">
                         <div className="flex flex-col items-center gap-1">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider font-poppins ${
@@ -301,14 +301,14 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                           {receipt.is_locked && <FiscalLockBadge testId={`receipt-${receipt.id}-locked`} />}
                         </div>
                       </td>
-                      <td className="px-4 py-3 align-top">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="px-3 py-3 align-top">
+                        <div className="flex items-center justify-end gap-0.5">
                           <button
                             type="button"
                             onClick={() => onView(receipt)}
                             aria-label={`View ${label}`}
                             title="View details"
-                            className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                            className="p-1 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
                           >
                             <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                               visibility
@@ -320,7 +320,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                               onClick={() => onViewActivity(receipt)}
                               aria-label={`View activity log for ${label}`}
                               title="VIEW ACTIVITY LOG"
-                              className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                              className="p-1 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
                             >
                               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                                 history
@@ -333,7 +333,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                               onClick={() => onIssueAdjustment(receipt)}
                               aria-label={`Issue adjustment note for ${label}`}
                               title="ISSUE ADJUSTMENT NOTE (credit / debit note)"
-                              className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                              className="p-1 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
                             >
                               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                                 receipt_long
@@ -349,7 +349,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                                 onClick={() => onEdit(receipt)}
                                 aria-label={`Edit ${label}`}
                                 title="Edit receipt"
-                                className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                                className="p-1 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
                               >
                                 <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                                   edit
@@ -361,7 +361,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                                   onClick={() => onLock(receipt)}
                                   aria-label={`Lock ${label}`}
                                   title="LOCK RECEIPT (fiscal lock: no further edits)"
-                                  className="p-1.5 rounded text-[#5f5e5e] hover:text-amber-800 hover:bg-amber-50 transition-colors cursor-pointer"
+                                  className="p-1 rounded text-[#5f5e5e] hover:text-amber-800 hover:bg-amber-50 transition-colors cursor-pointer"
                                 >
                                   <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                                     lock_open
@@ -373,7 +373,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                                 onClick={() => onToggleStatus(receipt)}
                                 aria-label={`Deactivate ${label}`}
                                 title="Logical delete (keeps the financial history)"
-                                className="p-1.5 rounded text-[#5f5e5e] hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                                className="p-1 rounded text-[#5f5e5e] hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
                               >
                                 <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                                   block

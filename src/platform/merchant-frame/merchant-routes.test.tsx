@@ -96,6 +96,21 @@ describe('getNavFromPath', () => {
     }
   });
 
+  it('opens every Billing & Transactions screen from the route stored in its nav item', () => {
+    for (const tab of [
+      'receipt-orders',
+      'receipt-items',
+      'receipt-taxes',
+      'billing-financial-sync',
+      'billing-inventory-sync',
+      'billing-partner-sync',
+      'billing-reports',
+    ]) {
+      expect(getNavFromPath(`/app/billing-transactions/${tab}`)).toEqual({ category: 'core', tab });
+    }
+    expect(getNavFromPath('/app/billing-transactions')).toEqual({ category: 'core', tab: 'billing-transactions-hub' });
+  });
+
   it('returns null for section URLs without a specific tab', () => {
     expect(getNavFromPath('/tips/unknown')).toBeNull();
   });

@@ -52,7 +52,7 @@ const KpiCard: React.FC<{
     className={`bg-[#222222] text-white rounded-lg border-t-4 ${KPI_BORDER[accent]} p-3.5 flex flex-col justify-between gap-2 min-w-0 min-h-[104px] font-poppins`}
   >
     <div className="flex items-center justify-between gap-2 min-w-0">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 truncate font-poppins">{title}</span>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-tight font-poppins">{title}</span>
       <span className="material-symbols-outlined text-[18px] text-zinc-400 shrink-0" aria-hidden="true">
         {icon}
       </span>
@@ -60,7 +60,7 @@ const KpiCard: React.FC<{
     <div className="text-lg xl:text-xl font-extrabold leading-tight truncate tabular-nums font-poppins" title={value}>
       {loading ? '…' : value}
     </div>
-    <div className="text-[10.5px] text-zinc-400 truncate font-poppins">{loading ? 'Loading…' : subtitle}</div>
+    <div className="text-[10.5px] text-zinc-400 leading-snug font-poppins">{loading ? 'Loading…' : subtitle}</div>
   </div>
 );
 

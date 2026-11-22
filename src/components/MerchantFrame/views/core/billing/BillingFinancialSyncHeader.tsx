@@ -76,11 +76,11 @@ const KpiCard: React.FC<KpiCardProps> = ({ icon, label, value, detail, tone, tes
       </span>
     </div>
     <div className="min-w-0">
-      <div className="text-[9.5px] font-bold text-[#5f5e5e] uppercase tracking-wider truncate font-poppins">{label}</div>
+      <div className="text-[9.5px] font-bold text-[#5f5e5e] uppercase tracking-wider leading-tight font-poppins">{label}</div>
       <div className="text-lg font-extrabold text-[#1d1c17] font-poppins leading-tight truncate" data-testid={`${testId}-value`}>
         {value}
       </div>
-      {detail ? <div className="text-[10px] text-[#76736a] truncate">{detail}</div> : null}
+      {detail ? <div className="text-[10px] text-[#76736a] leading-snug">{detail}</div> : null}
     </div>
   </div>
 );
@@ -359,7 +359,7 @@ export const BillingFinancialSyncHeader: React.FC<BillingFinancialSyncHeaderProp
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-2.5 w-full min-w-0">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5 w-full min-w-0">
         <KpiCard
           testId="kpi-posted-receipts"
           icon="receipt_long"

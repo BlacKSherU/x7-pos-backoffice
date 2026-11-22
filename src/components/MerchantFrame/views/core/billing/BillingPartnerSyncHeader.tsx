@@ -72,7 +72,7 @@ const KpiCard: React.FC<KpiCardProps> = ({ testId, icon, label, value, tag, tone
           </span>
         </div>
         <div className="min-w-0">
-          <div className="text-[9.5px] font-bold text-[#5f5e5e] uppercase tracking-wider truncate">{label}</div>
+          <div className="text-[9.5px] font-bold text-[#5f5e5e] uppercase tracking-wider leading-tight">{label}</div>
           <div className="text-lg sm:text-xl font-extrabold text-[#1d1c17] leading-tight truncate">{value}</div>
         </div>
       </div>
@@ -148,7 +148,7 @@ export const BillingPartnerSyncHeader: React.FC<BillingPartnerSyncHeaderProps> =
 
       {/* Tarjeta de título + acción principal */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-72">
           <div className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-[#ae001a] text-2xl select-none" aria-hidden="true">
               partner_exchange
