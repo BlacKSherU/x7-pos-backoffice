@@ -4,14 +4,18 @@ import {
   formatMoney,
   formatPercent,
   formatShortDate,
+  parsePositiveId,
   receiptLabel,
 } from './partner-sync';
 import {
   buildQuery,
+  fetchCompanyMerchants,
+  fetchPartnerGroups,
   fetchPartnerOptions,
   fetchPartnerSyncMetrics,
   fetchPartnerSyncReceipts,
   linkReceiptToPartner,
+  unlinkReceiptPartner,
 } from '../api/partner-sync-api';
 import { jsonResponse } from '@/test/fetch';
 
@@ -64,6 +68,15 @@ describe('partner-sync formatters', () => {
     expect(formatShortDate('2026-11-20T15:00:00Z')).toMatch(/Nov 2\d, 2026/);
     expect(formatShortDate('nope')).toBe('—');
   });
+
+  it('parses customer IDs typed in the grid filter', () => {
+    expect(parsePositiveId(' 12 ')).toBe(12);
+    expect(parsePositiveId('')).toBeNull();
+    expect(parsePositiveId('0')).toBe('invalid');
+    expect(parsePositiveId('-3')).toBe('invalid');
+    expect(parsePositiveId('1.5')).toBe('invalid');
+    expect(parsePositiveId('abc')).toBe('invalid');
+  });
 });
 
 describe('partner-sync api', () => {
@@ -107,5 +120,67 @@ describe('partner-sync api', () => {
     vi.stubGlobal('fetch', fetchMock);
     await fetchPartnerSyncReceipts({ linkState: 'all' });
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe('/api/billing/partner-sync/receipts');
+  });
+
+  it('requests the partner grid with customer ID and company association filters', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      void _init;
+      const url = String(input);
+      if (url.includes('/company-merchants')) {
+        return jsonResponse({ statusCode: 200, data: [{ id: 4, name: 'Centro', is_current: false }] });
+      }
+      if (url.endsWith('/receipts/120/partner')) return jsonResponse({ statusCode: 200, data: { id: 120 } });
+      if (url.includes('/partners')) {
+        return jsonResponse({
+          data: [{ partner_id: 12 }],
+          page: 2,
+          limit: 10,
+          total: 11,
+          totalPages: 2,
+          hasNext: false,
+          hasPrev: true,
+          summary: { partners: 11, invoices: 40, total_volume: 1520.5 },
+        });
+      }
+      return jsonResponse({ data: [], total: 0 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const groups = await fetchPartnerGroups({
+      scope: 'company',
+      merchantId: 4,
+      customerId: 12,
+      association: 'company',
+      linkState: 'all',
+      search: ' Pacifico ',
+      sortBy: 'name',
+      sortOrder: 'ASC',
+      page: 2,
+      limit: 10,
+    });
+    expect(groups).toMatchObject({ total: 11, hasPrev: true, summary: { partners: 11, total_volume: 1520.5 } });
+    await expect(fetchCompanyMerchants()).resolves.toEqual([{ id: 4, name: 'Centro', is_current: false }]);
+    await fetchPartnerSyncReceipts({ partnerType: 'supplier', supplierId: 3, association: 'merchant', limit: 10 });
+    await expect(unlinkReceiptPartner(120)).resolves.toEqual({ id: 120 });
+
+    const calls = fetchMock.mock.calls.map(([input, init]) => [String(input), (init as RequestInit | undefined)?.method]);
+    expect(calls).toEqual([
+      [
+        '/api/billing/partner-sync/partners?page=2&limit=10&search=Pacifico&sortBy=name&sortOrder=ASC&customerId=12&association=company&scope=company&merchantId=4',
+        'GET',
+      ],
+      ['/api/billing/partner-sync/company-merchants', 'GET'],
+      ['/api/billing/partner-sync/receipts?limit=10&partnerType=supplier&supplierId=3&association=merchant', 'GET'],
+      ['/api/billing/partner-sync/receipts/120/partner', 'DELETE'],
+    ]);
+  });
+
+  it('falls back to an empty summary when the grid response omits it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ data: [], total: 0 })));
+    await expect(fetchPartnerGroups()).resolves.toMatchObject({
+      data: [],
+      totalPages: 0,
+      summary: { partners: 0, invoices: 0, total_volume: 0 },
+    });
   });
 });

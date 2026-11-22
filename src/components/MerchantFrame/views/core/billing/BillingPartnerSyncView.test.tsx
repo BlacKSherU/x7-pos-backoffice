@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isValidElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BillingPartnerSyncView } from './BillingPartnerSyncView';
 import { renderMerchantView, type MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
 import { getNavFromPath } from '@/platform/merchant-frame/merchant-routes';
 import { navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import { NavHubBar } from '@/shared/components/NavHubBar';
+import * as api from '@/modules/core/billing-transactions/api/partner-sync-api';
 
 vi.mock('@/modules/core/billing-transactions/api/partner-sync-api', () => ({
   buildQuery: vi.fn(),
@@ -13,7 +15,21 @@ vi.mock('@/modules/core/billing-transactions/api/partner-sync-api', () => ({
   fetchPartnerOptions: vi.fn(async () => []),
   fetchPartnerSyncReceipts: vi.fn(async () => ({ data: [], total: 0 })),
   linkReceiptToPartner: vi.fn(),
+  fetchPartnerGroups: vi.fn(async () => ({
+    data: [],
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+    summary: { partners: 0, invoices: 0, total_volume: 0 },
+  })),
+  fetchCompanyMerchants: vi.fn(async () => [{ id: 1, name: 'Providencia', is_current: true }]),
+  unlinkReceiptPartner: vi.fn(),
 }));
+
+const mocked = vi.mocked(api);
 
 afterEach(() => cleanup());
 
@@ -76,5 +92,21 @@ describe('billing-partner-sync screen', () => {
   it('renders the BUSINESS PARTNERS BILLING LINK header', () => {
     render(<BillingPartnerSyncView />);
     expect(screen.getByRole('heading', { name: 'BUSINESS PARTNERS BILLING LINK' })).toBeInTheDocument();
+  });
+
+  it('renders the partner grid below the header and shares the company scope with it', async () => {
+    const user = userEvent.setup();
+    render(<BillingPartnerSyncView />);
+    expect(screen.getByRole('region', { name: 'Receipts by business partner' })).toBeInTheDocument();
+    expect(await screen.findByText('No receipts match these filters.')).toBeInTheDocument();
+    expect(screen.getByTestId('partner-sync-scope')).toHaveTextContent('Branch');
+
+    await user.click(within(screen.getByRole('group', { name: 'Scope' })).getByRole('button', { name: 'Company-wide' }));
+
+    expect(screen.getByTestId('partner-sync-scope')).toHaveTextContent('Company-wide');
+    await waitFor(() =>
+      expect(mocked.fetchPartnerSyncMetrics).toHaveBeenLastCalledWith({ scope: 'company', merchantId: undefined }),
+    );
+    await waitFor(() => expect(mocked.fetchPartnerGroups).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'company' })));
   });
 });

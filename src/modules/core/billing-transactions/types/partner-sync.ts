@@ -1,4 +1,4 @@
-// Billing ↔ Business Partners (GET/PATCH /api/billing/partner-sync/...).
+// Billing ↔ Business Partners (GET/PATCH/DELETE /api/billing/partner-sync/...).
 
 export type PartnerType = 'customer' | 'supplier';
 
@@ -81,10 +81,75 @@ export interface PartnerSyncScopeParams {
   merchantId?: number;
 }
 
-export interface PartnerSyncReceiptsParams extends PartnerSyncScopeParams {
+/**
+ * Asociación del socio con la compañía (Historia 22):
+ * company = proveedor o cliente corporativo (customer.companyId); merchant = cliente solo de sucursal.
+ */
+export type PartnerAssociation = 'company' | 'merchant';
+
+export type PartnerGroupSortBy = 'volume' | 'invoices' | 'name' | 'lastInvoice';
+
+export type SortOrder = 'ASC' | 'DESC';
+
+/** Filtros por socio comunes al grid agrupado y a la lista de recibos. */
+export interface PartnerSyncPartnerFilterParams extends PartnerSyncScopeParams {
   page?: number;
   limit?: number;
-  search?: string;
+  partnerType?: PartnerType;
+  /** Cliente efectivo: enlace explícito o, sin enlace, cliente de la orden. */
+  customerId?: number;
+  supplierId?: number;
+  association?: PartnerAssociation;
   linkState?: PartnerLinkState;
   type?: ReceiptDocumentType;
+}
+
+export interface PartnerSyncReceiptsParams extends PartnerSyncPartnerFilterParams {
+  search?: string;
+}
+
+export interface PartnerGroupsParams extends PartnerSyncPartnerFilterParams {
+  /** ID, nombre o tax ID del socio. */
+  search?: string;
+  sortBy?: PartnerGroupSortBy;
+  sortOrder?: SortOrder;
+}
+
+/** Fila del grid BillingPartnerSyncGrid: recibos de un cliente o proveedor. */
+export interface PartnerGroup {
+  partner_type: PartnerType;
+  partner_id: number;
+  name: string;
+  /** fiscal_data.tax_id del último recibo o, si no hay, el del socio. */
+  tax_id: string | null;
+  fiscal_tax_id: string | null;
+  partner_tax_id: string | null;
+  association: PartnerAssociation;
+  partner_company_id: number | null;
+  partner_merchant_id: number | null;
+  invoice_count: number;
+  linked_invoice_count: number;
+  total_volume: number;
+  outstanding_balance: number;
+  currency: string;
+  merchant_count: number;
+  last_invoice_at: string | null;
+}
+
+export interface PartnerGroupsSummary {
+  partners: number;
+  invoices: number;
+  total_volume: number;
+}
+
+export interface PaginatedPartnerGroups extends PaginatedResult<PartnerGroup> {
+  summary: PartnerGroupsSummary;
+}
+
+/** Sucursal (merchant) de la compañía en sesión. */
+export interface CompanyMerchant {
+  id: number;
+  name: string;
+  /** Merchant de la sesión: solo sus recibos se pueden enlazar / desenlazar. */
+  is_current: boolean;
 }

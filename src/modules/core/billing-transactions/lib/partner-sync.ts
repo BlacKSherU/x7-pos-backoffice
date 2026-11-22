@@ -1,4 +1,9 @@
-import type { PartnerLinkSource, PartnerSyncReceipt, PartnerType } from '../types/partner-sync';
+import type {
+  PartnerAssociation,
+  PartnerLinkSource,
+  PartnerSyncReceipt,
+  PartnerType,
+} from '../types/partner-sync';
 
 /** Monto con 2 decimales y código de moneda: `1,234.50 USD`. */
 export function formatMoney(amount: number | null | undefined, currency = 'USD'): string {
@@ -50,4 +55,18 @@ export function formatShortDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export const ASSOCIATION_LABEL: Record<PartnerAssociation, string> = {
+  company: 'Company account',
+  merchant: 'Branch only',
+};
+
+/** ID positivo escrito por el usuario: número, null si está vacío, 'invalid' si no sirve. */
+export function parsePositiveId(value: string): number | null | 'invalid' {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^\d+$/.test(trimmed)) return 'invalid';
+  const id = Number(trimmed);
+  return Number.isSafeInteger(id) && id > 0 ? id : 'invalid';
 }
