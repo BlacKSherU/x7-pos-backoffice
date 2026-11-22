@@ -25,13 +25,36 @@ export interface ReceiptTax {
   created_at: string;
 }
 
-export interface ReceiptTaxListQuery {
+/** Filters of the analytical header (tax type = exact tax name, applied rate). */
+export interface ReceiptTaxHeaderFilters {
+  taxName?: string;
+  rate?: number;
+}
+
+export interface ReceiptTaxListQuery extends ReceiptTaxHeaderFilters {
   page?: number;
   limit?: number;
   receiptId?: number;
   scope?: ReceiptTaxScope;
   name?: string;
   status?: ReceiptTaxStatusFilter;
+}
+
+/** GET /receipt-taxes/summary — amounts only include active taxes. */
+export interface ReceiptTaxesSummary {
+  total_count: number;
+  active_count: number;
+  inactive_count: number;
+  receipts_count: number;
+  totals_by_currency: Array<{
+    currency: string;
+    total_amount: number;
+    receipt_scope_amount: number;
+    item_scope_amount: number;
+  }>;
+  by_scope: Array<{ scope: ReceiptTaxScope; currency: string; count: number; total_amount: number }>;
+  by_type: Array<{ name: string; rate: number; currency: string; count: number; total_amount: number }>;
+  filter_options: { names: string[]; rates: number[] };
 }
 
 export interface ReceiptTaxListResult {

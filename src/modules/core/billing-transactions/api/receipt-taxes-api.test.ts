@@ -3,6 +3,7 @@ import {
   createReceiptTax,
   fetchReceiptItemOptions,
   fetchReceiptTaxes,
+  fetchReceiptTaxesSummary,
   normalizeReceiptTax,
   setReceiptTaxStatus,
   updateReceiptTax,
@@ -86,6 +87,37 @@ describe('receipt-taxes-api', () => {
     expect(url).toContain('name=IVA');
     expect(url).toContain('status=all');
     expect(result.data[0].amount).toBe(23.75);
+  });
+
+  it('forwards the tax type and rate filters to the list and the summary', async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            total_count: '2',
+            active_count: 2,
+            inactive_count: 0,
+            receipts_count: 1,
+            totals_by_currency: [{ currency: 'USD', total_amount: '30.10', receipt_scope_amount: '30.10', item_scope_amount: 0 }],
+            by_scope: [],
+            by_type: [{ name: 'IVA 19%', rate: '19.00', currency: 'USD', count: 2, total_amount: '30.10' }],
+            filter_options: { names: ['IVA 19%'], rates: ['19.00'] },
+          },
+        }),
+      ),
+    );
+    const summary = await fetchReceiptTaxesSummary({ taxName: 'IVA 19%', rate: 19 });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/receipt-taxes/summary?taxName=IVA+19%25&rate=19');
+    expect(summary.total_count).toBe(2);
+    expect(summary.totals_by_currency[0].total_amount).toBe(30.1);
+    expect(summary.by_type[0].rate).toBe(19);
+    expect(summary.filter_options.rates).toEqual([19]);
+
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ data: [] })));
+    await fetchReceiptTaxes({ taxName: 'IVA 19%', rate: 0 });
+    const url = String(fetchMock.mock.calls[1][0]);
+    expect(url).toContain('taxName=IVA+19%25');
+    expect(url).toContain('rate=0');
   });
 
   it('creates without sending an amount', async () => {

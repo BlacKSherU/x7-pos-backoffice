@@ -4,8 +4,10 @@ import type {
   ReceiptItemOption,
   ReceiptOption,
   ReceiptTax,
+  ReceiptTaxHeaderFilters,
   ReceiptTaxListQuery,
   ReceiptTaxListResult,
+  ReceiptTaxesSummary,
   UpdateReceiptTaxPayload,
 } from '../types/receipt-taxes';
 
@@ -67,6 +69,8 @@ export async function fetchReceiptTaxes(
       receiptId: query.receiptId,
       scope: query.scope,
       name: query.name?.trim() || undefined,
+      taxName: query.taxName || undefined,
+      rate: query.rate,
       status: query.status ?? 'all',
     })}`,
     { method: 'GET' },
@@ -79,6 +83,47 @@ export async function fetchReceiptTaxes(
     limit: json?.limit ?? data.length,
     total: json?.total ?? data.length,
     totalPages: json?.totalPages ?? 1,
+  };
+}
+
+/** Consolidated metrics of the analytical header, filtered by tax type and rate. */
+export async function fetchReceiptTaxesSummary(
+  filters: ReceiptTaxHeaderFilters = {},
+): Promise<ReceiptTaxesSummary> {
+  const json = await apiRequest<{ data?: Partial<ReceiptTaxesSummary> }>(
+    `/receipt-taxes/summary${toQueryString({ taxName: filters.taxName || undefined, rate: filters.rate })}`,
+    { method: 'GET' },
+    'Failed to load receipt tax metrics.',
+  );
+  const d = json?.data ?? {};
+  return {
+    total_count: num(d.total_count),
+    active_count: num(d.active_count),
+    inactive_count: num(d.inactive_count),
+    receipts_count: num(d.receipts_count),
+    totals_by_currency: (d.totals_by_currency ?? []).map((t) => ({
+      currency: String(t.currency ?? 'USD'),
+      total_amount: num(t.total_amount),
+      receipt_scope_amount: num(t.receipt_scope_amount),
+      item_scope_amount: num(t.item_scope_amount),
+    })),
+    by_scope: (d.by_scope ?? []).map((r) => ({
+      scope: r.scope === 'ITEM' ? 'ITEM' : 'RECEIPT',
+      currency: String(r.currency ?? 'USD'),
+      count: num(r.count),
+      total_amount: num(r.total_amount),
+    })),
+    by_type: (d.by_type ?? []).map((r) => ({
+      name: String(r.name ?? ''),
+      rate: num(r.rate),
+      currency: String(r.currency ?? 'USD'),
+      count: num(r.count),
+      total_amount: num(r.total_amount),
+    })),
+    filter_options: {
+      names: (d.filter_options?.names ?? []).map(String),
+      rates: (d.filter_options?.rates ?? []).map(num),
+    },
   };
 }
 

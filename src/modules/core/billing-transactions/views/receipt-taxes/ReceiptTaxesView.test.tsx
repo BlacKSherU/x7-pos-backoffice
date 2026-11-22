@@ -5,6 +5,7 @@ import type { ReceiptTax } from '../../types/receipt-taxes';
 
 vi.mock('../../api/receipt-taxes-api', () => ({
   fetchReceiptTaxes: vi.fn(),
+  fetchReceiptTaxesSummary: vi.fn(),
   createReceiptTax: vi.fn(),
   updateReceiptTax: vi.fn(),
   setReceiptTaxStatus: vi.fn(),
@@ -17,6 +18,7 @@ import {
   fetchReceiptItemOptions,
   fetchReceiptOptions,
   fetchReceiptTaxes,
+  fetchReceiptTaxesSummary,
   setReceiptTaxStatus,
   updateReceiptTax,
 } from '../../api/receipt-taxes-api';
@@ -52,6 +54,17 @@ const ITEM_TAX: ReceiptTax = {
 
 const INACTIVE_TAX: ReceiptTax = { ...RECEIPT_TAX, id: 3, name: 'Old municipal tax', is_active: false };
 
+const SUMMARY = {
+  total_count: 3,
+  active_count: 2,
+  inactive_count: 1,
+  receipts_count: 1,
+  totals_by_currency: [{ currency: 'USD', total_amount: 23.75, receipt_scope_amount: 23.75, item_scope_amount: 0 }],
+  by_scope: [{ scope: 'RECEIPT' as const, currency: 'USD', count: 1, total_amount: 23.75 }],
+  by_type: [{ name: 'IVA 19%', rate: 19, currency: 'USD', count: 1, total_amount: 23.75 }],
+  filter_options: { names: ['IVA 19%', 'Old municipal tax', 'Sugar tax'], rates: [5, 19] },
+};
+
 const listResult = (data: ReceiptTax[]) => ({ data, page: 1, limit: 25, total: data.length, totalPages: 1 });
 
 describe('ReceiptTaxesView', () => {
@@ -61,6 +74,7 @@ describe('ReceiptTaxesView', () => {
       { id: 10, invoice_number: 'INV-000010', type: 'invoice', subtotal: 125, grand_total: 148.75, currency: 'USD' },
     ]);
     vi.mocked(fetchReceiptItemOptions).mockResolvedValue([]);
+    vi.mocked(fetchReceiptTaxesSummary).mockResolvedValue(SUMMARY);
   });
 
   afterEach(() => {
@@ -171,10 +185,45 @@ describe('ReceiptTaxesView', () => {
     );
   });
 
+  it('renders the analytical header with the consolidated metrics', async () => {
+    render(<ReceiptTaxesView />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Receipt Taxes' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('kpi-total-tax')).toHaveTextContent('23.75 USD'));
+    expect(fetchReceiptTaxesSummary).toHaveBeenCalledWith({ taxName: undefined, rate: undefined });
+  });
+
+  it('filters the metrics and the grid by tax type and applied rate', async () => {
+    render(<ReceiptTaxesView />);
+    await screen.findByTestId('receipt-tax-row-1');
+    await screen.findByRole('option', { name: 'Sugar tax' });
+
+    fireEvent.change(screen.getByLabelText('Tax type'), { target: { value: 'IVA 19%' } });
+    await waitFor(() =>
+      expect(fetchReceiptTaxes).toHaveBeenLastCalledWith(expect.objectContaining({ taxName: 'IVA 19%', page: 1 })),
+    );
+    await waitFor(() => expect(fetchReceiptTaxesSummary).toHaveBeenLastCalledWith({ taxName: 'IVA 19%', rate: undefined }));
+
+    fireEvent.change(screen.getByLabelText('Applied rate'), { target: { value: '19' } });
+    await waitFor(() =>
+      expect(fetchReceiptTaxes).toHaveBeenLastCalledWith(expect.objectContaining({ taxName: 'IVA 19%', rate: 19 })),
+    );
+    await waitFor(() => expect(fetchReceiptTaxesSummary).toHaveBeenLastCalledWith({ taxName: 'IVA 19%', rate: 19 }));
+  });
+
+  it('refreshes the metrics after a status change', async () => {
+    vi.mocked(setReceiptTaxStatus).mockResolvedValue({ ...RECEIPT_TAX, is_active: false });
+    render(<ReceiptTaxesView />);
+    await screen.findByTestId('receipt-tax-row-1');
+    await waitFor(() => expect(fetchReceiptTaxesSummary).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate IVA 19%' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
+    await waitFor(() => expect(fetchReceiptTaxesSummary).toHaveBeenCalledTimes(2));
+  });
+
   it('shows the API error with a retry action', async () => {
     vi.mocked(fetchReceiptTaxes).mockRejectedValueOnce(new Error('Failed to load receipt taxes.'));
     render(<ReceiptTaxesView />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load receipt taxes.');
+    expect(await screen.findByText('Failed to load receipt taxes.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByTestId('receipt-tax-row-1')).toBeInTheDocument();
   });

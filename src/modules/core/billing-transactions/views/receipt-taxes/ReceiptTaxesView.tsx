@@ -4,6 +4,7 @@ import { Toast, type ToastState } from '@/shared/components/Toast';
 import {
   createReceiptTax,
   fetchReceiptTaxes,
+  fetchReceiptTaxesSummary,
   setReceiptTaxStatus,
   updateReceiptTax,
 } from '../../api/receipt-taxes-api';
@@ -12,9 +13,11 @@ import type {
   ReceiptTax,
   ReceiptTaxScope,
   ReceiptTaxStatusFilter,
+  ReceiptTaxesSummary,
   UpdateReceiptTaxPayload,
 } from '../../types/receipt-taxes';
 import { ReceiptTaxFormDrawer, type ReceiptTaxFormPayload } from './ReceiptTaxFormDrawer';
+import { ReceiptTaxesHeader } from './ReceiptTaxesHeader';
 import {
   SCOPE_BADGE_CLASSES,
   SCOPE_ICONS,
@@ -57,6 +60,13 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState<'' | ReceiptTaxScope>('');
   const [statusFilter, setStatusFilter] = useState<ReceiptTaxStatusFilter>('all');
+  // Header filters (tax type / applied rate): apply to the metrics and to the grid.
+  const [taxNameFilter, setTaxNameFilter] = useState('');
+  const [rateFilter, setRateFilter] = useState('');
+
+  const [summary, setSummary] = useState<ReceiptTaxesSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -92,6 +102,8 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
         name: search || undefined,
         scope: scopeFilter || undefined,
         status: statusFilter,
+        taxName: taxNameFilter || undefined,
+        rate: rateFilter === '' ? undefined : Number(rateFilter),
       });
       setRows(result.data);
       setTotal(result.total);
@@ -101,19 +113,44 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, search, scopeFilter, statusFilter]);
+  }, [page, search, scopeFilter, statusFilter, taxNameFilter, rateFilter]);
+
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      setSummary(
+        await fetchReceiptTaxesSummary({
+          taxName: taxNameFilter || undefined,
+          rate: rateFilter === '' ? undefined : Number(rateFilter),
+        }),
+      );
+    } catch (err: unknown) {
+      setSummaryError(err instanceof Error ? err.message : 'Failed to load receipt tax metrics.');
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [taxNameFilter, rateFilter]);
 
   useEffect(() => {
     void Promise.resolve().then(loadTaxes);
   }, [loadTaxes]);
 
-  const hasActiveFilter = Boolean(search || scopeFilter || statusFilter !== 'all');
+  useEffect(() => {
+    void Promise.resolve().then(loadSummary);
+  }, [loadSummary]);
+
+  const hasActiveFilter = Boolean(
+    search || scopeFilter || statusFilter !== 'all' || taxNameFilter || rateFilter,
+  );
 
   const clearFilters = () => {
     setSearchInput('');
     setSearch('');
     setScopeFilter('');
     setStatusFilter('all');
+    setTaxNameFilter('');
+    setRateFilter('');
     setPage(1);
   };
 
@@ -136,7 +173,7 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
         type: 'success',
       });
       setDrawer(null);
-      await loadTaxes();
+      await Promise.all([loadTaxes(), loadSummary()]);
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Failed to save receipt tax.');
     } finally {
@@ -160,7 +197,7 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
         type: 'success',
       });
       setStatusTarget(null);
-      if (statusFilter !== 'all') await loadTaxes();
+      await Promise.all([statusFilter !== 'all' ? loadTaxes() : Promise.resolve(), loadSummary()]);
     } catch (err: unknown) {
       setStatusTarget(null);
       setToast({ message: err instanceof Error ? err.message : 'Failed to change status.', type: 'error' });
@@ -174,19 +211,22 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-poppins pb-4">
-      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <span className="material-symbols-outlined text-[#ae001a] text-2xl" aria-hidden="true">
-            percent
-          </span>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-poppins">
-            Receipt Taxes
-          </h2>
-        </div>
-        <p className="text-[#5f5e5e] text-body-sm mt-1 font-poppins">
-          Tax lines charged on each receipt, either over the whole receipt or over a single item.
-        </p>
-      </div>
+      <ReceiptTaxesHeader
+        summary={summary}
+        loading={summaryLoading}
+        error={summaryError}
+        taxName={taxNameFilter}
+        rate={rateFilter}
+        onTaxNameChange={(value) => {
+          setTaxNameFilter(value);
+          setPage(1);
+        }}
+        onRateChange={(value) => {
+          setRateFilter(value);
+          setPage(1);
+        }}
+        onRetry={() => void loadSummary()}
+      />
 
       {/* Toolbar */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 shadow-sm flex flex-col gap-3">
