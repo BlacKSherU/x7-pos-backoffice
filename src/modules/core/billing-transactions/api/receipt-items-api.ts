@@ -3,6 +3,7 @@ import type {
   CreateReceiptItemPayload,
   PaginatedResponse,
   ReceiptItem,
+  ReceiptItemOption,
   ReceiptItemsQuery,
   ReceiptOption,
   UpdateReceiptItemPayload,
@@ -100,6 +101,20 @@ export async function deleteReceiptItem(id: number): Promise<ReceiptItem> {
 /** Restores a logically deleted line (PATCH isActive=true). */
 export function restoreReceiptItem(id: number): Promise<ReceiptItem> {
   return updateReceiptItem(id, { isActive: true });
+}
+
+/** Distinct items (name + SKU) for the item selector of the header. */
+export async function fetchReceiptItemOptions(): Promise<ReceiptItemOption[]> {
+  const json = await apiRequest<OneResponse<Array<Record<string, unknown>>>>(
+    '/receipt-items/item-options',
+    { method: 'GET' },
+    'Failed to load item options.',
+  );
+  return (json?.data ?? []).map((raw) => ({
+    name: String(raw.name ?? ''),
+    sku: (raw.sku as string | null | undefined) ?? null,
+    line_count: toNumber(raw.line_count),
+  }));
 }
 
 /**

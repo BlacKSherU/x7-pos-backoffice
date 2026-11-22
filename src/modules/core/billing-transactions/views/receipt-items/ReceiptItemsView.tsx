@@ -4,28 +4,40 @@ import { Toast, type ToastState } from '@/shared/components/Toast';
 import {
   createReceiptItem,
   deleteReceiptItem,
+  fetchReceiptItemOptions,
   fetchReceiptItems,
   fetchReceiptOptions,
+  restoreReceiptItem,
   updateReceiptItem,
 } from '@/modules/core/billing-transactions/api/receipt-items-api';
+import {
+  DEFAULT_RECEIPT_ITEM_FILTERS,
+  filtersToQuery,
+  hasActiveFilters,
+  type ReceiptItemFilters,
+} from '@/modules/core/billing-transactions/lib/receipt-item-filters';
 import {
   formatMoney,
   formatQuantity,
 } from '@/modules/core/billing-transactions/lib/receipt-item-math';
 import type {
   ReceiptItem,
+  ReceiptItemOption,
   ReceiptOption,
 } from '@/modules/core/billing-transactions/types/receipt-items';
 import {
   ReceiptItemFormDrawer,
   type ReceiptItemFormSubmit,
 } from './ReceiptItemFormDrawer';
+import { ReceiptItemsHeader } from './ReceiptItemsHeader';
 
 export interface ReceiptItemsViewProps {
   onNavigate?: (view: string) => void;
 }
 
 export const RECEIPT_ITEMS_PAGE_SIZE = 20;
+/** Debounce of the description/SKU search before hitting the API. */
+export const RECEIPT_ITEMS_SEARCH_DEBOUNCE_MS = 300;
 
 type FormDrawerState = { mode: 'create' } | { mode: 'edit'; item: ReceiptItem } | null;
 
@@ -43,8 +55,13 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
   const [error, setError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
 
+  const [filters, setFilters] = useState<ReceiptItemFilters>(DEFAULT_RECEIPT_ITEM_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
   const [receipts, setReceipts] = useState<ReceiptOption[]>([]);
   const [receiptsLoading, setReceiptsLoading] = useState(true);
+  const [itemOptions, setItemOptions] = useState<ReceiptItemOption[]>([]);
+  const [optionsTick, setOptionsTick] = useState(0);
 
   const [formDrawer, setFormDrawer] = useState<FormDrawerState>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -52,10 +69,23 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
 
   const [deleteTarget, setDeleteTarget] = useState<ReceiptItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
 
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const reload = useCallback(() => setReloadTick((t) => t + 1), []);
+  /** After a mutation: reload the grid and the item selector (line counts change). */
+  const reloadAll = useCallback(() => {
+    setReloadTick((t) => t + 1);
+    setOptionsTick((t) => t + 1);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(filters.search), RECEIPT_ITEMS_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [filters.search]);
+
+  const { status: statusFilter, item: itemFilter, receiptId: receiptFilter } = filters;
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +95,12 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
       setError(null);
       try {
         const res = await fetchReceiptItems({
+          ...filtersToQuery({
+            search: debouncedSearch,
+            item: itemFilter,
+            receiptId: receiptFilter,
+            status: statusFilter,
+          }),
           page,
           limit: RECEIPT_ITEMS_PAGE_SIZE,
           sortBy: 'createdAt',
@@ -85,7 +121,7 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
     return () => {
       cancelled = true;
     };
-  }, [page, reloadTick]);
+  }, [page, reloadTick, debouncedSearch, itemFilter, receiptFilter, statusFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,10 +141,34 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve().then(async () => {
+      try {
+        const options = await fetchReceiptItemOptions();
+        if (!cancelled) setItemOptions(options);
+      } catch {
+        if (!cancelled) setItemOptions([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [optionsTick]);
+
+  useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  const changeFilters = (next: ReceiptItemFilters) => {
+    setFilters(next);
+    setPage(1);
+  };
+
+  const resetFilters = () => changeFilters(DEFAULT_RECEIPT_ITEM_FILTERS);
+
+  const filtered = hasActiveFilters(filters);
 
   const openCreate = () => {
     setFormError(null);
@@ -133,7 +193,7 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
         setToast({ type: 'success', message: `Line "${updated.name}" updated. Receipt totals recalculated.` });
       }
       setFormDrawer(null);
-      reload();
+      reloadAll();
     } catch (err) {
       setFormError(errorMessage(err, 'Failed to save the receipt item.'));
     } finally {
@@ -148,7 +208,7 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
       await deleteReceiptItem(deleteTarget.id);
       setToast({ type: 'success', message: `Line "${deleteTarget.name}" deleted. Receipt totals recalculated.` });
       setDeleteTarget(null);
-      reload();
+      reloadAll();
     } catch (err) {
       setToast({ type: 'error', message: errorMessage(err, 'Failed to delete the receipt item.') });
     } finally {
@@ -156,10 +216,32 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
     }
   };
 
+  const handleRestore = async (item: ReceiptItem) => {
+    setRestoringId(item.id);
+    try {
+      await restoreReceiptItem(item.id);
+      setToast({ type: 'success', message: `Line "${item.name}" restored. Receipt totals recalculated.` });
+      reloadAll();
+    } catch (err) {
+      setToast({ type: 'error', message: errorMessage(err, 'Failed to restore the receipt item.') });
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
   const receiptLabel = (item: ReceiptItem) => item.receipt_invoice_number ?? `Receipt #${item.receipt_id}`;
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-poppins pb-6">
+      <ReceiptItemsHeader
+        filters={filters}
+        onFiltersChange={changeFilters}
+        onReset={resetFilters}
+        itemOptions={itemOptions}
+        receipts={receipts}
+        optionsLoading={receiptsLoading}
+      />
+
       {/* Grid */}
       <section
         aria-label="Receipt line items"
@@ -239,14 +321,30 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
                 ) : items.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-14 text-center">
-                      <div className="flex flex-col items-center gap-3" data-testid="receipt-items-empty">
-                        <span className="material-symbols-outlined text-[#d51f2c] text-5xl" aria-hidden="true">
-                          receipt_long
-                        </span>
-                        <p className="text-sm text-[#5f5e5e] max-w-md">
-                          No receipt line items yet. Add the first line to break down a receipt.
-                        </p>
-                      </div>
+                      {filtered ? (
+                        <div className="flex flex-col items-center gap-3" data-testid="receipt-items-filtered-empty">
+                          <span className="material-symbols-outlined text-[#5f5e5e] text-4xl" aria-hidden="true">
+                            search_off
+                          </span>
+                          <p className="text-sm text-[#5f5e5e]">No receipt line items match the active filters.</p>
+                          <button
+                            type="button"
+                            onClick={resetFilters}
+                            className="text-[#ae001a] text-sm font-semibold hover:underline"
+                          >
+                            Clear filters
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-3" data-testid="receipt-items-empty">
+                          <span className="material-symbols-outlined text-[#d51f2c] text-5xl" aria-hidden="true">
+                            receipt_long
+                          </span>
+                          <p className="text-sm text-[#5f5e5e] max-w-md">
+                            No receipt line items yet. Add the first line to break down a receipt.
+                          </p>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -321,7 +419,20 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
                                 </span>
                               </button>
                             </>
-                          ) : null}
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void handleRestore(item)}
+                              disabled={restoringId === item.id}
+                              aria-label={`Restore ${item.name}`}
+                              title="Restore line"
+                              className="p-1.5 rounded text-[#5f5e5e] hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40"
+                            >
+                              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                                restore_from_trash
+                              </span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -366,6 +477,7 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
           item={formDrawer.mode === 'edit' ? formDrawer.item : null}
           receipts={receipts}
           receiptsLoading={receiptsLoading}
+          defaultReceiptId={filters.receiptId ? Number(filters.receiptId) : null}
           submitting={formSubmitting}
           submitError={formError}
           onCancel={() => {

@@ -59,14 +59,29 @@ const page = (data: unknown[]) => ({
 
 let fetchMock: ReturnType<typeof fakeBackend>;
 
+const itemOptions = [
+  { name: 'Burger Combo', sku: 'SKU-001', line_count: 3 },
+  { name: 'Fries', sku: null, line_count: 1 },
+];
+
 function setup(routes: Record<string, unknown> = {}) {
   fetchMock = fakeBackend({
     '/receipt-items': page([burger, fries]),
+    '/receipt-items/item-options': { statusCode: 200, data: itemOptions },
     '/receipts': page(receipts),
     ...routes,
   });
   vi.stubGlobal('fetch', fetchMock);
   return userEvent.setup();
+}
+
+/** Query params of the last GET /receipt-items (grid) request. */
+function lastItemsQuery(): URLSearchParams {
+  const calls = fetchMock.mock.calls
+    .map(([input, init]) => ({ url: String(input), method: (init?.method ?? 'GET').toUpperCase() }))
+    .filter((c) => c.method === 'GET' && c.url.replace(/^\/api/, '').split('?')[0] === '/receipt-items');
+  const last = calls[calls.length - 1];
+  return new URLSearchParams(last?.url.split('?')[1] ?? '');
 }
 
 beforeEach(() => {
@@ -244,5 +259,146 @@ describe('ReceiptItemsView — drawer (Historia 20)', () => {
       expect(calledRoutes(fetchMock).filter((r) => r === 'GET /receipt-items').length).toBeGreaterThan(initialLoads),
     );
     expect(await screen.findByRole('status')).toHaveTextContent(/deleted\. receipt totals recalculated/i);
+  });
+});
+
+describe('ReceiptItemsView — header INVOICE LINE ITEMS + filters (Historia 16)', () => {
+  it('renders the title, the explanatory subtitle and help text with the system typography', async () => {
+    setup();
+    render(<ReceiptItemsView />);
+
+    const heading = await screen.findByRole('heading', { level: 2, name: 'INVOICE LINE ITEMS' });
+    expect(heading).toHaveClass('font-poppins', 'uppercase', 'text-[#ae001a]');
+    const subtitle = screen.getByTestId('receipt-items-header-subtitle');
+    expect(subtitle).toHaveTextContent(/examine product costs, verify unit rates/i);
+    expect(subtitle).toHaveClass('font-poppins', 'text-body-sm');
+    expect(screen.getByTestId('receipt-items-header-help')).toHaveTextContent(
+      'Subtotal = quantity × unit price (rounded to 2 decimals) · Total = subtotal − discount.',
+    );
+    expect(screen.getByTestId('receipt-items-header-help')).toHaveClass('font-poppins');
+  });
+
+  it('lays the controls out in one horizontal, wrapping bar above the grid (no overlap)', async () => {
+    setup();
+    render(<ReceiptItemsView />);
+    await screen.findByTestId('receipt-item-row-1');
+
+    const bar = screen.getByRole('search', { name: 'Filter receipt line items' });
+    expect(bar).toHaveClass('flex', 'flex-wrap', 'items-center');
+    expect(bar).not.toHaveClass('absolute');
+    expect(within(bar).getByLabelText('Search by description or SKU')).toBeInTheDocument();
+    expect(within(bar).getByLabelText('Filter by item')).toBeInTheDocument();
+    expect(within(bar).getByLabelText('Filter by invoice or receipt')).toBeInTheDocument();
+    expect(within(bar).getByLabelText('Filter by status')).toBeInTheDocument();
+
+    // Header comes before the grid in the normal document flow.
+    const grid = screen.getByRole('region', { name: 'Receipt line items' });
+    expect(bar.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('populates the item and receipt selectors from the API', async () => {
+    setup();
+    render(<ReceiptItemsView />);
+
+    const itemSelect = screen.getByLabelText('Filter by item');
+    await waitFor(() => expect(within(itemSelect).getByText('Burger Combo · SKU-001 (3)')).toBeInTheDocument());
+    expect(within(itemSelect).getByText('Fries (1)')).toBeInTheDocument();
+    const receiptSelect = screen.getByLabelText('Filter by invoice or receipt');
+    await waitFor(() =>
+      expect(within(receiptSelect).getByText('INV-000010 · invoice · 26.66 USD')).toBeInTheDocument(),
+    );
+    expect(within(receiptSelect).getByText('Receipt #11 · receipt · 0.00 USD')).toBeInTheDocument();
+  });
+
+  it('searches by description/SKU (debounced) through the API', async () => {
+    const user = setup();
+    render(<ReceiptItemsView />);
+    await screen.findByTestId('receipt-item-row-1');
+
+    await user.type(screen.getByLabelText('Search by description or SKU'), 'sku-00');
+    await waitFor(() => expect(lastItemsQuery().get('search')).toBe('sku-00'));
+    expect(lastItemsQuery().get('page')).toBe('1');
+  });
+
+  it('filters by item (SKU or exact name), by receipt and by status', async () => {
+    const user = setup();
+    render(<ReceiptItemsView />);
+    await screen.findByTestId('receipt-item-row-1');
+    await waitFor(() =>
+      expect(within(screen.getByLabelText('Filter by item')).getByText('Fries (1)')).toBeInTheDocument(),
+    );
+
+    await user.selectOptions(screen.getByLabelText('Filter by item'), 'sku:SKU-001');
+    await waitFor(() => expect(lastItemsQuery().get('sku')).toBe('SKU-001'));
+
+    await user.selectOptions(screen.getByLabelText('Filter by item'), 'name:Fries');
+    await waitFor(() => expect(lastItemsQuery().get('itemName')).toBe('Fries'));
+    expect(lastItemsQuery().get('sku')).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText('Filter by invoice or receipt'), '10');
+    await waitFor(() => expect(lastItemsQuery().get('receiptId')).toBe('10'));
+
+    await user.selectOptions(screen.getByLabelText('Filter by status'), 'all');
+    await waitFor(() => expect(lastItemsQuery().get('isActive')).toBe('all'));
+
+    await user.click(screen.getByRole('button', { name: /reset/i }));
+    await waitFor(() => {
+      const q = lastItemsQuery();
+      expect(q.get('isActive')).toBe('true');
+      expect(q.get('receiptId')).toBeNull();
+      expect(q.get('itemName')).toBeNull();
+    });
+  });
+
+  it('pre-selects the filtered receipt when adding a line', async () => {
+    const user = setup();
+    render(<ReceiptItemsView />);
+    await screen.findByTestId('receipt-item-row-1');
+    await waitFor(() =>
+      expect(
+        within(screen.getByLabelText('Filter by invoice or receipt')).getByText(/INV-000010/),
+      ).toBeInTheDocument(),
+    );
+
+    await user.selectOptions(screen.getByLabelText('Filter by invoice or receipt'), '10');
+    await user.click(screen.getByRole('button', { name: /add line item/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText('Receipt / Invoice')).toHaveValue('10');
+  });
+
+  it('lists deleted lines with the status filter and restores them (PATCH isActive=true)', async () => {
+    const user = setup({
+      '/receipt-items': (_init: RequestInit | undefined, url: string) =>
+        jsonResponse(page(url.includes('isActive=false') ? [{ ...burger, is_active: false }] : [fries])),
+      'PATCH /receipt-items/1': () => jsonResponse({ statusCode: 200, data: { ...burger, is_active: true } }),
+    });
+    render(<ReceiptItemsView />);
+    await screen.findByTestId('receipt-item-row-2');
+
+    await user.selectOptions(screen.getByLabelText('Filter by status'), 'false');
+    const row = await screen.findByTestId('receipt-item-row-1');
+    expect(within(row).getByText('Deleted')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Edit Burger Combo' })).not.toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: 'Restore Burger Combo' }));
+    await waitFor(() => expect(calledRoutes(fetchMock)).toContain('PATCH /receipt-items/1'));
+    const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ isActive: true });
+    expect(await screen.findByRole('status')).toHaveTextContent(/restored\. receipt totals recalculated/i);
+  });
+
+  it('shows a filtered empty state with a clear-filters action', async () => {
+    const user = setup({
+      '/receipt-items': (_init: RequestInit | undefined, url: string) =>
+        jsonResponse(page(url.includes('search=') ? [] : [burger])),
+    });
+    render(<ReceiptItemsView />);
+    await screen.findByTestId('receipt-item-row-1');
+
+    await user.type(screen.getByLabelText('Search by description or SKU'), 'zzz');
+    expect(await screen.findByTestId('receipt-items-filtered-empty')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByTestId('receipt-item-row-1')).toBeInTheDocument();
+    expect(screen.getByLabelText('Search by description or SKU')).toHaveValue('');
   });
 });

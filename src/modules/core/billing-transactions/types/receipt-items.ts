@@ -37,12 +37,29 @@ export interface PaginatedResponse<T> {
 
 export type ReceiptItemSortBy = 'createdAt' | 'name' | 'total';
 
+/** Logical status filter of GET /receipt-items ('true' = active, 'false' = deleted). */
+export type ReceiptItemStatusFilter = 'true' | 'false' | 'all';
+
 export interface ReceiptItemsQuery {
   page?: number;
   limit?: number;
   receiptId?: number;
+  /** Partial match on description (name) or SKU. */
+  search?: string;
+  /** Item selector: exact SKU. */
+  sku?: string;
+  /** Item selector for lines without SKU: exact name. */
+  itemName?: string;
+  isActive?: ReceiptItemStatusFilter;
   sortBy?: ReceiptItemSortBy;
   sortOrder?: 'ASC' | 'DESC';
+}
+
+/** Distinct item of the merchant's lines (GET /receipt-items/item-options). */
+export interface ReceiptItemOption {
+  name: string;
+  sku: string | null;
+  line_count: number;
 }
 
 export interface CreateReceiptItemPayload {
