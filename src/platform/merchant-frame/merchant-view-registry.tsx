@@ -76,6 +76,7 @@ import { SuppliersView } from '@/modules/core/business-partners/views/SuppliersV
 import { CustomersView } from '@/modules/core/business-partners/views/CustomersView';
 import { ReceiptItemsView } from '@/modules/core/billing-transactions/views/receipt-items/ReceiptItemsView';
 import { ReceiptTaxesView } from '@/modules/core/billing-transactions/views/receipt-taxes/ReceiptTaxesView';
+import { BillingPartnerSyncView } from '@/components/MerchantFrame/views/core/billing/BillingPartnerSyncView';
 import { SupplierInvoicesView } from '@/modules/finance-hr/accounts-payable/views/SupplierInvoicesView';
 import { SupplierInvoiceItemsView } from '@/modules/finance-hr/accounts-payable/views/SupplierInvoiceItemsView';
 import { SupplierCreditNotesView } from '@/modules/finance-hr/accounts-payable/views/SupplierCreditNotesView';
@@ -439,6 +440,7 @@ view('customers', (ctx) => (
 // ---- Billing & Transactions ----
 view('receipt-items', (ctx) => <ReceiptItemsView onNavigate={ctx.navigateToFeature} />);
 view('receipt-taxes', (ctx) => <ReceiptTaxesView onNavigate={ctx.onNavigate} />);
+view('billing-partner-sync', (ctx) => <BillingPartnerSyncView onNavigate={ctx.onNavigate} />);
 
 // ---- Cuentas por pagar ----
 view('suppliers', (ctx) => <SuppliersView onNavigate={ctx.onNavigate} companyId={ctx.profile?.company_id} />);

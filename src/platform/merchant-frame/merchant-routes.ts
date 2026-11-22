@@ -59,6 +59,7 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('core', 'journal-entries', '/inventory/journal-entries'),
   ...routes('core', 'billing-financial-sync', '/app/billing-transactions/billing-financial-sync'),
   ...routes('core', 'receipt-taxes', '/app/billing-transactions/receipt-taxes'),
+  ...routes('core', 'billing-partner-sync', '/app/billing-transactions/billing-partner-sync', '/billing/partner-sync'),
 
   // Personal: turnos y asistencia
   ...routes(OPS, 'staff-roster', '/staff-management/schedule/roster'),

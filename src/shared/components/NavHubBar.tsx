@@ -132,6 +132,7 @@ const ITEM_ID_SHORTCUTS: Record<string, string> = {
   'receipt-orders': 'RECEIPTS',
   'receipt-taxes': 'RECEIPTS TAXES',
   'billing-financial-sync': 'LEDGER SYNC',
+  'billing-partner-sync': 'PARTNER LINK',
 
   // Financial Engine
   'journal-entries': 'ENTRIES',
@@ -378,6 +379,7 @@ const SPECIFIC_SHORTCUTS: Record<string, string> = {
   'RECEIPT TAX LINE BREAKDOWN': 'RECEIPTS TAXES',
   'RECEIPTS TAXES': 'RECEIPTS TAXES',
   'FINANCIAL LEDGER SYNC': 'LEDGER SYNC',
+  'BUSINESS PARTNERS BILLING LINK': 'PARTNER LINK',
 
   // Financial Engine
   'GENERAL JOURNAL ENTRIES': 'ENTRIES',
