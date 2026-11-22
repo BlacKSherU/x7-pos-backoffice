@@ -56,3 +56,25 @@ export interface CreateReceiptPayload {
 
 /** Cuerpo de PATCH /receipts/:id (solo los campos que cambian). */
 export type UpdateReceiptPayload = Partial<CreateReceiptPayload>;
+
+/** GET /receipts/summary — KPIs del Command Hub Header. */
+export interface ReceiptSummary {
+  status: ReceiptStatusFilter;
+  total_receipts: number;
+  active_receipts: number;
+  inactive_receipts: number;
+  locked_receipts: number;
+  /** Moneda de los importes: la que tiene más recibos. */
+  currency: string;
+  grand_total: number;
+  subtotal: number;
+  total_tax: number;
+  total_discount: number;
+  average_ticket: number;
+  by_type: Array<{ type: ReceiptType; receipts: number; grand_total: number }>;
+  by_currency: Array<{ currency: string; receipts: number; grand_total: number; total_tax: number }>;
+}
+
+export interface ReceiptSummaryQuery {
+  status?: ReceiptStatusFilter;
+}

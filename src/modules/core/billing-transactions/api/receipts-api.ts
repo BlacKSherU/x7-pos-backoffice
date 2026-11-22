@@ -4,6 +4,8 @@ import type {
   PaginatedReceipts,
   Receipt,
   ReceiptListQuery,
+  ReceiptSummary,
+  ReceiptSummaryQuery,
   UpdateReceiptPayload,
 } from '../types/receipts';
 
@@ -92,4 +94,25 @@ export async function setReceiptStatus(id: number, isActive: boolean): Promise<R
     isActive ? 'Failed to reactivate the receipt.' : 'Failed to deactivate the receipt.',
   );
   return normalizeReceipt(json.data);
+}
+
+/** GET /receipts/summary — conteos y sumas de grand_total del merchant filtrados por is_active. */
+export async function getReceiptsSummary(query: ReceiptSummaryQuery = {}): Promise<ReceiptSummary> {
+  const json = await apiRequest<Envelope<ReceiptSummary>>(
+    `${BASE}/summary${toQueryString({ status: query.status })}`,
+    { method: 'GET' },
+    'Failed to load the receipts summary.',
+  );
+  const data = json.data;
+  return {
+    ...data,
+    currency: data.currency || 'USD',
+    grand_total: Number(data.grand_total ?? 0),
+    subtotal: Number(data.subtotal ?? 0),
+    total_tax: Number(data.total_tax ?? 0),
+    total_discount: Number(data.total_discount ?? 0),
+    average_ticket: Number(data.average_ticket ?? 0),
+    by_type: data.by_type ?? [],
+    by_currency: data.by_currency ?? [],
+  };
 }

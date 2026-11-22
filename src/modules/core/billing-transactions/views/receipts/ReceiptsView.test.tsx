@@ -52,6 +52,30 @@ function page(data: Receipt[], extra: Partial<{ total: number; totalPages: numbe
   };
 }
 
+const emptySummary = {
+  status: 'active',
+  total_receipts: 2,
+  active_receipts: 2,
+  inactive_receipts: 1,
+  locked_receipts: 1,
+  currency: 'USD',
+  grand_total: 113.5,
+  subtotal: 100,
+  total_tax: 19,
+  total_discount: 5.5,
+  average_ticket: 56.75,
+  by_type: [
+    { type: 'INVOICE', receipts: 1, grand_total: 113.5 },
+    { type: 'RECEIPT', receipts: 1, grand_total: 0 },
+  ],
+  by_currency: [{ currency: 'USD', receipts: 2, grand_total: 113.5, total_tax: 19 }],
+};
+
+/** Backend falso con el resumen de KPIs ya registrado. */
+function backend(routes: Parameters<typeof fakeBackend>[0]) {
+  return fakeBackend({ '/receipts/summary': { data: emptySummary }, ...routes });
+}
+
 function listUrls(fetchMock: ReturnType<typeof fakeBackend>): URL[] {
   return fetchMock.mock.calls
     .map(([input, init]) => ({ url: String(input), method: (init?.method ?? 'GET').toUpperCase() }))
@@ -66,7 +90,7 @@ afterEach(() => {
 
 describe('ReceiptsView — central table (Historia 18)', () => {
   it('shows every monetary column with 2 decimals and the currency code', async () => {
-    vi.stubGlobal('fetch', fakeBackend({ '/receipts': page([invoice, receipt]) }));
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice, receipt]) }));
     render(<ReceiptsView />);
 
     const row = await screen.findByTestId('receipt-row-1');
@@ -83,7 +107,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('highlights rows on hover with the corporate accent #ae001a', async () => {
-    vi.stubGlobal('fetch', fakeBackend({ '/receipts': page([invoice]) }));
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice]) }));
     render(<ReceiptsView />);
 
     const row = await screen.findByTestId('receipt-row-1');
@@ -92,7 +116,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('searches by invoice number / fiscal data in real time (debounced, back to page 1)', async () => {
-    const fetchMock = fakeBackend({ '/receipts': page([invoice]) });
+    const fetchMock = backend({ '/receipts': page([invoice]) });
     vi.stubGlobal('fetch', fetchMock);
     render(<ReceiptsView />);
     await screen.findByTestId('receipt-row-1');
@@ -112,13 +136,13 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('filters by type and status (status=inactive lists logically deleted receipts)', async () => {
-    const fetchMock = fakeBackend({ '/receipts': page([invoice]) });
+    const fetchMock = backend({ '/receipts': page([invoice]) });
     vi.stubGlobal('fetch', fetchMock);
     render(<ReceiptsView />);
     await screen.findByTestId('receipt-row-1');
     expect(listUrls(fetchMock)[0].searchParams.get('status')).toBe('active');
 
-    await userEvent.selectOptions(screen.getByLabelText('Filter by type'), 'INVOICE');
+    await userEvent.click(screen.getByRole('button', { name: /invoices/i }));
     await userEvent.selectOptions(screen.getByLabelText('Filter by status'), 'inactive');
 
     await waitFor(() => {
@@ -129,7 +153,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('shows the receipt details drawer', async () => {
-    vi.stubGlobal('fetch', fakeBackend({ '/receipts': page([invoice]) }));
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice]) }));
     render(<ReceiptsView />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'View INV-000001' }));
@@ -141,7 +165,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('edits a receipt with PATCH, sending only the changed fields', async () => {
-    const fetchMock = fakeBackend({
+    const fetchMock = backend({
       '/receipts': page([invoice]),
       'PATCH /receipts/1': (init: RequestInit | undefined) => {
         expect(JSON.parse(String(init?.body))).toEqual({ invoiceNumber: 'INV-000900', currency: 'PEN' });
@@ -170,7 +194,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   it('keeps the drawer open and shows the 409 when the invoice number is taken by the merchant', async () => {
     vi.stubGlobal(
       'fetch',
-      fakeBackend({
+      backend({
         '/receipts': page([invoice]),
         'PATCH /receipts/1': () =>
           jsonResponse(
@@ -198,7 +222,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('creates a receipt leaving the invoice number to the backend sequence', async () => {
-    const fetchMock = fakeBackend({
+    const fetchMock = backend({
       '/receipts': page([invoice]),
       'POST /receipts': (init: RequestInit | undefined) => {
         expect(JSON.parse(String(init?.body))).toEqual({ orderId: 555, type: 'INVOICE', currency: 'USD' });
@@ -221,7 +245,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
 
   it('logically deletes a receipt with PATCH /status isActive=false and reloads the list', async () => {
     let active = true;
-    const fetchMock = fakeBackend({
+    const fetchMock = backend({
       '/receipts': () => jsonResponse(page(active ? [invoice] : [])),
       'PATCH /receipts/1/status': (init: RequestInit | undefined) => {
         expect(JSON.parse(String(init?.body))).toEqual({ isActive: false });
@@ -233,7 +257,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
     render(<ReceiptsView />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Deactivate INV-000001' }));
-    expect(screen.getByText(/is a logical deletion/i)).toBeInTheDocument();
+    expect(screen.getByText(/leaves the active list/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
 
     await waitFor(() => expect(calledRoutes(fetchMock)).toContain('PATCH /receipts/1/status'));
@@ -243,7 +267,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
 
   it('reactivates an inactive receipt with PATCH /status isActive=true', async () => {
     const inactive = { ...invoice, is_active: false };
-    const fetchMock = fakeBackend({
+    const fetchMock = backend({
       '/receipts': page([inactive]),
       'PATCH /receipts/1/status': (init: RequestInit | undefined) => {
         expect(JSON.parse(String(init?.body))).toEqual({ isActive: true });
@@ -264,7 +288,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('paginates on the server', async () => {
-    const fetchMock = fakeBackend({ '/receipts': page([invoice], { total: 25, totalPages: 3 }) });
+    const fetchMock = backend({ '/receipts': page([invoice], { total: 25, totalPages: 3 }) });
     vi.stubGlobal('fetch', fetchMock);
     render(<ReceiptsView />);
     await screen.findByTestId('receipt-row-1');
@@ -275,10 +299,72 @@ describe('ReceiptsView — central table (Historia 18)', () => {
   });
 
   it('shows an error state with retry', async () => {
-    vi.stubGlobal('fetch', fakeBackend({ '/receipts': () => jsonResponse({ message: 'boom' }, 500) }));
+    vi.stubGlobal('fetch', backend({ '/receipts': () => jsonResponse({ message: 'boom' }, 500) }));
     render(<ReceiptsView />);
 
     expect(await screen.findByText('boom')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+});
+
+describe('ReceiptsView — Command Hub Header (Historia 19)', () => {
+  it('renders the header at the top of the view, before the receipts table', async () => {
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice]) }));
+    render(<ReceiptsView />);
+
+    const view = screen.getByTestId('receipts-view');
+    const header = screen.getByTestId('receipts-command-header');
+    expect(view.firstElementChild).toBe(header);
+    const table = await screen.findByRole('table', { name: 'Receipts' });
+    expect(header.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('loads the KPIs from GET /receipts/summary with the active status filter', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    expect(await screen.findByText('113.50 USD', { selector: '[data-testid="receipts-kpi-volume"] *' })).toBeInTheDocument();
+    const summaryCall = fetchMock.mock.calls.map(([u]) => String(u)).find((u) => u.includes('/receipts/summary'));
+    expect(summaryCall).toContain('status=active');
+  });
+
+  it('applies the quick type filters to the table', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /receipts\s*1$/i }));
+
+    await waitFor(() => expect(listUrls(fetchMock).at(-1)?.searchParams.get('type')).toBe('RECEIPT'));
+    expect(screen.getByRole('button', { name: /receipts\s*1$/i })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('returns to the Billing & Transactions Command Hub without reloading the page', async () => {
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice]) }));
+    const onNavigate = vi.fn();
+    render(<ReceiptsView onNavigate={onNavigate} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /billing & transactions command hub/i }));
+
+    expect(onNavigate).toHaveBeenCalledWith('billing-transactions-hub');
+  });
+
+  it('refreshes the KPIs after a logical deletion', async () => {
+    const fetchMock = backend({
+      '/receipts': page([invoice]),
+      'PATCH /receipts/1/status': () => jsonResponse({ data: { ...invoice, is_active: false } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    const summaryCalls = () => calledRoutes(fetchMock).filter((r) => r === 'GET /receipts/summary').length;
+    await screen.findByTestId('receipt-row-1');
+    await waitFor(() => expect(summaryCalls()).toBe(1));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Deactivate INV-000001' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
+
+    await waitFor(() => expect(summaryCalls()).toBe(2));
   });
 });

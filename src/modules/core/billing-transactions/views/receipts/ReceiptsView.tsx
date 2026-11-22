@@ -3,6 +3,7 @@ import { Toast, type ToastState } from '@/shared/components/Toast';
 import { ConfirmStatusToggleDialog } from '@/shared/components/StatusToggle';
 import {
   createReceipt,
+  getReceiptsSummary,
   listReceipts,
   setReceiptStatus,
   updateReceipt,
@@ -11,6 +12,7 @@ import type {
   CreateReceiptPayload,
   Receipt,
   ReceiptStatusFilter,
+  ReceiptSummary,
   ReceiptType,
   UpdateReceiptPayload,
 } from '../../types/receipts';
@@ -18,6 +20,7 @@ import { receiptLabel } from '../../lib/receipts-format';
 import { ReceiptsDataGrid } from './ReceiptsDataGrid';
 import { ReceiptDetailsDrawer } from './ReceiptDetailsDrawer';
 import { ReceiptFormDrawer, type ReceiptFormMode } from './ReceiptFormDrawer';
+import { BILLING_HUB_ID, ReceiptsCommandHeader } from './ReceiptsCommandHeader';
 
 export interface ReceiptsViewProps {
   onNavigate?: (view: string) => void;
@@ -37,7 +40,7 @@ const STATUS_OPTIONS: Array<{ value: ReceiptStatusFilter; label: string }> = [
  * alfanumérica (invoice_number / fiscal_data), filtros por tipo y estado, paginación del
  * servidor, ficha de detalle, edición (PATCH) y baja lógica / reactivación.
  */
-export const ReceiptsView: React.FC<ReceiptsViewProps> = () => {
+export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   // Filtros
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -53,6 +56,12 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = () => {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const requestSeq = useRef(0);
+
+  // KPIs del header (GET /receipts/summary)
+  const [summary, setSummary] = useState<ReceiptSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const summarySeq = useRef(0);
 
   // Paneles
   const [detailReceipt, setDetailReceipt] = useState<Receipt | null>(null);
@@ -102,7 +111,30 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = () => {
       });
   }, [page, search, typeFilter, statusFilter, reloadKey]);
 
+  // Los KPIs siguen el filtro de estado del listado y se recalculan tras cada alta/edición/baja.
+  useEffect(() => {
+    const seq = ++summarySeq.current;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    getReceiptsSummary({ status: statusFilter })
+      .then((data) => {
+        if (seq === summarySeq.current) setSummary(data);
+      })
+      .catch((err: unknown) => {
+        if (seq !== summarySeq.current) return;
+        setSummaryError(err instanceof Error ? err.message : 'Failed to load the receipts summary.');
+      })
+      .finally(() => {
+        if (seq === summarySeq.current) setSummaryLoading(false);
+      });
+  }, [statusFilter, reloadKey]);
+
   const reload = () => setReloadKey((k) => k + 1);
+
+  const changeTypeFilter = (type: ReceiptType | '') => {
+    setTypeFilter(type);
+    setPage(1);
+  };
 
   const hasActiveFilters = Boolean(search || typeFilter || statusFilter !== 'active');
 
@@ -150,18 +182,16 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-poppins pb-8" data-testid="receipts-view">
-      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <span className="material-symbols-outlined text-[#ae001a] text-2xl" aria-hidden="true">
-            receipt_long
-          </span>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-poppins">Receipts</h2>
-        </div>
-        <p className="text-[#5f5e5e] text-body-sm font-poppins mt-1">
-          Search issued receipts and invoices by invoice number or fiscal data, review their amounts and keep the
-          financial history with logical deletion.
-        </p>
-      </div>
+      <ReceiptsCommandHeader
+        summary={summary}
+        loading={summaryLoading}
+        error={summaryError}
+        statusFilter={statusFilter}
+        typeFilter={typeFilter}
+        onTypeFilterChange={changeTypeFilter}
+        onBackToHub={() => onNavigate?.(BILLING_HUB_ID)}
+        onRefresh={reload}
+      />
 
       {/* Búsqueda y filtros */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 shadow-sm flex flex-col gap-3">
@@ -183,19 +213,6 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = () => {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value as ReceiptType | '');
-                setPage(1);
-              }}
-              aria-label="Filter by type"
-              className="h-9 px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-xs font-semibold text-[#1d1c17] outline-none focus:border-[#ae001a] cursor-pointer font-poppins"
-            >
-              <option value="">All types</option>
-              <option value="INVOICE">Invoices</option>
-              <option value="RECEIPT">Receipts</option>
-            </select>
             <select
               value={statusFilter}
               onChange={(e) => {

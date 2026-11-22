@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { calledRoutes, fakeBackend, jsonResponse } from '@/test/fetch';
-import { listReceipts, setReceiptStatus, toQueryString, updateReceipt } from './receipts-api';
+import { getReceiptsSummary, listReceipts, setReceiptStatus, toQueryString, updateReceipt } from './receipts-api';
 
 const rawReceipt = {
   id: 1,
@@ -99,5 +99,34 @@ describe('receipts-api', () => {
       status: 409,
       message: "Invoice number 'INV-000002' is already used by another receipt of this merchant",
     });
+  });
+
+  it('loads the KPI summary filtered by is_active status (Historia 19)', async () => {
+    const fetchMock = fakeBackend({
+      '/receipts/summary': {
+        data: {
+          status: 'active',
+          total_receipts: 2,
+          active_receipts: 2,
+          inactive_receipts: 0,
+          locked_receipts: 0,
+          currency: 'USD',
+          grand_total: '238.00',
+          subtotal: '200',
+          total_tax: '38',
+          total_discount: '0',
+          average_ticket: '119',
+          by_type: [],
+          by_currency: [],
+        },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const summary = await getReceiptsSummary({ status: 'active' });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/receipts/summary?status=active');
+    expect(summary.grand_total).toBe(238);
+    expect(summary.average_ticket).toBe(119);
   });
 });
