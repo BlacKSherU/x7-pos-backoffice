@@ -70,6 +70,7 @@ import { KitchenAnalyticsView } from '@/modules/restaurant-operations/kitchen-di
 import { LedgerAccountsView } from '@/modules/core/financial-engine/views/LedgerAccountsView';
 import { JournalEntriesView } from '@/modules/core/financial-engine/views/JournalEntriesView';
 import { JournalEntryLinesView } from '@/modules/core/financial-engine/views/JournalEntryLinesView';
+import { ReceiptsView } from '@/modules/core/billing-transactions/views/receipts/ReceiptsView';
 
 import { SuppliersView } from '@/modules/core/business-partners/views/SuppliersView';
 import { CustomersView } from '@/modules/core/business-partners/views/CustomersView';
@@ -420,6 +421,9 @@ view('journal-entries-lines', (ctx) => (
     }}
   />
 ));
+
+// ---- Billing & Transactions ----
+view('receipt-orders', (ctx) => <ReceiptsView onNavigate={ctx.navigateToFeature} />);
 
 // ---- Business Partners / Clientes ----
 view('customers', (ctx) => (
