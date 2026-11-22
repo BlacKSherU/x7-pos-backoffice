@@ -4,11 +4,14 @@ import type { Receipt } from '../../types/receipts';
 import {
   RECEIPT_TYPE_BADGE,
   RECEIPT_TYPE_LABELS,
+  formatAmount,
   formatMoney,
   formatReceiptDate,
   parseFiscalData,
   receiptLabel,
 } from '../../lib/receipts-format';
+import { FISCAL_STRUCTURED_KEYS, grandTotalBalance, resolveTaxExemption } from '../../lib/receipt-fiscal';
+import { TaxExemptBadge } from './ReceiptFiscalBadges';
 
 interface ReceiptDetailsDrawerProps {
   receipt: Receipt;
@@ -31,7 +34,12 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
   onEdit,
   onToggleStatus,
 }) => {
-  const fiscalPairs = parseFiscalData(receipt.fiscal_data);
+  const exemption = resolveTaxExemption(receipt.fiscal_data);
+  const balance = grandTotalBalance(receipt);
+  // tax_id / exemption_code / tax_exempt tienen fila propia; el resto de claves se lista debajo.
+  const fiscalPairs = parseFiscalData(receipt.fiscal_data).filter(
+    ([key]) => !(FISCAL_STRUCTURED_KEYS as readonly string[]).includes(key),
+  );
   const amounts: Array<[string, number]> = [
     ['Subtotal', receipt.subtotal],
     ['Taxes', receipt.total_tax],
@@ -45,10 +53,13 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
           <Field label="Invoice number">{receipt.invoice_number ?? '—'}</Field>
           <Field label="Order ID">#{receipt.order_id}</Field>
           <Field label="Type">
-            <span
-              className={`inline-block px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${RECEIPT_TYPE_BADGE[receipt.type]}`}
-            >
-              {RECEIPT_TYPE_LABELS[receipt.type] ?? receipt.type}
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              <span
+                className={`inline-block px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${RECEIPT_TYPE_BADGE[receipt.type]}`}
+              >
+                {RECEIPT_TYPE_LABELS[receipt.type] ?? receipt.type}
+              </span>
+              <TaxExemptBadge receipt={receipt} />
             </span>
           </Field>
           <Field label="Status">
@@ -89,23 +100,52 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
               </dd>
             </div>
           </dl>
+          <div
+            data-testid="receipt-detail-balance"
+            data-balanced={balance.balanced ? 'true' : 'false'}
+            className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11.5px] ${
+              balance.balanced
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+              {balance.balanced ? 'check_circle' : 'error'}
+            </span>
+            <span className="tabular-nums">
+              <span className="block font-semibold">
+                {formatAmount(receipt.subtotal)} + {formatAmount(receipt.total_tax)} −{' '}
+                {formatAmount(Math.abs(receipt.total_discount))} = {formatAmount(balance.expected)}{' '}
+                {receipt.currency}
+              </span>
+              {balance.balanced
+                ? 'Subtotal + tax − discount matches the grand total to the cent.'
+                : `Grand total differs by ${formatMoney(balance.differenceCents / 100, receipt.currency)} from subtotal + tax − discount.`}
+            </span>
+          </div>
+          {exemption.exempt && (
+            <p className="mt-2 text-[11.5px] text-sky-800" data-testid="receipt-detail-exemption-note">
+              Tax exemption {exemption.exemptionCode ?? ''} applied: total tax and every active tax line are 0.00.
+            </p>
+          )}
         </section>
 
         <section className="bg-white p-5 rounded-xl border border-[#e8e2d8] shadow-xs">
           <h3 className="text-xs font-bold text-[#8c857b] uppercase tracking-wider border-b border-[#f2ede5] pb-2 mb-3 font-poppins">
             Fiscal data
           </h3>
-          {fiscalPairs.length === 0 ? (
-            <p className="text-sm text-[#8c857b]">No fiscal data recorded.</p>
-          ) : (
-            <dl className="grid grid-cols-2 gap-3">
-              {fiscalPairs.map(([key, value]) => (
-                <Field key={key} label={key.replace(/_/g, ' ')}>
-                  {value || '—'}
-                </Field>
-              ))}
-            </dl>
-          )}
+          <dl className="grid grid-cols-2 gap-3">
+            <Field label="Tax ID">{exemption.taxId ?? '—'}</Field>
+            <Field label="Exemption code">{exemption.exemptionCode ?? '—'}</Field>
+            <Field label="Tax exempt">
+              <span data-testid="receipt-detail-tax-exempt">{exemption.exempt ? 'Yes' : 'No'}</span>
+            </Field>
+            {fiscalPairs.map(([key, value]) => (
+              <Field key={key} label={key.replace(/_/g, ' ')}>
+                {value || '—'}
+              </Field>
+            ))}
+          </dl>
         </section>
 
         <p className="text-[11px] text-[#8c857b]">Last updated {formatReceiptDate(receipt.updated_at)}</p>

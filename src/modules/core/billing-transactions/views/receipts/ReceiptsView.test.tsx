@@ -661,3 +661,140 @@ describe('ReceiptsView — tax breakdown cards (Historia 13)', () => {
     expect(within(section).getByTestId('receipts-tax-total-card')).toHaveTextContent('0.00 USD');
   });
 });
+
+describe('ReceiptsView — fiscal data and tax exemption (Historia 10)', () => {
+  const exempt: Receipt = {
+    ...invoice,
+    id: 3,
+    invoice_number: 'INV-000003',
+    fiscal_data: '{"tax_id":"J-12345678-9","exemption_code":"EX-2026-001","fiscal_number":"F001-9"}',
+    subtotal: 100,
+    total_tax: 0,
+    total_discount: 10,
+    grand_total: 90,
+  };
+
+  it('shows the TAX EXEMPT badge in the table only for exempt receipts', async () => {
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice, exempt]) }));
+    render(<ReceiptsView />);
+
+    const exemptRow = await screen.findByTestId('receipt-row-3');
+    expect(within(exemptRow).getByText('TAX EXEMPT')).toBeInTheDocument();
+    expect(within(exemptRow).getByTestId('receipt-3-tax-exempt')).toHaveAttribute(
+      'title',
+      'Tax exemption EX-2026-001',
+    );
+    expect(within(screen.getByTestId('receipt-row-1')).queryByText('TAX EXEMPT')).not.toBeInTheDocument();
+  });
+
+  it('marks grand_total = subtotal + total_tax − total_discount as balanced to the cent', async () => {
+    const unbalanced: Receipt = { ...invoice, id: 4, invoice_number: 'INV-000004', grand_total: 113.51 };
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice, unbalanced]) }));
+    render(<ReceiptsView />);
+
+    const ok = await screen.findByTestId('receipt-1-balance');
+    expect(ok).toHaveAttribute('data-balanced', 'true');
+    expect(ok).toHaveAccessibleName(/balanced to the cent/i);
+    const off = screen.getByTestId('receipt-4-balance');
+    expect(off).toHaveAttribute('data-balanced', 'false');
+    expect(off).toHaveAccessibleName(/out of balance by 0\.01 USD/i);
+  });
+
+  it('shows the badge, the structured fiscal data and the balance check in the details drawer', async () => {
+    vi.stubGlobal('fetch', backend({ '/receipts': page([exempt]) }));
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View INV-000003' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('TAX EXEMPT')).toBeInTheDocument();
+    expect(within(dialog).getByText('J-12345678-9')).toBeInTheDocument();
+    expect(within(dialog).getByText('EX-2026-001')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('receipt-detail-tax-exempt')).toHaveTextContent('Yes');
+    expect(within(dialog).getByText('F001-9')).toBeInTheDocument();
+    const balance = within(dialog).getByTestId('receipt-detail-balance');
+    expect(balance).toHaveAttribute('data-balanced', 'true');
+    expect(balance).toHaveTextContent('100.00 + 0.00 − 10.00 = 90.00 USD');
+    expect(balance).toHaveTextContent(/matches the grand total to the cent/);
+    expect(within(dialog).getByTestId('receipt-detail-exemption-note')).toHaveTextContent('EX-2026-001');
+  });
+
+  it('edits tax_id, exemption_code and tax_exempt, keeping the other fiscal keys', async () => {
+    const fetchMock = backend({
+      '/receipts': page([invoice]),
+      'PATCH /receipts/1': (init: RequestInit | undefined) => {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          fiscalData: JSON.stringify({
+            tax_id: '20123456789',
+            exemption_code: 'EX-77',
+            fiscal_number: 'F001-1',
+          }),
+        });
+        return jsonResponse({ data: { ...invoice, fiscal_data: '{"tax_id":"20123456789","exemption_code":"EX-77"}', total_tax: 0, grand_total: 94.5 } });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit INV-000001' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText('Tax ID')).toHaveValue('20123456789');
+    expect(within(dialog).getByLabelText('Additional fiscal data (JSON)')).toHaveValue(
+      JSON.stringify({ fiscal_number: 'F001-1' }, null, 2),
+    );
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /tax exempt customer/i }));
+    expect(within(dialog).getByTestId('receipt-form-exempt-badge')).toHaveTextContent('TAX EXEMPT');
+    await userEvent.type(within(dialog).getByLabelText('Exemption code *'), 'EX-77');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(calledRoutes(fetchMock)).toContain('PATCH /receipts/1'));
+    expect(await screen.findByText('TAX EXEMPT')).toBeInTheDocument();
+  });
+
+  it('applies the back-end validation before sending (exemption needs a code, 64-char limit)', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit INV-000001' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /tax exempt customer/i }));
+    const taxId = within(dialog).getByLabelText('Tax ID');
+    await userEvent.clear(taxId);
+    fireEvent.change(taxId, { target: { value: 'X'.repeat(65) } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+
+    expect(await within(dialog).findByText('An exemption code is required for tax-exempt receipts.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Tax ID is limited to 64 characters.')).toBeInTheDocument();
+    expect(calledRoutes(fetchMock)).not.toContain('PATCH /receipts/1');
+  });
+
+  it('suspends an exemption with tax_exempt=false while keeping the certificate', async () => {
+    const fetchMock = backend({
+      '/receipts': page([exempt]),
+      'PATCH /receipts/3': (init: RequestInit | undefined) => {
+        const body = JSON.parse(String(init?.body)) as { fiscalData: string };
+        expect(JSON.parse(body.fiscalData)).toEqual({
+          tax_id: 'J-12345678-9',
+          exemption_code: 'EX-2026-001',
+          tax_exempt: false,
+          fiscal_number: 'F001-9',
+        });
+        return jsonResponse({ data: { ...exempt, fiscal_data: body.fiscalData } });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit INV-000003' }));
+    const dialog = await screen.findByRole('dialog');
+    const checkbox = within(dialog).getByRole('checkbox', { name: /tax exempt customer/i });
+    expect(checkbox).toBeChecked();
+    await userEvent.click(checkbox);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(calledRoutes(fetchMock)).toContain('PATCH /receipts/3'));
+    await waitFor(() =>
+      expect(within(screen.getByTestId('receipt-row-3')).queryByText('TAX EXEMPT')).not.toBeInTheDocument(),
+    );
+  });
+});

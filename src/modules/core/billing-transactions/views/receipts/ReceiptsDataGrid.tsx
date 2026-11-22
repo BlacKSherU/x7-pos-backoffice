@@ -10,6 +10,8 @@ import {
   summarizeFiscalData,
 } from '../../lib/receipts-format';
 import { ReceiptLineDetails, type ReceiptDetailsState } from './ReceiptLineDetails';
+import { GrandTotalBalanceIndicator, TaxExemptBadge } from './ReceiptFiscalBadges';
+import { isTaxExempt } from '../../lib/receipt-fiscal';
 
 export interface ReceiptsDataGridProps {
   receipts: Receipt[];
@@ -246,6 +248,11 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                         >
                           {RECEIPT_TYPE_LABELS[receipt.type] ?? receipt.type}
                         </span>
+                        {isTaxExempt(receipt) && (
+                          <div className="mt-1">
+                            <TaxExemptBadge receipt={receipt} compact />
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 align-top text-right">
                         <Money value={receipt.subtotal} currency={receipt.currency} testId={`receipt-${receipt.id}-subtotal`} />
@@ -267,6 +274,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                           strong
                           testId={`receipt-${receipt.id}-grand-total`}
                         />
+                        <GrandTotalBalanceIndicator receipt={receipt} />
                       </td>
                       <td className="px-4 py-3 align-top text-center">
                         <div className="flex flex-col items-center gap-1">

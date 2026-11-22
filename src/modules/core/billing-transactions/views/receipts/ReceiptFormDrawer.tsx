@@ -7,7 +7,16 @@ import type {
   ReceiptType,
   UpdateReceiptPayload,
 } from '../../types/receipts';
-import { receiptLabel, validateFiscalDataInput } from '../../lib/receipts-format';
+import { receiptLabel } from '../../lib/receipts-format';
+import {
+  FISCAL_DATA_MAX_FIELD_LENGTH,
+  buildFiscalData,
+  sameFiscalData,
+  splitFiscalData,
+  validateFiscalDataPayload,
+  validateFiscalForm,
+  type FiscalFormState,
+} from '../../lib/receipt-fiscal';
 
 export type ReceiptFormMode = 'create' | 'edit';
 
@@ -23,27 +32,124 @@ interface FormErrors {
   orderId?: string;
   currency?: string;
   invoiceNumber?: string;
+  taxId?: string;
+  exemptionCode?: string;
+  fiscalExtra?: string;
   fiscalData?: string;
 }
 
-/** Texto JSON con sangría para editar fiscal_data cómodamente. */
-function prettyFiscalData(raw: string | null | undefined): string {
-  if (!raw) return '';
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    return raw;
-  }
+interface ReceiptFiscalDataSectionProps {
+  fiscal: FiscalFormState;
+  errors: FormErrors;
+  onChange: (next: FiscalFormState) => void;
 }
 
-/** Mismo JSON aunque cambien espacios/sangría: no se envía como cambio. */
-function sameJson(a: string, b: string): boolean {
-  try {
-    return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b));
-  } catch {
-    return a.trim() === b.trim();
-  }
-}
+/**
+ * Datos fiscales del recibo (Historia 10): tax_id, exemption_code y tax_exempt con campos
+ * propios; el resto de claves de fiscal_data se conserva en un JSON adicional. Marcar la
+ * exención exige el código del certificado; el back-end pone entonces total_tax = 0.
+ */
+const ReceiptFiscalDataSection: React.FC<ReceiptFiscalDataSectionProps> = ({ fiscal, errors, onChange }) => {
+  const update = (patch: Partial<FiscalFormState>) => onChange({ ...fiscal, ...patch });
+  return (
+    <section
+      aria-labelledby="receipt-fiscal-heading"
+      className="bg-white p-5 rounded-xl border border-[#e8e2d8] shadow-xs space-y-4"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h3
+          id="receipt-fiscal-heading"
+          className="text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider flex items-center gap-1.5"
+        >
+          <span className="material-symbols-outlined text-[16px] text-[#ae001a]" aria-hidden="true">
+            account_balance
+          </span>
+          Fiscal data
+        </h3>
+        {fiscal.taxExempt && (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-sky-200 bg-sky-50 text-sky-800 text-[10px] font-bold uppercase tracking-wider"
+            data-testid="receipt-form-exempt-badge"
+          >
+            <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
+              verified_user
+            </span>
+            TAX EXEMPT
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <FormField
+          id="receipt-tax-id"
+          label="Tax ID"
+          value={fiscal.taxId}
+          onChange={(taxId) => update({ taxId })}
+          error={errors.taxId}
+          placeholder="e.g. J-12345678-9"
+        />
+        <FormField
+          id="receipt-exemption-code"
+          label={fiscal.taxExempt ? 'Exemption code *' : 'Exemption code'}
+          value={fiscal.exemptionCode}
+          onChange={(exemptionCode) => update({ exemptionCode })}
+          error={errors.exemptionCode}
+          placeholder="e.g. EX-2026-001"
+        />
+      </div>
+
+      <label className="flex items-start gap-2.5 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={fiscal.taxExempt}
+          onChange={(e) => update({ taxExempt: e.target.checked })}
+          className="mt-0.5 h-4 w-4 accent-[#ae001a] cursor-pointer"
+        />
+        <span className="text-sm text-[#1d1c17]">
+          <span className="font-semibold">Tax exempt customer</span>
+          <span className="block text-[11px] text-[#8c857b]">
+            {fiscal.taxExempt
+              ? 'Total tax will be 0.00 and every active tax line on this receipt is set to 0.00.'
+              : 'Taxes are calculated normally. Unchecking keeps the exemption code on record but suspends it.'}
+          </span>
+        </span>
+      </label>
+
+      <div className="space-y-1.5">
+        <label htmlFor="receipt-fiscal-data" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+          Additional fiscal data (JSON)
+        </label>
+        <textarea
+          id="receipt-fiscal-data"
+          value={fiscal.extra}
+          onChange={(e) => update({ extra: e.target.value })}
+          rows={4}
+          placeholder='{"fiscal_number": "F001-1"}'
+          aria-invalid={Boolean(errors.fiscalExtra)}
+          className={`w-full font-mono text-xs bg-white text-[#1d1c17] px-3 py-2 border rounded outline-none ${
+            errors.fiscalExtra
+              ? 'border-error focus:ring-1 focus:ring-error'
+              : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a]'
+          }`}
+        />
+        {errors.fiscalExtra && (
+          <p className="text-body-sm text-error" role="alert">
+            {errors.fiscalExtra}
+          </p>
+        )}
+      </div>
+      {errors.fiscalData && (
+        <p className="text-body-sm text-error" role="alert">
+          {errors.fiscalData}
+        </p>
+      )}
+      <p className="text-[11px] text-[#8c857b]">
+        Tax ID and exemption code accept up to {FISCAL_DATA_MAX_FIELD_LENGTH} characters. Other keys are stored as
+        they are.
+      </p>
+    </section>
+  );
+};
 
 /**
  * Alta / edición de un recibo. En edición solo se envían los campos modificados (PATCH).
@@ -56,7 +162,7 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
   const [type, setType] = useState<ReceiptType>(receipt?.type ?? 'RECEIPT');
   const [currency, setCurrency] = useState<string>(receipt?.currency ?? 'USD');
   const [invoiceNumber, setInvoiceNumber] = useState<string>(receipt?.invoice_number ?? '');
-  const [fiscalData, setFiscalData] = useState<string>(prettyFiscalData(receipt?.fiscal_data));
+  const [fiscal, setFiscal] = useState<FiscalFormState>(() => splitFiscalData(receipt?.fiscal_data));
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -73,15 +179,23 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
     if (isEdit && receipt?.invoice_number && !invoiceNumber.trim()) {
       next.invoiceNumber = 'An issued invoice number cannot be cleared.';
     }
-    const fiscalError = validateFiscalDataInput(fiscalData);
-    if (fiscalError) next.fiscalData = fiscalError;
+    // Datos fiscales (Historia 10): mismas reglas que el back-end, campo por campo y sobre el
+    // payload final (tax_id / exemption_code ≤ 64, tax_exempt ⇒ exemption_code).
+    const fiscalErrors = validateFiscalForm(fiscal);
+    if (fiscalErrors.taxId) next.taxId = fiscalErrors.taxId;
+    if (fiscalErrors.exemptionCode) next.exemptionCode = fiscalErrors.exemptionCode;
+    if (fiscalErrors.extra) next.fiscalExtra = fiscalErrors.extra;
+    if (Object.keys(fiscalErrors).length === 0) {
+      const payloadError = validateFiscalDataPayload(buildFiscalData(fiscal, receipt?.fiscal_data));
+      if (payloadError) next.fiscalData = payloadError;
+    }
     return next;
   };
 
   const buildPayload = (): CreateReceiptPayload | UpdateReceiptPayload => {
     const normalizedCurrency = currency.trim().toUpperCase();
     const trimmedInvoice = invoiceNumber.trim();
-    const compactFiscal = fiscalData.trim() ? JSON.stringify(JSON.parse(fiscalData)) : '';
+    const compactFiscal = buildFiscalData(fiscal, receipt?.fiscal_data);
 
     if (!isEdit || !receipt) {
       const payload: CreateReceiptPayload = {
@@ -99,7 +213,7 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
     if (type !== receipt.type) changes.type = type;
     if (normalizedCurrency !== receipt.currency) changes.currency = normalizedCurrency;
     if (trimmedInvoice && trimmedInvoice !== (receipt.invoice_number ?? '')) changes.invoiceNumber = trimmedInvoice;
-    if (!sameJson(compactFiscal, receipt.fiscal_data ?? '')) changes.fiscalData = compactFiscal;
+    if (!sameFiscalData(compactFiscal, receipt.fiscal_data)) changes.fiscalData = compactFiscal;
     return changes;
   };
 
@@ -189,29 +303,7 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-[#e8e2d8] shadow-xs space-y-2">
-            <label htmlFor="receipt-fiscal-data" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
-              Fiscal data (JSON)
-            </label>
-            <textarea
-              id="receipt-fiscal-data"
-              value={fiscalData}
-              onChange={(e) => setFiscalData(e.target.value)}
-              rows={6}
-              placeholder='{"tax_id": "12345678", "fiscal_number": "ABC123"}'
-              aria-invalid={Boolean(errors.fiscalData)}
-              className={`w-full font-mono text-xs bg-white text-[#1d1c17] px-3 py-2 border rounded outline-none ${
-                errors.fiscalData
-                  ? 'border-error focus:ring-1 focus:ring-error'
-                  : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a]'
-              }`}
-            />
-            {errors.fiscalData && (
-              <p className="text-body-sm text-error" role="alert">
-                {errors.fiscalData}
-              </p>
-            )}
-          </div>
+          <ReceiptFiscalDataSection fiscal={fiscal} errors={errors} onChange={setFiscal} />
         </div>
 
         <div className="p-4 bg-white">
