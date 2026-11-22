@@ -302,8 +302,8 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     icon: 'receipt_long',
     description: 'Receipts issued, their line items and the taxes they carry.',
     items: [
-      { featureId: 'receipt-items', label: 'Itemized Receipt Line Items', icon: 'list', live: false, description: 'Inspect itemized charges printed on each customer sales receipt, applied item discounts, seat numbers, and quantity breakdowns.' },
       { featureId: 'receipt-orders', label: 'Customer Sales Receipts', icon: 'receipt_long', live: false, description: 'Archive of issued customer sales receipts, POS register terminals, settlement tenders, customer copies, and fiscal audit logs.' },
+      { featureId: 'receipt-items', label: 'Itemized Receipt Line Items', icon: 'list', live: true, description: 'Inspect itemized charges printed on each customer sales receipt, applied item discounts, seat numbers, and quantity breakdowns.' },
       { featureId: 'receipt-taxes', label: 'Receipt Tax Line Breakdown', icon: 'percent', live: false, description: 'Detailed breakdown of sales tax brackets, VAT rates, local municipal surcharges, and tax-exempt balances allocated per receipt.' },
     ],
   },

@@ -30,6 +30,7 @@ import {
   type ReceiptItemFormSubmit,
 } from './ReceiptItemFormDrawer';
 import { ReceiptItemsHeader } from './ReceiptItemsHeader';
+import { ReceiptItemsQuickLaunch } from './ReceiptItemsQuickLaunch';
 
 export interface ReceiptItemsViewProps {
   onNavigate?: (view: string) => void;
@@ -46,7 +47,7 @@ const errorMessage = (err: unknown, fallback: string) =>
 
 const thClass = 'px-4 py-3 text-[10.5px] font-bold uppercase tracking-wider text-[#5f5e5e] font-poppins whitespace-nowrap';
 
-export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
+export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = ({ onNavigate }) => {
   const [items, setItems] = useState<ReceiptItem[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -107,6 +108,11 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
           sortOrder: 'DESC',
         });
         if (cancelled) return;
+        // Deleting the last line of the last page leaves the page out of range: step back.
+        if (res.totalPages > 0 && page > res.totalPages) {
+          setPage(res.totalPages);
+          return;
+        }
         setItems(res.data);
         setTotal(res.total);
         setTotalPages(res.totalPages);
@@ -523,6 +529,9 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = () => {
           </div>
         </AppModal>
       ) : null}
+
+      {/* Sibling shortcuts; the persistent NavHubBar is mounted at the bottom by MerchantFrame. */}
+      <ReceiptItemsQuickLaunch current="receipt-items" onNavigate={onNavigate} />
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
