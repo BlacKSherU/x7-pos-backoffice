@@ -7,6 +7,7 @@ import {
   getReceiptTaxBreakdown,
   getReceiptsSummary,
   listReceipts,
+  lockReceipt,
   setReceiptStatus,
   updateReceipt,
 } from '../../api/receipts-api';
@@ -26,6 +27,7 @@ import { ReceiptFormDrawer, type ReceiptFormMode } from './ReceiptFormDrawer';
 import { BILLING_HUB_ID, ReceiptsCommandHeader } from './ReceiptsCommandHeader';
 import { ReceiptsQuickLaunch } from './ReceiptsQuickLaunch';
 import { ReceiptTaxBreakdownCards } from './ReceiptTaxBreakdownCards';
+import { ConfirmLockReceiptDialog } from './ConfirmLockReceiptDialog';
 
 export interface ReceiptsViewProps {
   onNavigate?: (view: string) => void;
@@ -44,7 +46,8 @@ const STATUS_OPTIONS: Array<{ value: ReceiptStatusFilter; label: string }> = [
  * Receipts (Billing & Transactions): listado central de recibos del merchant con búsqueda
  * alfanumérica (invoice_number / fiscal_data), filtros por tipo, estado y fecha de creación,
  * paginación del servidor, filas maestro-detalle (items e impuestos), tarjetas de desglose de
- * impuestos, ficha de detalle, edición (PATCH) y baja lógica / reactivación.
+ * impuestos, ficha de detalle, edición (PATCH), baja lógica y bloqueo fiscal (LOCK RECEIPT).
+ * Historia 11: los recibos bloqueados o dados de baja son inmutables (sin edición ni reactivación).
  */
 export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   // Filtros
@@ -83,6 +86,8 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   const [form, setForm] = useState<{ mode: ReceiptFormMode; receipt?: Receipt } | null>(null);
   const [statusTarget, setStatusTarget] = useState<Receipt | null>(null);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [lockTarget, setLockTarget] = useState<Receipt | null>(null);
+  const [lockSubmitting, setLockSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const showToast = useCallback((message: string, type: ToastState['type'] = 'success') => {
@@ -209,15 +214,13 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
     setForm(null);
   };
 
+  // Baja lógica. Historia 11: un recibo dado de baja es inmutable, así que ya no se reactiva.
   const confirmStatusChange = async () => {
     if (!statusTarget) return;
-    const nextActive = !statusTarget.is_active;
     setStatusSubmitting(true);
     try {
-      const updated = await setReceiptStatus(statusTarget.id, nextActive);
-      showToast(
-        nextActive ? `${receiptLabel(updated)} reactivated.` : `${receiptLabel(updated)} deactivated.`,
-      );
+      const updated = await setReceiptStatus(statusTarget.id, false);
+      showToast(`${receiptLabel(updated)} deactivated.`);
       if (detailReceipt?.id === updated.id) setDetailReceipt(updated);
       setStatusTarget(null);
       reload();
@@ -225,6 +228,24 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
       showToast(err instanceof Error ? err.message : 'The status could not be changed.', 'error');
     } finally {
       setStatusSubmitting(false);
+    }
+  };
+
+  // LOCK RECEIPT (Historia 11): el back-end registra usuario y rol; después no hay más cambios.
+  const confirmLock = async () => {
+    if (!lockTarget) return;
+    setLockSubmitting(true);
+    try {
+      const locked = await lockReceipt(lockTarget.id);
+      setReceipts((rows) => rows.map((r) => (r.id === locked.id ? locked : r)));
+      if (detailReceipt?.id === locked.id) setDetailReceipt(locked);
+      showToast(`${receiptLabel(locked)} locked.`);
+      setLockTarget(null);
+      reload();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'The receipt could not be locked.', 'error');
+    } finally {
+      setLockSubmitting(false);
     }
   };
 
@@ -373,6 +394,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
           onView={setDetailReceipt}
           onEdit={(receipt) => setForm({ mode: 'edit', receipt })}
           onToggleStatus={setStatusTarget}
+          onLock={setLockTarget}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
           loadDetails={getReceiptDetails}
@@ -398,6 +420,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
             setForm({ mode: 'edit', receipt });
           }}
           onToggleStatus={setStatusTarget}
+          onLock={setLockTarget}
         />
       )}
 
@@ -414,15 +437,20 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
       {statusTarget && (
         <ConfirmStatusToggleDialog
           entityName={receiptLabel(statusTarget)}
-          direction={statusTarget.is_active ? 'deactivate' : 'activate'}
+          direction="deactivate"
           submitting={statusSubmitting}
           onConfirm={confirmStatusChange}
           onClose={() => setStatusTarget(null)}
-          description={
-            statusTarget.is_active
-              ? `Deactivating "${receiptLabel(statusTarget)}" is a logical deletion: it leaves the active list, but its amounts, items and taxes stay in the financial history and it can be reactivated.`
-              : `Reactivating "${receiptLabel(statusTarget)}" returns it to the active receipts list.`
-          }
+          description={`Deactivating "${receiptLabel(statusTarget)}" is a logical deletion: it leaves the active list, but its amounts, items and taxes stay in the financial history. Deactivated receipts are immutable and cannot be reactivated.`}
+        />
+      )}
+
+      {lockTarget && (
+        <ConfirmLockReceiptDialog
+          receipt={lockTarget}
+          submitting={lockSubmitting}
+          onConfirm={confirmLock}
+          onClose={() => setLockTarget(null)}
         />
       )}
 

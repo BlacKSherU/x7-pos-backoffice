@@ -17,6 +17,8 @@ export interface ReceiptTax {
   scope: ReceiptTaxScope;
   is_active: boolean;
   receipt_invoice_number: string | null;
+  /** The parent receipt is fiscally locked: the tax cannot be edited or toggled (Historia 11). */
+  receipt_is_locked: boolean;
   currency: string | null;
   receipt_item_name: string | null;
   /** Receipt totals as stored after the server recalculated them. */
@@ -90,6 +92,8 @@ export interface ReceiptOption {
   subtotal: number;
   grand_total: number;
   currency: string;
+  /** Fiscally locked receipts cannot receive new taxes (Historia 11). */
+  is_locked?: boolean;
 }
 
 /** Receipt line as listed by GET /receipt-items (only the fields the drawer needs). */

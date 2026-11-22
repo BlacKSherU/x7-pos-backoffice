@@ -28,6 +28,8 @@ export function normalizeReceipt(raw: Receipt): Receipt {
     currency: raw.currency || 'USD',
     is_active: raw.is_active ?? true,
     is_locked: Boolean(raw.is_locked),
+    processed_by_user_id: raw.processed_by_user_id ?? null,
+    processed_by_role: raw.processed_by_role ?? null,
   };
 }
 
@@ -96,6 +98,19 @@ export async function setReceiptStatus(id: number, isActive: boolean): Promise<R
     `${BASE}/${id}/status`,
     { method: 'PATCH', body: JSON.stringify({ isActive }) },
     isActive ? 'Failed to reactivate the receipt.' : 'Failed to deactivate the receipt.',
+  );
+  return normalizeReceipt(json.data);
+}
+
+/**
+ * PATCH /receipts/:id/lock — bloqueo fiscal (Historia 11). El back-end registra el usuario y
+ * el rol que bloquean; desde entonces el recibo, sus líneas e impuestos son inmutables (403).
+ */
+export async function lockReceipt(id: number): Promise<Receipt> {
+  const json = await apiRequest<Envelope<Receipt>>(
+    `${BASE}/${id}/lock`,
+    { method: 'PATCH' },
+    'Failed to lock the receipt.',
   );
   return normalizeReceipt(json.data);
 }

@@ -10,14 +10,22 @@ import {
   parseFiscalData,
   receiptLabel,
 } from '../../lib/receipts-format';
-import { FISCAL_STRUCTURED_KEYS, grandTotalBalance, resolveTaxExemption } from '../../lib/receipt-fiscal';
-import { TaxExemptBadge } from './ReceiptFiscalBadges';
+import {
+  FISCAL_STRUCTURED_KEYS,
+  grandTotalBalance,
+  isReceiptMutable,
+  resolveTaxExemption,
+} from '../../lib/receipt-fiscal';
+import { FiscalLockBadge, TaxExemptBadge } from './ReceiptFiscalBadges';
 
 interface ReceiptDetailsDrawerProps {
   receipt: Receipt;
   onClose: () => void;
   onEdit: (receipt: Receipt) => void;
+  /** Baja lógica (solo recibos activos sin bloquear). */
   onToggleStatus: (receipt: Receipt) => void;
+  /** LOCK RECEIPT (Historia 11). */
+  onLock?: (receipt: Receipt) => void;
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -33,7 +41,9 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
   onClose,
   onEdit,
   onToggleStatus,
+  onLock,
 }) => {
+  const mutable = isReceiptMutable(receipt);
   const exemption = resolveTaxExemption(receipt.fiscal_data);
   const balance = grandTotalBalance(receipt);
   // tax_id / exemption_code / tax_exempt tienen fila propia; el resto de claves se lista debajo.
@@ -71,15 +81,19 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
               >
                 {receipt.is_active ? 'Active' : 'Inactive'}
               </span>
-              {receipt.is_locked && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800">
-                  Locked
-                </span>
-              )}
+              {receipt.is_locked && <FiscalLockBadge testId="receipt-detail-locked" />}
             </span>
           </Field>
           <Field label="Currency">{receipt.currency}</Field>
           <Field label="Issued">{formatReceiptDate(receipt.created_at)}</Field>
+          {receipt.is_locked && (
+            <Field label="Locked by">
+              <span data-testid="receipt-detail-locked-by">
+                {receipt.processed_by_user_id ? `User #${receipt.processed_by_user_id}` : 'Unknown user'}
+                {receipt.processed_by_role ? ` · ${receipt.processed_by_role}` : ''}
+              </span>
+            </Field>
+          )}
         </section>
 
         <section className="bg-white p-5 rounded-xl border border-[#e8e2d8] shadow-xs">
@@ -151,26 +165,42 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
         <p className="text-[11px] text-[#8c857b]">Last updated {formatReceiptDate(receipt.updated_at)}</p>
       </div>
 
-      <div className="p-4 border-t border-[#e8e2d8] bg-white flex justify-end gap-3 shrink-0 font-poppins">
-        <button
-          type="button"
-          onClick={() => onToggleStatus(receipt)}
-          className={`px-4 py-2 rounded border text-[11px] font-bold uppercase tracking-widest transition-colors cursor-pointer ${
-            receipt.is_active
-              ? 'border-red-200 text-red-700 hover:bg-red-50'
-              : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-          }`}
-        >
-          {receipt.is_active ? 'Deactivate' : 'Reactivate'}
-        </button>
-        {receipt.is_active && (
-          <button
-            type="button"
-            onClick={() => onEdit(receipt)}
-            className="px-5 py-2 rounded bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
-          >
-            Edit Receipt
-          </button>
+      <div className="p-4 border-t border-[#e8e2d8] bg-white flex flex-wrap justify-end gap-3 shrink-0 font-poppins">
+        {mutable ? (
+          <>
+            <button
+              type="button"
+              onClick={() => onToggleStatus(receipt)}
+              className="px-4 py-2 rounded border border-red-200 text-red-700 hover:bg-red-50 text-[11px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+            >
+              Deactivate
+            </button>
+            {onLock && (
+              <button
+                type="button"
+                onClick={() => onLock(receipt)}
+                className="px-4 py-2 rounded border border-amber-300 text-amber-800 hover:bg-amber-50 text-[11px] font-bold uppercase tracking-widest transition-colors cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                  lock
+                </span>
+                LOCK RECEIPT
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onEdit(receipt)}
+              className="px-5 py-2 rounded bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+            >
+              Edit Receipt
+            </button>
+          </>
+        ) : (
+          <p className="mr-auto self-center text-[11px] text-[#8c857b]" data-testid="receipt-detail-immutable">
+            {receipt.is_locked
+              ? 'Fiscally locked: corrections go through credit / debit notes.'
+              : 'Logically deleted receipts are kept for the financial history and cannot be modified.'}
+          </p>
         )}
       </div>
     </SideDrawer>

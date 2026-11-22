@@ -6,6 +6,8 @@ export interface ReceiptItem {
   receipt_id: number;
   /** Invoice number of the parent receipt (null when the receipt has none yet). */
   receipt_invoice_number: string | null;
+  /** The parent receipt is fiscally locked: the line cannot be edited or deleted (Historia 11). */
+  receipt_is_locked: boolean;
   /** ISO 4217 currency code of the parent receipt. */
   currency: string;
   name: string;
@@ -93,4 +95,6 @@ export interface ReceiptOption {
   /** Present once the Receipts module exposes it; optional for forward-compatibility. */
   invoice_number?: string | null;
   created_at?: string;
+  /** Fiscally locked receipts cannot receive new lines (Historia 11). */
+  is_locked?: boolean;
 }

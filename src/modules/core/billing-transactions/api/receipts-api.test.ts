@@ -5,6 +5,7 @@ import {
   getReceiptTaxBreakdown,
   getReceiptsSummary,
   listReceipts,
+  lockReceipt,
   setReceiptStatus,
   toQueryString,
   updateReceipt,
@@ -215,4 +216,20 @@ describe('receipts-api', () => {
     });
     expect(breakdown.by_currency[0].total_amount).toBe(38.5);
   });
+
+  it('locks a receipt with PATCH /receipts/:id/lock and keeps who processed it (Historia 11)', async () => {
+    const fetchMock = fakeBackend({
+      'PATCH /receipts/1/lock': () =>
+        jsonResponse({
+          data: { ...rawReceipt, is_locked: true, processed_by_user_id: 7, processed_by_role: 'merchant_admin' },
+        }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const locked = await lockReceipt(1);
+
+    expect(calledRoutes(fetchMock)).toEqual(['PATCH /receipts/1/lock']);
+    expect(locked).toMatchObject({ is_locked: true, processed_by_user_id: 7, processed_by_role: 'merchant_admin' });
+  });
 });
+

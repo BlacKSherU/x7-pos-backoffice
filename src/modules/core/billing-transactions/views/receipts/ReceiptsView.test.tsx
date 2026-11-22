@@ -312,26 +312,24 @@ describe('ReceiptsView — central table (Historia 18)', () => {
     await waitFor(() => expect(screen.queryByTestId('receipt-row-1')).not.toBeInTheDocument());
   });
 
-  it('reactivates an inactive receipt with PATCH /status isActive=true', async () => {
+  it('no longer offers reactivation: inactive receipts are immutable (Historia 11)', async () => {
     const inactive = { ...invoice, is_active: false };
-    const fetchMock = backend({
-      '/receipts': page([inactive]),
-      'PATCH /receipts/1/status': (init: RequestInit | undefined) => {
-        expect(JSON.parse(String(init?.body))).toEqual({ isActive: true });
-        return jsonResponse({ data: invoice });
-      },
-    });
+    const fetchMock = backend({ '/receipts': page([inactive]) });
     vi.stubGlobal('fetch', fetchMock);
     render(<ReceiptsView />);
 
     const row = await screen.findByTestId('receipt-row-1');
     expect(within(row).getByText('Inactive')).toBeInTheDocument();
-    expect(within(row).getByRole('button', { name: 'Edit INV-000001' })).toBeDisabled();
-    await userEvent.click(within(row).getByRole('button', { name: 'Reactivate INV-000001' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Activate' }));
+    expect(within(row).queryByRole('button', { name: 'Edit INV-000001' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Reactivate INV-000001' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Lock INV-000001' })).not.toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'View INV-000001' })).toBeInTheDocument();
 
-    await waitFor(() => expect(calledRoutes(fetchMock)).toContain('PATCH /receipts/1/status'));
-    expect(await screen.findByText('INV-000001 reactivated.')).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole('button', { name: 'View INV-000001' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('button', { name: /reactivate/i })).not.toBeInTheDocument();
+    expect(within(dialog).getByTestId('receipt-detail-immutable')).toHaveTextContent(/cannot be modified/);
+    expect(calledRoutes(fetchMock)).not.toContain('PATCH /receipts/1/status');
   });
 
   it('paginates on the server', async () => {
@@ -796,5 +794,96 @@ describe('ReceiptsView — fiscal data and tax exemption (Historia 10)', () => {
     await waitFor(() =>
       expect(within(screen.getByTestId('receipt-row-3')).queryByText('TAX EXEMPT')).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe('ReceiptsView — fiscal lock (Historia 11)', () => {
+  it('hides edit and delete on locked receipts and shows the lock badge', async () => {
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice, receipt]) }));
+    render(<ReceiptsView />);
+
+    const locked = await screen.findByTestId('receipt-row-2');
+    expect(within(locked).getByTestId('receipt-2-locked')).toHaveTextContent('Locked');
+    expect(within(locked).queryByRole('button', { name: 'Edit INV-000002' })).not.toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: 'Deactivate INV-000002' })).not.toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: 'Lock INV-000002' })).not.toBeInTheDocument();
+
+    const open = screen.getByTestId('receipt-row-1');
+    expect(within(open).queryByTestId('receipt-1-locked')).not.toBeInTheDocument();
+    expect(within(open).getByRole('button', { name: 'Edit INV-000001' })).toBeInTheDocument();
+    expect(within(open).getByRole('button', { name: 'Deactivate INV-000001' })).toBeInTheDocument();
+    expect(within(open).getByRole('button', { name: 'Lock INV-000001' })).toHaveAttribute(
+      'title',
+      expect.stringContaining('LOCK RECEIPT'),
+    );
+  });
+
+  it('locks an active receipt with PATCH /receipts/:id/lock after confirming', async () => {
+    let locked = false;
+    const lockedInvoice = {
+      ...invoice,
+      is_locked: true,
+      processed_by_user_id: 7,
+      processed_by_role: 'merchant_admin',
+    };
+    const fetchMock = backend({
+      '/receipts': () => jsonResponse(page([locked ? lockedInvoice : invoice])),
+      'PATCH /receipts/1/lock': () => {
+        locked = true;
+        return jsonResponse({ data: lockedInvoice });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Lock INV-000001' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/is immutable/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'LOCK RECEIPT' }));
+
+    await waitFor(() => expect(calledRoutes(fetchMock)).toContain('PATCH /receipts/1/lock'));
+    expect(await screen.findByText('INV-000001 locked.')).toBeInTheDocument();
+    const row = screen.getByTestId('receipt-row-1');
+    await waitFor(() => expect(within(row).getByTestId('receipt-1-locked')).toBeInTheDocument());
+    expect(within(row).queryByRole('button', { name: 'Edit INV-000001' })).not.toBeInTheDocument();
+  });
+
+  it('offers LOCK RECEIPT in the details drawer and shows who locked a receipt', async () => {
+    const lockedByAdmin = { ...receipt, processed_by_user_id: 7, processed_by_role: 'merchant_admin' };
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice, lockedByAdmin]) }));
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View INV-000001' }));
+    let dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /LOCK RECEIPT/ }));
+    // La confirmación se abre encima del detalle.
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close drawer' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'View INV-000002' }));
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByTestId('receipt-detail-locked')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('receipt-detail-locked-by')).toHaveTextContent('User #7 · merchant_admin');
+    expect(within(dialog).queryByRole('button', { name: 'Edit Receipt' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Deactivate' })).not.toBeInTheDocument();
+    expect(within(dialog).getByTestId('receipt-detail-immutable')).toHaveTextContent(/credit \/ debit notes/);
+  });
+
+  it('shows the exact 403 of the fiscal lock when the server rejects the change', async () => {
+    vi.stubGlobal(
+      'fetch',
+      backend({
+        '/receipts': page([invoice]),
+        'PATCH /receipts/1/lock': () =>
+          jsonResponse({ statusCode: 403, message: 'Receipt is fiscally locked and cannot be modified.' }, 403),
+      }),
+    );
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Lock INV-000001' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'LOCK RECEIPT' }));
+
+    expect(await screen.findByText('Receipt is fiscally locked and cannot be modified.')).toBeInTheDocument();
   });
 });

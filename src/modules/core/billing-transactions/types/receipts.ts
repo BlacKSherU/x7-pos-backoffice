@@ -20,7 +20,11 @@ export interface Receipt {
   grand_total: number;
   currency: string;
   is_active: boolean;
+  /** Bloqueo fiscal (Historia 11): el recibo, sus líneas e impuestos ya no se modifican. */
   is_locked: boolean;
+  /** Usuario y rol que bloquearon (procesaron) el recibo. */
+  processed_by_user_id?: number | null;
+  processed_by_role?: string | null;
   created_at: string;
   updated_at: string;
 }

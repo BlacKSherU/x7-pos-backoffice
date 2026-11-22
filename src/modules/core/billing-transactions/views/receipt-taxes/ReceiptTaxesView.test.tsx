@@ -33,6 +33,7 @@ const RECEIPT_TAX: ReceiptTax = {
   scope: 'RECEIPT',
   is_active: true,
   receipt_invoice_number: 'INV-000010',
+  receipt_is_locked: false,
   currency: 'USD',
   receipt_item_name: null,
   receipt_total_tax: 24.75,
@@ -242,4 +243,54 @@ describe('ReceiptTaxesView', () => {
     // The fixed bottom NavHubBar is mounted once by MerchantFrame, never inside the view.
     expect(screen.queryByRole('navigation', { name: /module navigation/i })).toBeNull();
   });
+
+  describe('fiscal lock (Historia 11)', () => {
+    const LOCKED_TAX: ReceiptTax = {
+      ...RECEIPT_TAX,
+      id: 4,
+      name: 'Locked VAT',
+      receipt_id: 12,
+      receipt_invoice_number: 'INV-000012',
+      receipt_is_locked: true,
+    };
+
+    it('hides edit and activate / deactivate on taxes of a locked receipt', async () => {
+      vi.mocked(fetchReceiptTaxes).mockResolvedValue(listResult([RECEIPT_TAX, LOCKED_TAX]));
+      render(<ReceiptTaxesView />);
+
+      const lockedRow = await screen.findByTestId('receipt-tax-row-4');
+      expect(within(lockedRow).getByTestId('receipt-tax-locked-4')).toHaveTextContent('Locked');
+      expect(within(lockedRow).getByRole('img', { name: 'Locked receipt' })).toBeInTheDocument();
+      expect(within(lockedRow).queryByRole('button', { name: 'Edit Locked VAT' })).not.toBeInTheDocument();
+      expect(within(lockedRow).queryByRole('button', { name: 'Deactivate Locked VAT' })).not.toBeInTheDocument();
+
+      const openRow = screen.getByTestId('receipt-tax-row-1');
+      expect(within(openRow).getByRole('button', { name: 'Edit IVA 19%' })).toBeEnabled();
+      expect(within(openRow).queryByTestId('receipt-tax-locked-1')).not.toBeInTheDocument();
+    });
+
+    it('does not let new taxes target a locked receipt', async () => {
+      vi.mocked(fetchReceiptOptions).mockResolvedValue([
+        { id: 10, invoice_number: 'INV-000010', type: 'invoice', subtotal: 125, grand_total: 148.75, currency: 'USD' },
+        {
+          id: 12,
+          invoice_number: 'INV-000012',
+          type: 'invoice',
+          subtotal: 50,
+          grand_total: 59.5,
+          currency: 'USD',
+          is_locked: true,
+        },
+      ]);
+      render(<ReceiptTaxesView />);
+      await screen.findByTestId('receipt-tax-row-1');
+
+      fireEvent.click(screen.getByRole('button', { name: /New Receipt Tax/ }));
+      const dialog = screen.getByRole('dialog', { name: 'New Receipt Tax' });
+      const lockedOption = await within(dialog).findByRole('option', { name: /INV-000012.*locked/ });
+      expect(lockedOption).toBeDisabled();
+      expect(within(dialog).getByRole('option', { name: /INV-000010/ })).toBeEnabled();
+    });
+  });
 });
+

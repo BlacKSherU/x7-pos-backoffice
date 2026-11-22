@@ -211,8 +211,10 @@ export const ReceiptTaxFormDrawer: React.FC<ReceiptTaxFormDrawerProps> = ({
               >
                 <option value="">{receiptsLoading ? 'Loading receipts…' : 'Select a receipt'}</option>
                 {receipts.map((r) => (
-                  <option key={r.id} value={r.id}>
+                  // Historia 11: un recibo bloqueado no admite impuestos nuevos.
+                  <option key={r.id} value={r.id} disabled={Boolean(r.is_locked) && String(r.id) !== receiptId}>
                     {receiptLabel(r)} — subtotal {formatMoney(r.subtotal, r.currency)}
+                    {r.is_locked ? ' — locked' : ''}
                   </option>
                 ))}
               </select>

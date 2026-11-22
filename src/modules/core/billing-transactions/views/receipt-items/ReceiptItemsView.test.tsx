@@ -402,3 +402,40 @@ describe('ReceiptItemsView — header INVOICE LINE ITEMS + filters (Historia 16)
     expect(screen.getByLabelText('Search by description or SKU')).toHaveValue('');
   });
 });
+
+describe('ReceiptItemsView — fiscal lock (Historia 11)', () => {
+  const lockedLine = { ...burger, id: 3, name: 'Locked Combo', receipt_id: 12, receipt_invoice_number: 'INV-000012', receipt_is_locked: true };
+
+  it('hides edit and delete on lines of a locked receipt and shows the lock badge', async () => {
+    setup({ '/receipt-items': page([burger, lockedLine]) });
+    render(<ReceiptItemsView />);
+
+    const lockedRow = await screen.findByTestId('receipt-item-row-3');
+    expect(within(lockedRow).getByTestId('receipt-item-locked-3')).toHaveTextContent('Locked');
+    expect(within(lockedRow).getByRole('img', { name: 'Locked receipt' })).toBeInTheDocument();
+    expect(within(lockedRow).queryByRole('button', { name: 'Edit Locked Combo' })).not.toBeInTheDocument();
+    expect(within(lockedRow).queryByRole('button', { name: 'Delete Locked Combo' })).not.toBeInTheDocument();
+
+    const openRow = screen.getByTestId('receipt-item-row-1');
+    expect(within(openRow).getByRole('button', { name: 'Edit Burger Combo' })).toBeInTheDocument();
+    expect(within(openRow).getByRole('button', { name: 'Delete Burger Combo' })).toBeInTheDocument();
+  });
+
+  it('does not let new lines target a locked receipt', async () => {
+    const user = setup({
+      '/receipts': page([
+        ...receipts,
+        { id: 12, order_id: 202, type: 'invoice', grand_total: 10, currency: 'USD', invoice_number: 'INV-000012', is_locked: true },
+      ]),
+    });
+    render(<ReceiptItemsView />);
+    await screen.findByTestId('receipt-item-row-1');
+
+    await user.click(screen.getByRole('button', { name: /add line item/i }));
+    const dialog = await screen.findByRole('dialog');
+    const lockedOption = await within(dialog).findByRole('option', { name: /INV-000012.*locked/ });
+    expect(lockedOption).toBeDisabled();
+    expect(within(dialog).getByRole('option', { name: /INV-000010/ })).toBeEnabled();
+  });
+});
+

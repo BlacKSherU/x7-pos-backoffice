@@ -16,6 +16,7 @@ import type {
   ReceiptTaxesSummary,
   UpdateReceiptTaxPayload,
 } from '../../types/receipt-taxes';
+import { FiscalLockBadge } from '../receipts/ReceiptFiscalBadges';
 import { ReceiptTaxFormDrawer, type ReceiptTaxFormPayload } from './ReceiptTaxFormDrawer';
 import { ReceiptTaxesHeader } from './ReceiptTaxesHeader';
 import { ReceiptTaxesQuickLinks } from './ReceiptTaxesQuickLinks';
@@ -402,7 +403,18 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = ({ onNavigate }
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[#1d1c17]">
-                        <div>{receiptLabel({ id: tax.receipt_id, invoice_number: tax.receipt_invoice_number })}</div>
+                        <div className="flex items-center gap-1">
+                          {tax.receipt_is_locked && (
+                            <span
+                              className="material-symbols-outlined text-[14px] text-amber-700"
+                              aria-label="Locked receipt"
+                              role="img"
+                            >
+                              lock
+                            </span>
+                          )}
+                          {receiptLabel({ id: tax.receipt_id, invoice_number: tax.receipt_invoice_number })}
+                        </div>
                         {tax.receipt_grand_total !== null && (
                           <div className="text-[11px] text-[#8c857b]">
                             Total {formatMoney(tax.receipt_grand_total, tax.currency)}
@@ -424,31 +436,41 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = ({ onNavigate }
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openDrawer({ mode: 'edit', tax })}
-                            disabled={!tax.is_active}
-                            aria-label={`Edit ${tax.name}`}
-                            title={tax.is_active ? 'Edit tax' : 'Activate the tax before editing it'}
-                            className="w-8 h-8 rounded flex items-center justify-center text-[#8c857b] hover:text-[#ae001a] hover:bg-[#f2ede5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setStatusTarget(tax)}
-                            aria-label={`${tax.is_active ? 'Deactivate' : 'Activate'} ${tax.name}`}
-                            title={tax.is_active ? 'Deactivate (kept for history)' : 'Activate'}
-                            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
-                              tax.is_active
-                                ? 'text-[#8c857b] hover:text-red-600 hover:bg-red-50'
-                                : 'text-[#8c857b] hover:text-green-600 hover:bg-green-50'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
-                              {tax.is_active ? 'block' : 'check_circle'}
-                            </span>
-                          </button>
+                          {tax.receipt_is_locked ? (
+                            // Historia 11: los impuestos de un recibo bloqueado no se editan ni se desactivan.
+                            <FiscalLockBadge
+                              testId={`receipt-tax-locked-${tax.id}`}
+                              title="The receipt is fiscally locked: issue a credit / debit note to correct it"
+                            />
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openDrawer({ mode: 'edit', tax })}
+                                disabled={!tax.is_active}
+                                aria-label={`Edit ${tax.name}`}
+                                title={tax.is_active ? 'Edit tax' : 'Activate the tax before editing it'}
+                                className="w-8 h-8 rounded flex items-center justify-center text-[#8c857b] hover:text-[#ae001a] hover:bg-[#f2ede5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStatusTarget(tax)}
+                                aria-label={`${tax.is_active ? 'Deactivate' : 'Activate'} ${tax.name}`}
+                                title={tax.is_active ? 'Deactivate (kept for history)' : 'Activate'}
+                                className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
+                                  tax.is_active
+                                    ? 'text-[#8c857b] hover:text-red-600 hover:bg-red-50'
+                                    : 'text-[#8c857b] hover:text-green-600 hover:bg-green-50'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                                  {tax.is_active ? 'block' : 'check_circle'}
+                                </span>
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

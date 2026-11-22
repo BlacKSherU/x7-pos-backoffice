@@ -83,6 +83,14 @@ export function resolveTaxExemption(raw: string | null | undefined): ReceiptTaxE
   return { exempt, exemptionCode, taxId };
 }
 
+/**
+ * Bloqueo fiscal (Historia 11): un recibo solo admite cambios (editar, bloquear, dar de baja,
+ * líneas e impuestos) si está activo y no bloqueado. Misma regla que el FiscalLockGuard.
+ */
+export function isReceiptMutable(receipt: Pick<Receipt, 'is_active' | 'is_locked'>): boolean {
+  return receipt.is_active && !receipt.is_locked;
+}
+
 export function isTaxExempt(receipt: Pick<Receipt, 'fiscal_data'>): boolean {
   return resolveTaxExemption(receipt.fiscal_data).exempt;
 }

@@ -164,8 +164,14 @@ export const ReceiptItemFormDrawer: React.FC<ReceiptItemFormDrawerProps> = ({
               >
                 <option value="">{receiptsLoading ? 'Loading receipts…' : 'Select a receipt…'}</option>
                 {receipts.map((r) => (
-                  <option key={r.id} value={String(r.id)}>
+                  // Historia 11: un recibo bloqueado no admite líneas nuevas.
+                  <option
+                    key={r.id}
+                    value={String(r.id)}
+                    disabled={Boolean(r.is_locked) && String(r.id) !== receiptId}
+                  >
                     {receiptOptionLabel(r)}
+                    {r.is_locked ? ' — locked' : ''}
                   </option>
                 ))}
               </select>

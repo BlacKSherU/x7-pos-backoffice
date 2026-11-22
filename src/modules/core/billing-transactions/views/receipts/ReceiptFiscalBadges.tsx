@@ -58,3 +58,24 @@ export const GrandTotalBalanceIndicator: React.FC<{
     </span>
   );
 };
+
+/**
+ * Badge de candado del bloqueo fiscal (Historia 11): recibo (o línea / impuesto de un recibo)
+ * bloqueado, sin acciones de edición ni borrado.
+ */
+export const FiscalLockBadge: React.FC<{ testId?: string; label?: string; title?: string }> = ({
+  testId,
+  label = 'Locked',
+  title = 'Fiscally locked: changes go through credit / debit notes',
+}) => (
+  <span
+    data-testid={testId}
+    title={title}
+    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold uppercase font-poppins whitespace-nowrap"
+  >
+    <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
+      lock
+    </span>
+    {label}
+  </span>
+);

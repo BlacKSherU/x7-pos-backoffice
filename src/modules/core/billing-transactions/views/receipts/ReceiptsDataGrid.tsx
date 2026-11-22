@@ -10,8 +10,8 @@ import {
   summarizeFiscalData,
 } from '../../lib/receipts-format';
 import { ReceiptLineDetails, type ReceiptDetailsState } from './ReceiptLineDetails';
-import { GrandTotalBalanceIndicator, TaxExemptBadge } from './ReceiptFiscalBadges';
-import { isTaxExempt } from '../../lib/receipt-fiscal';
+import { FiscalLockBadge, GrandTotalBalanceIndicator, TaxExemptBadge } from './ReceiptFiscalBadges';
+import { isReceiptMutable, isTaxExempt } from '../../lib/receipt-fiscal';
 
 export interface ReceiptsDataGridProps {
   receipts: Receipt[];
@@ -23,7 +23,10 @@ export interface ReceiptsDataGridProps {
   onPageChange: (page: number) => void;
   onView: (receipt: Receipt) => void;
   onEdit: (receipt: Receipt) => void;
+  /** Baja lógica (solo recibos activos sin bloquear; Historia 11: ya no hay reactivación). */
   onToggleStatus: (receipt: Receipt) => void;
+  /** LOCK RECEIPT (Historia 11): bloqueo fiscal de un recibo activo sin bloquear. */
+  onLock?: (receipt: Receipt) => void;
   hasActiveFilters?: boolean;
   onClearFilters?: () => void;
   /** Carga las líneas e impuestos de un recibo al expandir su fila (GET /receipts/:id/details). */
@@ -55,7 +58,9 @@ const Money: React.FC<{ value: number; currency: string; strong?: boolean; testI
 
 /**
  * Tabla central de Receipts: número de factura, orden, tipo, subtotal, impuestos, descuentos y
- * total (2 decimales + moneda), estado y acciones (ver, editar, baja lógica / reactivar).
+ * total (2 decimales + moneda), estado y acciones (ver; y, en recibos activos sin bloquear,
+ * editar, LOCK RECEIPT y baja lógica). Historia 11: los recibos bloqueados o dados de baja son
+ * inmutables, así que no muestran acciones de mutación (tampoco reactivación).
  * La paginación es del servidor: el contenedor pasa la página actual y el total.
  *
  * Maestro-detalle: el chevron de cada fila la expande y muestra sus líneas e impuestos, que se
@@ -73,6 +78,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
   onView,
   onEdit,
   onToggleStatus,
+  onLock,
   hasActiveFilters = false,
   onClearFilters,
   loadDetails,
@@ -285,17 +291,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                           >
                             {receipt.is_active ? 'Active' : 'Inactive'}
                           </span>
-                          {receipt.is_locked && (
-                            <span
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold uppercase font-poppins"
-                              title="Fiscally locked"
-                            >
-                              <span className="material-symbols-outlined text-[12px]" aria-hidden="true">
-                                lock
-                              </span>
-                              Locked
-                            </span>
-                          )}
+                          {receipt.is_locked && <FiscalLockBadge testId={`receipt-${receipt.id}-locked`} />}
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">
@@ -311,33 +307,47 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                               visibility
                             </span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => onEdit(receipt)}
-                            disabled={!receipt.is_active}
-                            aria-label={`Edit ${label}`}
-                            title={receipt.is_active ? 'Edit receipt' : 'Reactivate the receipt to edit it'}
-                            className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#5f5e5e]"
-                          >
-                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
-                              edit
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onToggleStatus(receipt)}
-                            aria-label={receipt.is_active ? `Deactivate ${label}` : `Reactivate ${label}`}
-                            title={receipt.is_active ? 'Logical delete (keeps the financial history)' : 'Reactivate receipt'}
-                            className={`p-1.5 rounded transition-colors cursor-pointer ${
-                              receipt.is_active
-                                ? 'text-[#5f5e5e] hover:text-red-700 hover:bg-red-50'
-                                : 'text-[#5f5e5e] hover:text-emerald-700 hover:bg-emerald-50'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
-                              {receipt.is_active ? 'block' : 'restore'}
-                            </span>
-                          </button>
+                          {/* Historia 11: un recibo bloqueado o dado de baja es inmutable: sin editar,
+                              bloquear ni dar de baja (y ya no se reactiva). */}
+                          {isReceiptMutable(receipt) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => onEdit(receipt)}
+                                aria-label={`Edit ${label}`}
+                                title="Edit receipt"
+                                className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                                  edit
+                                </span>
+                              </button>
+                              {onLock && (
+                                <button
+                                  type="button"
+                                  onClick={() => onLock(receipt)}
+                                  aria-label={`Lock ${label}`}
+                                  title="LOCK RECEIPT (fiscal lock: no further edits)"
+                                  className="p-1.5 rounded text-[#5f5e5e] hover:text-amber-800 hover:bg-amber-50 transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                                    lock_open
+                                  </span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onToggleStatus(receipt)}
+                                aria-label={`Deactivate ${label}`}
+                                title="Logical delete (keeps the financial history)"
+                                className="p-1.5 rounded text-[#5f5e5e] hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                                  block
+                                </span>
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -35,6 +35,7 @@ export function normalizeReceiptTax(raw: Raw): ReceiptTax {
     scope: raw.scope === 'ITEM' ? 'ITEM' : 'RECEIPT',
     is_active: raw.is_active !== false,
     receipt_invoice_number: strOrNull(raw.receipt_invoice_number),
+    receipt_is_locked: raw.receipt_is_locked === true,
     currency: strOrNull(raw.currency),
     receipt_item_name: strOrNull(raw.receipt_item_name),
     receipt_total_tax: raw.receipt_total_tax == null ? null : num(raw.receipt_total_tax),
@@ -172,6 +173,7 @@ export async function fetchReceiptOptions(): Promise<ReceiptOption[]> {
     subtotal: num(raw.subtotal),
     grand_total: num(raw.grand_total),
     currency: String(raw.currency ?? 'USD'),
+    is_locked: raw.is_locked === true,
   }));
 }
 

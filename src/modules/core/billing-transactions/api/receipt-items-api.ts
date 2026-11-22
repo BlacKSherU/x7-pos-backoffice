@@ -25,6 +25,7 @@ export function normalizeReceiptItem(raw: Record<string, unknown>): ReceiptItem 
   return {
     ...(raw as unknown as ReceiptItem),
     receipt_invoice_number: (raw.receipt_invoice_number as string | null | undefined) ?? null,
+    receipt_is_locked: raw.receipt_is_locked === true,
     currency: (raw.currency as string | undefined) || 'USD',
     sku: (raw.sku as string | null | undefined) ?? null,
     metadata: (raw.metadata as string | null | undefined) ?? null,
@@ -135,5 +136,6 @@ export async function fetchReceiptOptions(): Promise<ReceiptOption[]> {
     currency: (raw.currency as string | undefined) || 'USD',
     invoice_number: (raw.invoice_number as string | null | undefined) ?? null,
     created_at: raw.created_at as string | undefined,
+    is_locked: raw.is_locked === true,
   }));
 }

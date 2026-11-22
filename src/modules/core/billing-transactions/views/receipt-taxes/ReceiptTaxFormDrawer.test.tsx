@@ -29,6 +29,7 @@ const ITEM_TAX: ReceiptTax = {
   scope: 'ITEM',
   is_active: true,
   receipt_invoice_number: 'INV-000010',
+  receipt_is_locked: false,
   currency: 'USD',
   receipt_item_name: 'Burger Combo',
   receipt_total_tax: 3.8,

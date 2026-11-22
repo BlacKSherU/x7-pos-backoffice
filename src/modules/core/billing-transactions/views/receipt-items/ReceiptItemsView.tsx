@@ -25,6 +25,7 @@ import type {
   ReceiptItemOption,
   ReceiptOption,
 } from '@/modules/core/billing-transactions/types/receipt-items';
+import { FiscalLockBadge } from '../receipts/ReceiptFiscalBadges';
 import {
   ReceiptItemFormDrawer,
   type ReceiptItemFormSubmit,
@@ -365,7 +366,16 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = ({ onNavigate }
                         <div className="text-[11px] text-[#76736a] font-mono">{item.sku ?? 'No SKU'}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-block text-[10.5px] font-bold uppercase px-2 py-0.5 rounded bg-[#5f5e5e]/10 text-[#5f5e5e]">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase px-2 py-0.5 rounded bg-[#5f5e5e]/10 text-[#5f5e5e]">
+                          {item.receipt_is_locked && (
+                            <span
+                              className="material-symbols-outlined text-[12px] text-amber-700"
+                              aria-label="Locked receipt"
+                              role="img"
+                            >
+                              lock
+                            </span>
+                          )}
                           {receiptLabel(item)}
                         </span>
                       </td>
@@ -400,7 +410,13 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = ({ onNavigate }
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          {item.is_active ? (
+                          {item.receipt_is_locked ? (
+                            // Historia 11: las líneas de un recibo bloqueado no se editan ni se borran.
+                            <FiscalLockBadge
+                              testId={`receipt-item-locked-${item.id}`}
+                              title="The receipt is fiscally locked: issue a credit / debit note to correct it"
+                            />
+                          ) : item.is_active ? (
                             <>
                               <button
                                 type="button"
