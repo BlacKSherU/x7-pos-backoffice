@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fakeBackend } from '@/test/fetch';
-import { fetchFinancialSyncGrid, fetchFinancialSyncLines } from './financial-sync-api';
+import { fakeBackend, jsonResponse } from '@/test/fetch';
+import {
+  fetchFinancialSyncGrid,
+  fetchFinancialSyncLines,
+  fetchFinancialSyncMetrics,
+  fetchPostingAccounts,
+  postBatchToLedger,
+} from './financial-sync-api';
 
 // Node >= 25 exposes its own (unconfigured) Web Storage globals, which shadow jsdom's;
 // apiRequest reads the session token from them, so each test gets an in-memory Storage.
@@ -67,5 +73,50 @@ describe('financial-sync-api', () => {
     await expect(fetchFinancialSyncLines(10)).resolves.toEqual(data);
     await expect(fetchFinancialSyncLines(10, 7)).resolves.toEqual(data);
     expect(String(fetchMock.mock.calls[1][0])).toBe('/api/billing/financial-sync/10/lines?journalEntryId=7');
+  });
+
+  it('loads the header metrics', async () => {
+    const data = { currency: 'USD', total_receipts: 3, unposted_transactions: 1 };
+    vi.stubGlobal('fetch', fakeBackend({ '/billing/financial-sync/metrics': { statusCode: 200, data } }));
+
+    await expect(fetchFinancialSyncMetrics()).resolves.toEqual(data);
+  });
+
+  it('loads the posting accounts, empty when the payload has no list', async () => {
+    const accounts = [{ id: 1, code: '1100', name: 'Cash', type: 'ASSET' }];
+    vi.stubGlobal('fetch', fakeBackend({ '/billing/financial-sync/posting-accounts': { data: accounts } }));
+    await expect(fetchPostingAccounts()).resolves.toEqual(accounts);
+
+    vi.stubGlobal('fetch', fakeBackend({ '/billing/financial-sync/posting-accounts': { data: null } }));
+    await expect(fetchPostingAccounts()).resolves.toEqual([]);
+  });
+
+  it('posts the batch with the selected accounts and returns the result', async () => {
+    const result = { generated_entries: 2, posted_drafts: 0, entries: [], skipped: [], metrics: { currency: 'USD' } };
+    const fetchMock = fakeBackend({
+      'POST /billing/financial-sync/post-batch': () => jsonResponse({ statusCode: 201, data: result }, 201),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(postBatchToLedger({ cashAccountId: 1, revenueAccountId: 3, taxAccountId: 4 })).resolves.toEqual(result);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      cashAccountId: 1,
+      revenueAccountId: 3,
+      taxAccountId: 4,
+    });
+  });
+
+  it('surfaces the server message when the batch fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fakeBackend({
+        'POST /billing/financial-sync/post-batch': () =>
+          jsonResponse({ statusCode: 400, message: 'Ledger account 9 must be of type REVENUE' }, 400),
+      }),
+    );
+
+    await expect(postBatchToLedger({ cashAccountId: 1, revenueAccountId: 9 })).rejects.toThrow(
+      'Ledger account 9 must be of type REVENUE',
+    );
   });
 });

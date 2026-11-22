@@ -1,8 +1,12 @@
 import { apiRequest } from '@/shared/api/http';
 import type {
   FinancialSyncLines,
+  FinancialSyncMetrics,
   FinancialSyncPage,
   FinancialSyncQuery,
+  PostBatchPayload,
+  PostBatchResult,
+  PostingAccount,
 } from '../types/financial-sync';
 
 const BASE = '/billing/financial-sync';
@@ -53,6 +57,36 @@ export async function fetchFinancialSyncLines(
     `${BASE}/${receiptId}/lines${qs}`,
     { method: 'GET' },
     'Failed to load the journal entry lines.',
+  );
+  return json.data;
+}
+
+/** KPIs del header: recibos/ingresos posteados, pendientes, impuestos y balance global. */
+export async function fetchFinancialSyncMetrics(): Promise<FinancialSyncMetrics> {
+  const json = await apiRequest<{ data: FinancialSyncMetrics }>(
+    `${BASE}/metrics`,
+    { method: 'GET' },
+    'Failed to load the ledger posting metrics.',
+  );
+  return json.data;
+}
+
+/** Cuentas activas (ASSET, REVENUE, LIABILITY, EXPENSE) para el modal del lote. */
+export async function fetchPostingAccounts(): Promise<PostingAccount[]> {
+  const json = await apiRequest<{ data?: PostingAccount[] }>(
+    `${BASE}/posting-accounts`,
+    { method: 'GET' },
+    'Failed to load the ledger accounts.',
+  );
+  return Array.isArray(json?.data) ? json.data : [];
+}
+
+/** POST BATCH TO LEDGER: la respuesta trae las métricas ya recalculadas. */
+export async function postBatchToLedger(payload: PostBatchPayload): Promise<PostBatchResult> {
+  const json = await apiRequest<{ data: PostBatchResult }>(
+    `${BASE}/post-batch`,
+    { method: 'POST', body: JSON.stringify(payload) },
+    'Failed to post the batch to the ledger.',
   );
   return json.data;
 }

@@ -2,6 +2,7 @@ import type {
   FinancialSyncVerification,
   JournalEntryStatus,
   LedgerAccountType,
+  PostingSkipReason,
   ReceiptPostingStatus,
 } from '../types/financial-sync';
 
@@ -90,4 +91,16 @@ export const FLAG_STATE_META: Record<FlagState, { icon: string; className: strin
   pass: { icon: 'check_circle', className: 'bg-emerald-50 text-emerald-800 border-emerald-200', word: 'passes' },
   fail: { icon: 'error', className: 'bg-red-50 text-red-700 border-red-200', word: 'fails' },
   na: { icon: 'remove', className: 'bg-zinc-50 text-zinc-500 border-zinc-200', word: 'not verified' },
+};
+
+/** Why POST BATCH TO LEDGER left a receipt out. */
+export const SKIP_REASON_LABEL: Record<PostingSkipReason, string> = {
+  NOT_FOUND: 'Receipt not found',
+  ALREADY_POSTED: 'Already posted',
+  UNBALANCED_DRAFT: 'Draft entry not balanced',
+  ZERO_AMOUNT: 'Nothing to post',
+  NEGATIVE_AMOUNTS: 'Negative totals',
+  UNBALANCED_TOTALS: 'Receipt totals do not add up',
+  MISSING_TAX_ACCOUNT: 'Needs a tax account',
+  MISSING_DISCOUNT_ACCOUNT: 'Needs a discount account',
 };

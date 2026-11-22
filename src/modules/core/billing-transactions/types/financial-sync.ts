@@ -110,3 +110,84 @@ export interface FinancialSyncLines {
   total_credit: number;
   is_balanced: boolean;
 }
+
+// ─── Header metrics + POST BATCH TO LEDGER ─────────────────────────────────
+
+export type LedgerBalanceStatus = 'BALANCED' | 'UNBALANCED' | 'NO_ENTRIES';
+
+export interface FinancialSyncTaxAccount {
+  account_id: number;
+  code: string;
+  name: string;
+  /** Credit − debit over the company's POSTED entries. */
+  balance: number;
+}
+
+export interface FinancialSyncMetrics {
+  currency: string;
+  total_receipts: number;
+  posted_receipts: number;
+  pending_receipts: number;
+  unposted_receipts: number;
+  /** unposted_receipts + pending_receipts */
+  unposted_transactions: number;
+  pending_ledger_entries: number;
+  posted_ledger_entries: number;
+  posted_revenue: number;
+  posted_grand_total: number;
+  tax_accounts: FinancialSyncTaxAccount[];
+  tax_liability_balance: number;
+  balance: {
+    status: LedgerBalanceStatus;
+    checked_receipts: number;
+    balanced_receipts: number;
+    unbalanced_receipts: number;
+  };
+}
+
+export interface PostingAccount {
+  id: number;
+  code: string;
+  name: string;
+  type: LedgerAccountType;
+}
+
+export interface PostBatchPayload {
+  cashAccountId: number;
+  revenueAccountId: number;
+  taxAccountId?: number;
+  discountAccountId?: number;
+  receiptIds?: number[];
+}
+
+export type PostingSkipReason =
+  | 'NOT_FOUND'
+  | 'ALREADY_POSTED'
+  | 'UNBALANCED_DRAFT'
+  | 'ZERO_AMOUNT'
+  | 'NEGATIVE_AMOUNTS'
+  | 'UNBALANCED_TOTALS'
+  | 'MISSING_TAX_ACCOUNT'
+  | 'MISSING_DISCOUNT_ACCOUNT';
+
+export interface PostBatchResult {
+  generated_entries: number;
+  posted_drafts: number;
+  entries: Array<{
+    id: number;
+    entry_number: string;
+    receipt_id: number;
+    status: JournalEntryStatus;
+    total_debit: number;
+    total_credit: number;
+    generated: boolean;
+  }>;
+  skipped: Array<{
+    receipt_id: number;
+    invoice_number: string | null;
+    reason: PostingSkipReason;
+    detail: string;
+  }>;
+  /** Metrics recomputed after the batch: the header swaps them in at once. */
+  metrics: FinancialSyncMetrics;
+}
