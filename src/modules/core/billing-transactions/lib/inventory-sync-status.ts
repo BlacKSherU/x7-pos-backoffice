@@ -1,4 +1,8 @@
-import type { InventoryDeductionStatus, InventorySyncRow } from '../types/inventory-sync';
+import type {
+  InventoryDeductionStatus,
+  InventorySyncRow,
+  StockAvailabilityStatus,
+} from '../types/inventory-sync';
 
 export interface DeductionStatusMeta {
   label: string;
@@ -57,3 +61,43 @@ export function primaryStockItemId(row: InventorySyncRow): number | null {
     null
   );
 }
+
+/** Badges del resultado de "VALIDATE STOCK AVAILABILITY". */
+export const AVAILABILITY_STATUS_META: Record<StockAvailabilityStatus, DeductionStatusMeta> = {
+  AVAILABLE: {
+    label: 'Available',
+    icon: 'check_circle',
+    badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    description: 'There is enough stock and it stays above the minimum.',
+  },
+  LOW_STOCK_AFTER_SALE: {
+    label: 'Low After Sale',
+    icon: 'trending_down',
+    badgeClass: 'bg-amber-100 text-amber-900 border-amber-400',
+    description: 'There is enough stock, but it ends at or below the minimum.',
+  },
+  INSUFFICIENT_STOCK: {
+    label: 'Insufficient Stock',
+    icon: 'warning',
+    badgeClass: 'bg-[#ae001a] text-white border-[#8e0015]',
+    description: 'A component does not have enough stock at the location.',
+  },
+  NOT_TRACKED: {
+    label: 'Not Tracked',
+    icon: 'link_off',
+    badgeClass: 'bg-zinc-100 text-zinc-700 border-zinc-300',
+    description: 'The line does not consume inventory.',
+  },
+  ALREADY_DEDUCTED: {
+    label: 'Already Deducted',
+    icon: 'task_alt',
+    badgeClass: 'bg-sky-100 text-sky-800 border-sky-300',
+    description: 'The receipt order already deducted its stock.',
+  },
+  LOCATION_NOT_CONFIGURED: {
+    label: 'No Location',
+    icon: 'location_off',
+    badgeClass: 'bg-zinc-200 text-zinc-800 border-zinc-400',
+    description: 'The merchant has no sales stock location configured.',
+  },
+};

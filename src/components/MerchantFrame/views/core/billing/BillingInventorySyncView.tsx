@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { BillingInventoryQuickLaunch } from './BillingInventoryQuickLaunch';
 import { BillingInventorySyncGrid } from './BillingInventorySyncGrid';
+import { BillingInventorySyncHeader } from './BillingInventorySyncHeader';
 import {
   initialBillingInventoryContext,
   saveBillingInventoryContext,
@@ -37,6 +38,8 @@ export const BillingInventorySyncView: React.FC<BillingInventorySyncViewProps> =
   const [initial] = useState(() => initialBillingInventoryContext());
   const [filters, setFilters] = useState<BillingInventoryFilters>(initial.filters);
   const [selection, setSelection] = useState<BillingInventorySelection | null>(initial.selection);
+  // Sube tras cada validación de stock para que el grid vuelva a pedir sus filas.
+  const [gridRefreshKey, setGridRefreshKey] = useState(0);
 
   useEffect(() => {
     saveBillingInventoryContext({ filters, selection });
@@ -48,25 +51,17 @@ export const BillingInventorySyncView: React.FC<BillingInventorySyncViewProps> =
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-sans font-poppins pb-24">
-      <div className="bg-white border border-[#e8e2d8] rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <span className="material-symbols-outlined text-[#ae001a] text-2xl select-none" aria-hidden="true">
-            inventory_2
-          </span>
-          <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-poppins">
-            INVENTORY &amp; BILLING STOCK SYNC
-          </h2>
-        </div>
-        <p className="text-[#5f5e5e] text-body-sm mt-1 font-poppins">
-          Cross-check receipt line items against warehouse stock deductions and jump to inventory without losing your billing context.
-        </p>
-      </div>
+      <BillingInventorySyncHeader
+        selection={selection}
+        onValidated={() => setGridRefreshKey((key) => key + 1)}
+      />
 
       <BillingInventorySyncGrid
         filters={filters}
         onFiltersChange={setFilters}
         selectedReceiptItemId={selection?.receiptItemId ?? null}
         onSelectRow={handleSelectRow}
+        refreshKey={gridRefreshKey}
       />
 
       <BillingInventoryQuickLaunch

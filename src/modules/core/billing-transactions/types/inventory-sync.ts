@@ -102,3 +102,122 @@ export interface InventorySyncQuery {
   page?: number;
   limit?: number;
 }
+
+// ---- Header: métricas (`GET /billing/inventory-sync/metrics`) ----
+
+export type StockLevel = 'OK' | 'LOW' | 'OUT_OF_STOCK';
+
+export interface LowStockWarning {
+  stockItemId: number;
+  name: string;
+  sku: string | null;
+  kind: InventoryComponentKind;
+  locationId: number;
+  locationName: string | null;
+  currentQty: number;
+  minimumQty: number | null;
+  level: StockLevel;
+  /** Unidades deducidas por ventas (OUT_FOR_SALE) en la ventana. */
+  soldQty: number;
+  lastSaleAt: string;
+  alertId: number | null;
+}
+
+export interface LowStockSummary {
+  total: number;
+  outOfStock: number;
+  low: number;
+  activeAlerts: number;
+  warnings: LowStockWarning[];
+}
+
+export interface InventorySyncMetrics {
+  dateFrom: string;
+  dateTo: string;
+  generatedAt: string;
+  salesLocation: InventorySyncLocation | null;
+  linesEvaluated: number;
+  scanLimitReached: boolean;
+  itemsDeducted: number;
+  unitsDeducted: number;
+  statusCounts: Record<InventoryDeductionStatus, number>;
+  lowStock: LowStockSummary;
+}
+
+export interface InventorySyncMetricsQuery {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+// ---- Header: validación de stock (`POST /billing/inventory-sync/validate-stock`) ----
+
+export type StockAvailabilityStatus =
+  | 'AVAILABLE'
+  | 'LOW_STOCK_AFTER_SALE'
+  | 'INSUFFICIENT_STOCK'
+  | 'NOT_TRACKED'
+  | 'ALREADY_DEDUCTED'
+  | 'LOCATION_NOT_CONFIGURED';
+
+export interface ValidateStockItem {
+  sku: string;
+  quantity: number;
+}
+
+/** Exactamente uno de `receiptId`, `invoiceNumber` o `items`. */
+export interface ValidateStockRequest {
+  receiptId?: number;
+  invoiceNumber?: string;
+  items?: ValidateStockItem[];
+  locationId?: number;
+}
+
+export interface StockAvailabilityComponent {
+  key: string;
+  kind: InventoryComponentKind;
+  name: string;
+  sku: string | null;
+  stockItemId: number | null;
+  requiredQty: number;
+  totalDemand: number;
+  availableQty: number;
+  remainingAfterSale: number;
+  minimumQty: number | null;
+  shortfall: number;
+  status: StockAvailabilityStatus;
+}
+
+export interface StockAvailabilityLine {
+  receiptItemId: number | null;
+  sku: string | null;
+  itemName: string;
+  quantity: number;
+  mappingSource: InventorySkuMappingSource | null;
+  productName: string | null;
+  variantName: string | null;
+  status: StockAvailabilityStatus;
+  reason: string;
+  components: StockAvailabilityComponent[];
+}
+
+export interface StockAvailabilitySummary {
+  lines: number;
+  available: number;
+  lowStockAfterSale: number;
+  insufficientStock: number;
+  notTracked: number;
+  alreadyDeducted: number;
+  locationNotConfigured: number;
+}
+
+export interface StockAvailabilityResult {
+  source: 'RECEIPT' | 'ITEMS';
+  receiptId: number | null;
+  invoiceNumber: string | null;
+  orderId: number | null;
+  location: InventorySyncLocation | null;
+  allAvailable: boolean;
+  summary: StockAvailabilitySummary;
+  items: StockAvailabilityLine[];
+  checkedAt: string;
+}

@@ -1,8 +1,15 @@
 import { apiRequest } from '@/shared/api/http';
-import type {
-  InventorySyncPage,
-  InventorySyncQuery,
-  InventorySyncRow,
+import {
+  INVENTORY_DEDUCTION_STATUSES,
+  type InventoryDeductionStatus,
+  type InventorySyncMetrics,
+  type InventorySyncMetricsQuery,
+  type InventorySyncPage,
+  type InventorySyncQuery,
+  type InventorySyncRow,
+  type LowStockWarning,
+  type StockAvailabilityResult,
+  type ValidateStockRequest,
 } from '../types/inventory-sync';
 
 /** Base del módulo billing-inventory-sync del back-end (prefijo global /api, sin versión). */
@@ -72,5 +79,80 @@ export async function fetchInventorySyncRows(query: InventorySyncQuery): Promise
     totalPages,
     hasNext: json?.hasNext ?? page < totalPages,
     hasPrev: json?.hasPrev ?? page > 1,
+  };
+}
+
+function normalizeWarning(raw: LowStockWarning): LowStockWarning {
+  return {
+    ...raw,
+    currentQty: toNumber(raw.currentQty),
+    minimumQty: toNullableNumber(raw.minimumQty),
+    soldQty: toNumber(raw.soldQty),
+  };
+}
+
+/** KPIs del header (`GET /billing/inventory-sync/metrics`); sin fechas, los últimos 7 días. */
+export async function fetchInventorySyncMetrics(
+  query: InventorySyncMetricsQuery = {},
+): Promise<InventorySyncMetrics> {
+  const params = new URLSearchParams();
+  if (query.dateFrom) params.set('dateFrom', query.dateFrom);
+  if (query.dateTo) params.set('dateTo', query.dateTo);
+  const qs = params.toString();
+  const json = await apiRequest<{ data?: InventorySyncMetrics } | undefined>(
+    `${INVENTORY_SYNC_PATH}/metrics${qs ? `?${qs}` : ''}`,
+    { method: 'GET' },
+    'Failed to load the inventory sync metrics.',
+  );
+  const data = json?.data;
+  if (!data) throw new Error('Failed to load the inventory sync metrics.');
+  const statusCounts = Object.fromEntries(
+    INVENTORY_DEDUCTION_STATUSES.map((status) => [status, toNumber(data.statusCounts?.[status])]),
+  ) as Record<InventoryDeductionStatus, number>;
+  const lowStock = data.lowStock ?? { total: 0, outOfStock: 0, low: 0, activeAlerts: 0, warnings: [] };
+  return {
+    ...data,
+    salesLocation: data.salesLocation ?? null,
+    linesEvaluated: toNumber(data.linesEvaluated),
+    itemsDeducted: toNumber(data.itemsDeducted),
+    unitsDeducted: toNumber(data.unitsDeducted),
+    scanLimitReached: !!data.scanLimitReached,
+    statusCounts,
+    lowStock: {
+      total: toNumber(lowStock.total),
+      outOfStock: toNumber(lowStock.outOfStock),
+      low: toNumber(lowStock.low),
+      activeAlerts: toNumber(lowStock.activeAlerts),
+      warnings: (lowStock.warnings ?? []).map(normalizeWarning),
+    },
+  };
+}
+
+/** Validación de stock previa a facturar (`POST /billing/inventory-sync/validate-stock`). */
+export async function validateStockAvailability(
+  request: ValidateStockRequest,
+): Promise<StockAvailabilityResult> {
+  const json = await apiRequest<{ data?: StockAvailabilityResult } | undefined>(
+    `${INVENTORY_SYNC_PATH}/validate-stock`,
+    { method: 'POST', body: JSON.stringify(request) },
+    'Failed to validate the stock availability.',
+  );
+  const data = json?.data;
+  if (!data) throw new Error('Failed to validate the stock availability.');
+  return {
+    ...data,
+    items: (data.items ?? []).map((line) => ({
+      ...line,
+      quantity: toNumber(line.quantity),
+      components: (line.components ?? []).map((c) => ({
+        ...c,
+        requiredQty: toNumber(c.requiredQty),
+        totalDemand: toNumber(c.totalDemand),
+        availableQty: toNumber(c.availableQty),
+        remainingAfterSale: toNumber(c.remainingAfterSale),
+        minimumQty: toNullableNumber(c.minimumQty),
+        shortfall: toNumber(c.shortfall),
+      })),
+    })),
   };
 }
