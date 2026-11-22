@@ -1,16 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BillingInventoryQuickLaunch } from './BillingInventoryQuickLaunch';
+import { BillingInventorySyncGrid } from './BillingInventorySyncGrid';
 import {
   initialBillingInventoryContext,
   saveBillingInventoryContext,
   type BillingInventoryFilters,
   type BillingInventorySelection,
 } from '@/modules/core/billing-transactions/lib/billing-inventory-context';
+import { primaryStockItemId } from '@/modules/core/billing-transactions/lib/inventory-sync-status';
+import type { InventorySyncRow } from '@/modules/core/billing-transactions/types/inventory-sync';
 
 interface BillingInventorySyncViewProps {
   onNavigate?: (view: string) => void;
   navigateToPath?: (path: string) => void;
 }
+
+const selectionFromRow = (row: InventorySyncRow): BillingInventorySelection => ({
+  receiptItemId: row.receiptItemId,
+  receiptId: row.receiptId,
+  invoiceNumber: row.invoiceNumber,
+  sku: row.sku,
+  orderId: row.orderId,
+  stockItemId: primaryStockItemId(row),
+});
 
 /**
  * Pantalla `billing-inventory-sync` (Billing & Transactions): contenedor del header de métricas,
@@ -23,12 +35,16 @@ export const BillingInventorySyncView: React.FC<BillingInventorySyncViewProps> =
   navigateToPath,
 }) => {
   const [initial] = useState(() => initialBillingInventoryContext());
-  const [filters] = useState<BillingInventoryFilters>(initial.filters);
-  const [selection] = useState<BillingInventorySelection | null>(initial.selection);
+  const [filters, setFilters] = useState<BillingInventoryFilters>(initial.filters);
+  const [selection, setSelection] = useState<BillingInventorySelection | null>(initial.selection);
 
   useEffect(() => {
     saveBillingInventoryContext({ filters, selection });
   }, [filters, selection]);
+
+  const handleSelectRow = useCallback((row: InventorySyncRow) => {
+    setSelection((prev) => (prev?.receiptItemId === row.receiptItemId ? null : selectionFromRow(row)));
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-sans font-poppins pb-24">
@@ -45,6 +61,13 @@ export const BillingInventorySyncView: React.FC<BillingInventorySyncViewProps> =
           Cross-check receipt line items against warehouse stock deductions and jump to inventory without losing your billing context.
         </p>
       </div>
+
+      <BillingInventorySyncGrid
+        filters={filters}
+        onFiltersChange={setFilters}
+        selectedReceiptItemId={selection?.receiptItemId ?? null}
+        onSelectRow={handleSelectRow}
+      />
 
       <BillingInventoryQuickLaunch
         context={{ filters, selection }}
