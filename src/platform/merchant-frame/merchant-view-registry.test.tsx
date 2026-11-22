@@ -20,6 +20,7 @@ import { MerchantHubView } from '@/components/MerchantFrame/views/platform-saas/
 import { MerchantUserDashboardView } from '@/components/MerchantFrame/views/platform-saas/users/MerchantUserDashboardView';
 import { SaasMissingContext } from '@/components/MerchantFrame/views/platform-saas/SaasViewKit';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
+import { BillingInventorySyncView } from '@/components/MerchantFrame/views/core/billing/BillingInventorySyncView';
 
 function context(overrides: Partial<MerchantViewContext> = {}): MerchantViewContext {
   return {
@@ -84,6 +85,19 @@ describe('merchant view registry', () => {
     expect(viewFor('order-payments').type).toBe(OrderPaymentsView);
     expect(viewFor('payment-gateway-configs').type).toBe(PaymentGatewayConfigsView);
     expect(viewFor('payment-terminals').type).toBe(PaymentTerminalsView);
+  });
+});
+
+describe('billing ↔ inventory views', () => {
+  it('opens the stock sync screen with URL navigation for the inventory quick launch', () => {
+    const navigateToPath = vi.fn();
+    const onNavigate = vi.fn();
+    const node = renderMerchantView('billing-inventory-sync', context({ navigateToPath, onNavigate }));
+    expect(
+      isValidElement<{ navigateToPath?: unknown; onNavigate?: unknown }>(node) &&
+        node.type === BillingInventorySyncView &&
+        [node.props.navigateToPath, node.props.onNavigate],
+    ).toEqual([navigateToPath, onNavigate]);
   });
 });
 

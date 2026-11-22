@@ -71,6 +71,7 @@ import { LedgerAccountsView } from '@/modules/core/financial-engine/views/Ledger
 import { JournalEntriesView } from '@/modules/core/financial-engine/views/JournalEntriesView';
 import { JournalEntryLinesView } from '@/modules/core/financial-engine/views/JournalEntryLinesView';
 import { BillingFinancialSyncView } from '@/components/MerchantFrame/views/core/billing/BillingFinancialSyncView';
+import { BillingInventorySyncView } from '@/components/MerchantFrame/views/core/billing/BillingInventorySyncView';
 
 import { SuppliersView } from '@/modules/core/business-partners/views/SuppliersView';
 import { CustomersView } from '@/modules/core/business-partners/views/CustomersView';
@@ -427,6 +428,9 @@ view('journal-entries-lines', (ctx) => (
 
 // ---- Billing & Transactions ----
 view('billing-financial-sync', () => <BillingFinancialSyncView />);
+view('billing-inventory-sync', (ctx) => (
+  <BillingInventorySyncView onNavigate={ctx.onNavigate} navigateToPath={ctx.navigateToPath} />
+));
 
 // ---- Business Partners / Clientes ----
 view('customers', (ctx) => (

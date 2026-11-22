@@ -90,6 +90,12 @@ describe('getNavFromPath', () => {
     expect(getNavFromPath('/dashboard', { activeTab: 'shifts-hub' })).toEqual({ category: 'merchant-portal', tab: 'shifts-hub' });
   });
 
+  it('opens the billing ↔ inventory stock sync screen from its URLs', () => {
+    for (const path of ['/billing/inventory-sync', '/app/billing-transactions/billing-inventory-sync']) {
+      expect(getNavFromPath(path)).toEqual({ category: 'core', tab: 'billing-inventory-sync' });
+    }
+  });
+
   it('returns null for section URLs without a specific tab', () => {
     expect(getNavFromPath('/tips/unknown')).toBeNull();
   });
