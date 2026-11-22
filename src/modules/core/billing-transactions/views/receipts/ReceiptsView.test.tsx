@@ -1043,3 +1043,173 @@ describe('ReceiptsView — activity log (Historia 6)', () => {
     expect(await within(drawer).findByRole('list', { name: 'Activity timeline' })).toBeInTheDocument();
   });
 });
+
+describe('ReceiptsView — adjustment notes (Historia 7)', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // `receipt` (INV-000002) está bloqueado: grand_total 1,234.50 EUR.
+  const summary = {
+    receipt_id: 2,
+    invoice_number: 'INV-000002',
+    currency: 'EUR',
+    is_locked: true,
+    grand_total: 1234.5,
+    credited_total: 234.5,
+    debited_total: 0,
+    net_total: 1000,
+    available_credit: 1000,
+    notes_count: 1,
+  };
+  const creditNote = {
+    id: 5,
+    receipt_id: 2,
+    merchant_id: 1,
+    note_type: 'CREDIT_NOTE',
+    note_number: 'CN-000001',
+    original_invoice_number: 'INV-000002',
+    adjustment_amount: 234.5,
+    signed_amount: -234.5,
+    resulting_net_amount: 1000,
+    currency: 'EUR',
+    reason_code: 'PARTIAL_RETURN',
+    processed_by_user_id: 7,
+    processed_by_role: 'merchant_admin',
+    created_at: '2026-11-02T10:00:00Z',
+  };
+
+  it('offers ISSUE ADJUSTMENT NOTE only on locked receipts', async () => {
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice, receipt]) }));
+    render(<ReceiptsView />);
+
+    const locked = await screen.findByTestId('receipt-row-2');
+    expect(within(locked).getByRole('button', { name: 'Issue adjustment note for INV-000002' })).toHaveAttribute(
+      'title',
+      expect.stringContaining('ISSUE ADJUSTMENT NOTE'),
+    );
+    expect(
+      within(screen.getByTestId('receipt-row-1')).queryByRole('button', { name: /Issue adjustment note/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('issues a credit note auto-linked to the receipt with type, amount and reason', async () => {
+    let posted: unknown;
+    const fetchMock = backend({
+      '/receipts': page([receipt]),
+      '/billing/receipts/2/adjustments': { data: { summary, notes: [creditNote] } },
+      'POST /billing/receipts/2/adjustments': (init: RequestInit | undefined) => {
+        posted = JSON.parse(String(init?.body));
+        return jsonResponse(
+          {
+            data: {
+              note: { ...creditNote, id: 6, note_number: 'CN-000002', adjustment_amount: 100, signed_amount: -100 },
+              summary: { ...summary, credited_total: 334.5, net_total: 900, available_credit: 900 },
+            },
+          },
+          201,
+        );
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Issue adjustment note for INV-000002' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Adjust INV-000002' });
+    // Subtítulo del drawer + botón de envío.
+    expect(within(drawer).getAllByText('ISSUE ADJUSTMENT NOTE')).toHaveLength(2);
+    expect(within(drawer).getByTestId('adjustment-linked-receipt')).toHaveTextContent(/INV-000002\s*· Receipt #2/);
+    // Resumen actual: crédito ya emitido y neto vigente.
+    expect(await within(drawer).findByTestId('adjustment-current-net')).toHaveTextContent('1,000.00 EUR');
+    expect(within(drawer).getByTestId('adjustment-available-credit')).toHaveTextContent('1,000.00 EUR');
+    expect(within(drawer).getByRole('radio', { name: /Credit Note/ })).toBeChecked();
+
+    // Validación local: el crédito acumulado no puede superar el grand_total.
+    await userEvent.type(within(drawer).getByLabelText('Adjustment amount (EUR) *'), '1000.01');
+    await userEvent.click(within(drawer).getByRole('button', { name: 'ISSUE ADJUSTMENT NOTE' }));
+    expect(within(drawer).getByText(/1,000.00 EUR still available/)).toBeInTheDocument();
+    expect(within(drawer).getByText('Select a reason.')).toBeInTheDocument();
+    expect(calledRoutes(fetchMock)).not.toContain('POST /billing/receipts/2/adjustments');
+
+    const amount = within(drawer).getByLabelText('Adjustment amount (EUR) *');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '100');
+    await userEvent.selectOptions(within(drawer).getByLabelText('Reason *'), 'REFUND');
+    expect(within(drawer).getByTestId('adjustment-projected-net')).toHaveTextContent('900.00 EUR');
+    await userEvent.click(within(drawer).getByRole('button', { name: 'ISSUE ADJUSTMENT NOTE' }));
+
+    await waitFor(() => expect(calledRoutes(fetchMock)).toContain('POST /billing/receipts/2/adjustments'));
+    expect(posted).toEqual({ noteType: 'CREDIT_NOTE', adjustmentAmount: 100, reasonCode: 'REFUND' });
+    expect(await screen.findByText('Credit Note CN-000002 issued for INV-000002.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Adjust INV-000002' })).not.toBeInTheDocument();
+  });
+
+  it('issues a debit note and keeps the server error in the drawer', async () => {
+    let posted: unknown;
+    vi.stubGlobal(
+      'fetch',
+      backend({
+        '/receipts': page([receipt]),
+        '/billing/receipts/2/adjustments': { data: { summary, notes: [creditNote] } },
+        'POST /billing/receipts/2/adjustments': (init: RequestInit | undefined) => {
+          posted = JSON.parse(String(init?.body));
+          return jsonResponse({ statusCode: 400, message: 'adjustmentAmount cannot exceed the receipt grand_total' }, 400);
+        },
+      }),
+    );
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Issue adjustment note for INV-000002' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Adjust INV-000002' });
+    await within(drawer).findByTestId('adjustment-current-net');
+    await userEvent.click(within(drawer).getByRole('radio', { name: /Debit Note/ }));
+    expect(within(drawer).queryByTestId('adjustment-available-credit')).not.toBeInTheDocument();
+    await userEvent.type(within(drawer).getByLabelText('Adjustment amount (EUR) *'), '12.25');
+    await userEvent.selectOptions(within(drawer).getByLabelText('Reason *'), 'MISSED_CHARGE');
+    expect(within(drawer).getByTestId('adjustment-projected-net')).toHaveTextContent('1,012.25 EUR');
+    await userEvent.click(within(drawer).getByRole('button', { name: 'ISSUE ADJUSTMENT NOTE' }));
+
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent(
+      'adjustmentAmount cannot exceed the receipt grand_total',
+    );
+    expect(posted).toEqual({ noteType: 'DEBIT_NOTE', adjustmentAmount: 12.25, reasonCode: 'MISSED_CHARGE' });
+  });
+
+  it('lists the notes with the adjusted net in the receipt details and issues from there', async () => {
+    vi.stubGlobal(
+      'fetch',
+      backend({
+        '/receipts': page([receipt]),
+        '/billing/receipts/2/adjustments': { data: { summary, notes: [creditNote] } },
+      }),
+    );
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View INV-000002' }));
+    const details = await screen.findByRole('dialog');
+    const section = await within(details).findByTestId('receipt-detail-adjustments');
+    expect(await within(section).findByTestId('receipt-adjustment-5')).toHaveTextContent('CN-000001');
+    expect(within(section).getByTestId('receipt-adjustment-5')).toHaveTextContent('Partial return');
+    expect(within(section).getByTestId('receipt-adjustment-5-amount')).toHaveTextContent('−234.50');
+    expect(within(section).getByTestId('receipt-detail-adjusted-net')).toHaveTextContent('1,000.00 EUR');
+    // El grand_total original del recibo no cambia.
+    expect(within(section).getByText('1,234.50 EUR')).toBeInTheDocument();
+
+    await userEvent.click(within(details).getByRole('button', { name: /ISSUE ADJUSTMENT NOTE/ }));
+    expect(await screen.findByRole('dialog', { name: 'Adjust INV-000002' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('does not load adjustment notes for unlocked receipts', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View INV-000001' }));
+    const details = await screen.findByRole('dialog');
+    expect(within(details).queryByTestId('receipt-detail-adjustments')).not.toBeInTheDocument();
+    expect(within(details).queryByRole('button', { name: /ISSUE ADJUSTMENT NOTE/ })).not.toBeInTheDocument();
+    expect(calledRoutes(fetchMock).some((route) => route.includes('/adjustments'))).toBe(false);
+  });
+});

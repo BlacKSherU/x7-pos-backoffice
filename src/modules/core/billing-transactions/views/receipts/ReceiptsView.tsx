@@ -30,6 +30,10 @@ import { ReceiptsQuickLaunch } from './ReceiptsQuickLaunch';
 import { ReceiptTaxBreakdownCards } from './ReceiptTaxBreakdownCards';
 import { ConfirmLockReceiptDialog } from './ConfirmLockReceiptDialog';
 import { ReceiptActivityLogDrawer } from './ReceiptActivityLogDrawer';
+import { ReceiptAdjustmentNoteDrawer } from './ReceiptAdjustmentNoteDrawer';
+import { issueAdjustmentNote, listReceiptAdjustments } from '../../api/receipt-adjustments-api';
+import type { IssueAdjustmentNotePayload } from '../../types/receipt-adjustments';
+import { ADJUSTMENT_NOTE_TYPE_LABELS } from '../../lib/receipt-adjustments';
 
 export interface ReceiptsViewProps {
   onNavigate?: (view: string) => void;
@@ -49,7 +53,8 @@ const STATUS_OPTIONS: Array<{ value: ReceiptStatusFilter; label: string }> = [
  * alfanumérica (invoice_number / fiscal_data), filtros por tipo, estado y fecha de creación,
  * paginación del servidor, filas maestro-detalle (items e impuestos), tarjetas de desglose de
  * impuestos, ficha de detalle, edición (PATCH), baja lógica, bloqueo fiscal (LOCK RECEIPT) y
- * audit trail de cada recibo (VIEW ACTIVITY LOG, Historia 6).
+ * audit trail de cada recibo (VIEW ACTIVITY LOG, Historia 6) y notas de crédito / débito sobre
+ * recibos bloqueados (ISSUE ADJUSTMENT NOTE, Historia 7).
  * Historia 11: los recibos bloqueados o dados de baja son inmutables (sin edición ni reactivación).
  */
 export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
@@ -92,6 +97,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
   const [lockTarget, setLockTarget] = useState<Receipt | null>(null);
   const [lockSubmitting, setLockSubmitting] = useState(false);
   const [activityReceipt, setActivityReceipt] = useState<Receipt | null>(null);
+  const [adjustmentTarget, setAdjustmentTarget] = useState<Receipt | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const showToast = useCallback((message: string, type: ToastState['type'] = 'success') => {
@@ -253,6 +259,16 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
     }
   };
 
+  // Historia 7: nota de crédito / débito sobre un recibo bloqueado (el recibo no cambia).
+  const handleIssueAdjustment = async (payload: IssueAdjustmentNotePayload) => {
+    if (!adjustmentTarget) return;
+    const { note } = await issueAdjustmentNote(adjustmentTarget.id, payload);
+    showToast(
+      `${ADJUSTMENT_NOTE_TYPE_LABELS[note.note_type]} ${note.note_number} issued for ${receiptLabel(adjustmentTarget)}.`,
+    );
+    setAdjustmentTarget(null);
+  };
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-poppins pb-8" data-testid="receipts-view">
       <ReceiptsCommandHeader
@@ -400,6 +416,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
           onToggleStatus={setStatusTarget}
           onLock={setLockTarget}
           onViewActivity={setActivityReceipt}
+          onIssueAdjustment={setAdjustmentTarget}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}
           loadDetails={getReceiptDetails}
@@ -430,6 +447,21 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
             setDetailReceipt(null);
             setActivityReceipt(receipt);
           }}
+          onIssueAdjustment={(receipt) => {
+            setDetailReceipt(null);
+            setAdjustmentTarget(receipt);
+          }}
+          loadAdjustments={listReceiptAdjustments}
+        />
+      )}
+
+      {adjustmentTarget && (
+        <ReceiptAdjustmentNoteDrawer
+          key={adjustmentTarget.id}
+          receipt={adjustmentTarget}
+          loadAdjustments={listReceiptAdjustments}
+          onSubmit={handleIssueAdjustment}
+          onClose={() => setAdjustmentTarget(null)}
         />
       )}
 

@@ -12,6 +12,7 @@ import {
 import { ReceiptLineDetails, type ReceiptDetailsState } from './ReceiptLineDetails';
 import { FiscalLockBadge, GrandTotalBalanceIndicator, TaxExemptBadge } from './ReceiptFiscalBadges';
 import { isReceiptMutable, isTaxExempt } from '../../lib/receipt-fiscal';
+import { canIssueAdjustment } from '../../lib/receipt-adjustments';
 
 export interface ReceiptsDataGridProps {
   receipts: Receipt[];
@@ -29,6 +30,8 @@ export interface ReceiptsDataGridProps {
   onLock?: (receipt: Receipt) => void;
   /** VIEW ACTIVITY LOG (Historia 6): audit trail del recibo, en cualquier estado. */
   onViewActivity?: (receipt: Receipt) => void;
+  /** ISSUE ADJUSTMENT NOTE (Historia 7): solo en recibos bloqueados. */
+  onIssueAdjustment?: (receipt: Receipt) => void;
   hasActiveFilters?: boolean;
   onClearFilters?: () => void;
   /** Carga las líneas e impuestos de un recibo al expandir su fila (GET /receipts/:id/details). */
@@ -82,6 +85,7 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
   onToggleStatus,
   onLock,
   onViewActivity,
+  onIssueAdjustment,
   hasActiveFilters = false,
   onClearFilters,
   loadDetails,
@@ -320,6 +324,19 @@ export const ReceiptsDataGrid: React.FC<ReceiptsDataGridProps> = ({
                             >
                               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
                                 history
+                              </span>
+                            </button>
+                          )}
+                          {onIssueAdjustment && canIssueAdjustment(receipt) && (
+                            <button
+                              type="button"
+                              onClick={() => onIssueAdjustment(receipt)}
+                              aria-label={`Issue adjustment note for ${label}`}
+                              title="ISSUE ADJUSTMENT NOTE (credit / debit note)"
+                              className="p-1.5 rounded text-[#5f5e5e] hover:text-[#ae001a] hover:bg-[#ae001a]/10 transition-colors cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                                receipt_long
                               </span>
                             </button>
                           )}

@@ -17,6 +17,9 @@ import {
   resolveTaxExemption,
 } from '../../lib/receipt-fiscal';
 import { FiscalLockBadge, TaxExemptBadge } from './ReceiptFiscalBadges';
+import type { ReceiptAdjustments } from '../../types/receipt-adjustments';
+import { canIssueAdjustment } from '../../lib/receipt-adjustments';
+import { ReceiptAdjustmentNotesSection } from './ReceiptAdjustmentNotesSection';
 
 interface ReceiptDetailsDrawerProps {
   receipt: Receipt;
@@ -28,6 +31,10 @@ interface ReceiptDetailsDrawerProps {
   onLock?: (receipt: Receipt) => void;
   /** VIEW ACTIVITY LOG (Historia 6). */
   onViewActivity?: (receipt: Receipt) => void;
+  /** ISSUE ADJUSTMENT NOTE (Historia 7): solo recibos bloqueados. */
+  onIssueAdjustment?: (receipt: Receipt) => void;
+  /** Notas de crédito / débito del recibo (GET /billing/receipts/:id/adjustments). */
+  loadAdjustments?: (receiptId: number) => Promise<ReceiptAdjustments>;
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -45,6 +52,8 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
   onToggleStatus,
   onLock,
   onViewActivity,
+  onIssueAdjustment,
+  loadAdjustments,
 }) => {
   const mutable = isReceiptMutable(receipt);
   const exemption = resolveTaxExemption(receipt.fiscal_data);
@@ -165,6 +174,15 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
           </dl>
         </section>
 
+        {/* Historia 7: solo un recibo bloqueado puede tener notas de ajuste. */}
+        {loadAdjustments && receipt.is_locked && (
+          <ReceiptAdjustmentNotesSection
+            receiptId={receipt.id}
+            currency={receipt.currency}
+            loadAdjustments={loadAdjustments}
+          />
+        )}
+
         <p className="text-[11px] text-[#8c857b]">Last updated {formatReceiptDate(receipt.updated_at)}</p>
       </div>
 
@@ -211,11 +229,25 @@ export const ReceiptDetailsDrawer: React.FC<ReceiptDetailsDrawerProps> = ({
             </button>
           </>
         ) : (
-          <p className="mr-auto self-center text-[11px] text-[#8c857b]" data-testid="receipt-detail-immutable">
-            {receipt.is_locked
-              ? 'Fiscally locked: corrections go through credit / debit notes.'
-              : 'Logically deleted receipts are kept for the financial history and cannot be modified.'}
-          </p>
+          <>
+            <p className="mr-auto self-center text-[11px] text-[#8c857b]" data-testid="receipt-detail-immutable">
+              {receipt.is_locked
+                ? 'Fiscally locked: corrections go through credit / debit notes.'
+                : 'Logically deleted receipts are kept for the financial history and cannot be modified.'}
+            </p>
+            {onIssueAdjustment && canIssueAdjustment(receipt) && (
+              <button
+                type="button"
+                onClick={() => onIssueAdjustment(receipt)}
+                className="px-5 py-2 rounded bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                  receipt_long
+                </span>
+                ISSUE ADJUSTMENT NOTE
+              </button>
+            )}
+          </>
         )}
       </div>
     </SideDrawer>
