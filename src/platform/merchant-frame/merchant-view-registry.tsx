@@ -75,6 +75,7 @@ import { BillingFinancialSyncView } from '@/components/MerchantFrame/views/core/
 import { SuppliersView } from '@/modules/core/business-partners/views/SuppliersView';
 import { CustomersView } from '@/modules/core/business-partners/views/CustomersView';
 import { ReceiptItemsView } from '@/modules/core/billing-transactions/views/receipt-items/ReceiptItemsView';
+import { ReceiptTaxesView } from '@/modules/core/billing-transactions/views/receipt-taxes/ReceiptTaxesView';
 import { SupplierInvoicesView } from '@/modules/finance-hr/accounts-payable/views/SupplierInvoicesView';
 import { SupplierInvoiceItemsView } from '@/modules/finance-hr/accounts-payable/views/SupplierInvoiceItemsView';
 import { SupplierCreditNotesView } from '@/modules/finance-hr/accounts-payable/views/SupplierCreditNotesView';
@@ -435,8 +436,9 @@ view('customers', (ctx) => (
   />
 ));
 
-// ---- Billing & Transactions: líneas de recibo ----
+// ---- Billing & Transactions ----
 view('receipt-items', (ctx) => <ReceiptItemsView onNavigate={ctx.navigateToFeature} />);
+view('receipt-taxes', (ctx) => <ReceiptTaxesView onNavigate={ctx.onNavigate} />);
 
 // ---- Cuentas por pagar ----
 view('suppliers', (ctx) => <SuppliersView onNavigate={ctx.onNavigate} companyId={ctx.profile?.company_id} />);

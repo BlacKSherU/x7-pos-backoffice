@@ -81,7 +81,8 @@ describe('Receipt Items — NavHubBar (Historia 15)', () => {
   });
 
   it('lists RECEIPTS, RECEIPT ITEMS, RECEIPTS TAXES in that order', () => {
-    expect(hub?.items.map((i) => i.featureId)).toEqual(SIBLINGS);
+    // El hub puede tener más pantallas (sync, reportes); las tres hermanas abren la épica en orden.
+    expect(hub?.items.map((i) => i.featureId).slice(0, SIBLINGS.length)).toEqual(SIBLINGS);
   });
 
   it('renders a bar anchored at the bottom with RECEIPT ITEMS active (#ae001a + underline)', () => {
@@ -96,7 +97,7 @@ describe('Receipt Items — NavHubBar (Historia 15)', () => {
       .getAllByRole('button')
       .map((b) => b.textContent?.replace(/^(receipt_long|list|percent)/, '').trim());
     // First button is the "back to hub" arrow; the rest keep the epic order.
-    expect(labels.slice(1)).toEqual(['Receipts', 'Receipt Items', 'Receipt Taxes']);
+    expect(labels.slice(1, 4)).toEqual(['Receipts', 'Receipt Items', 'Receipts Taxes']);
 
     const active = within(nav).getByRole('button', { name: 'Receipt Items' });
     expect(active).toHaveAttribute('aria-current', 'page');
@@ -105,7 +106,7 @@ describe('Receipt Items — NavHubBar (Historia 15)', () => {
     expect(underline).not.toBeNull();
     expect(underline).toHaveClass('underline', 'decoration-2');
 
-    for (const name of ['Receipts', 'Receipt Taxes']) {
+    for (const name of ['Receipts', 'Receipts Taxes']) {
       const btn = within(nav).getByRole('button', { name });
       expect(btn).not.toHaveAttribute('aria-current');
       expect(btn.querySelector('[data-active-indicator]')).toBeNull();
@@ -119,7 +120,7 @@ describe('Receipt Items — NavHubBar (Historia 15)', () => {
     render(<ModuleNavHubBar hub={hub} currentFeatureId="receipt-items" onNavigate={onNavigate} />);
 
     await user.click(screen.getByRole('button', { name: 'Receipts' }));
-    await user.click(screen.getByRole('button', { name: 'Receipt Taxes' }));
+    await user.click(screen.getByRole('button', { name: 'Receipts Taxes' }));
     await user.click(screen.getByRole('button', { name: 'BILLING & TRANSACTIONS COMMAND HUB' }));
 
     expect(onNavigate.mock.calls).toEqual([['receipt-orders'], ['receipt-taxes'], ['billing-transactions-hub']]);
