@@ -636,7 +636,14 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                 {item.icon && (
                   <span className="material-symbols-outlined text-[13px] sm:text-[14px] lg:text-[15px] shrink-0" aria-hidden="true">{item.icon}</span>
                 )}
-                <span>{displayLabel}</span>
+                {/* Active option: corporate red fill plus a distinct underline (same cue as the
+                    Quick Launch active anchor), so it does not rely on color alone. */}
+                <span
+                  data-active-indicator={isActive ? 'underline' : undefined}
+                  className={isActive ? 'underline underline-offset-4 decoration-2 decoration-white' : undefined}
+                >
+                  {displayLabel}
+                </span>
               </button>
             );
           })}
