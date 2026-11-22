@@ -73,6 +73,7 @@ import { JournalEntryLinesView } from '@/modules/core/financial-engine/views/Jou
 import { BillingFinancialSyncView } from '@/components/MerchantFrame/views/core/billing/BillingFinancialSyncView';
 import { BillingInventorySyncView } from '@/components/MerchantFrame/views/core/billing/BillingInventorySyncView';
 import { ReceiptsView } from '@/modules/core/billing-transactions/views/receipts/ReceiptsView';
+import { BillingReportsView } from '@/modules/core/billing-transactions/views/reports/BillingReportsView';
 
 import { SuppliersView } from '@/modules/core/business-partners/views/SuppliersView';
 import { CustomersView } from '@/modules/core/business-partners/views/CustomersView';
@@ -433,6 +434,7 @@ view('billing-inventory-sync', (ctx) => (
   <BillingInventorySyncView onNavigate={ctx.onNavigate} navigateToPath={ctx.navigateToPath} />
 ));
 view('receipt-orders', (ctx) => <ReceiptsView onNavigate={ctx.navigateToFeature} />);
+view('billing-reports', (ctx) => <BillingReportsView onNavigate={ctx.onNavigate} />);
 
 // ---- Business Partners / Clientes ----
 view('customers', (ctx) => (

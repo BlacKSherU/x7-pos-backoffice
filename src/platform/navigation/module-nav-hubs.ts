@@ -330,6 +330,7 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
           { featureId: 'raw-materials-dashboard', label: 'Raw Materials Hub', icon: 'warehouse' },
         ],
       },
+      { featureId: 'billing-reports', label: 'Billing Reports', icon: 'summarize', live: true, description: 'Tax liability by rate and scope, and the discount & void audit trail, with CSV export and printable layouts.' },
     ],
   },
   {
