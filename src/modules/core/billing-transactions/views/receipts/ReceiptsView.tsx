@@ -21,6 +21,7 @@ import { ReceiptsDataGrid } from './ReceiptsDataGrid';
 import { ReceiptDetailsDrawer } from './ReceiptDetailsDrawer';
 import { ReceiptFormDrawer, type ReceiptFormMode } from './ReceiptFormDrawer';
 import { BILLING_HUB_ID, ReceiptsCommandHeader } from './ReceiptsCommandHeader';
+import { ReceiptsQuickLaunch } from './ReceiptsQuickLaunch';
 
 export interface ReceiptsViewProps {
   onNavigate?: (view: string) => void;
@@ -294,6 +295,15 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
           onClearFilters={clearFilters}
         />
       )}
+
+      <ReceiptsQuickLaunch
+        onNavigate={onNavigate}
+        onNewReceipt={() => setForm({ mode: 'create' })}
+        onShowDeactivated={() => {
+          setStatusFilter('inactive');
+          setPage(1);
+        }}
+      />
 
       {detailReceipt && (
         <ReceiptDetailsDrawer

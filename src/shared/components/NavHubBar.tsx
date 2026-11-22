@@ -627,10 +627,10 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                   item.onClick();
                 }}
                 aria-current={isActive ? 'page' : undefined}
-                className={`px-1.5 lg:px-2 py-1 rounded text-[10px] lg:text-[11px] font-semibold tracking-tight transition-colors duration-200 flex items-center gap-0.5 sm:gap-1 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
+                className={`px-1.5 lg:px-2 py-1 rounded text-[10px] lg:text-[11px] tracking-tight transition-colors duration-200 flex items-center gap-0.5 sm:gap-1 cursor-pointer font-sans select-none whitespace-nowrap shrink-0 ${
                   isActive
-                    ? 'bg-[#ae001a] text-white shadow-xs'
-                    : 'text-zinc-300 hover:text-[#ae001a] hover:bg-zinc-800'
+                    ? 'bg-[#ae001a] text-white font-bold shadow-xs'
+                    : 'font-semibold text-zinc-300 hover:text-[#ae001a] hover:bg-zinc-800'
                 }`}
               >
                 {item.icon && (

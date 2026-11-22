@@ -233,7 +233,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
     render(<ReceiptsView />);
     await screen.findByTestId('receipt-row-1');
 
-    await userEvent.click(screen.getByRole('button', { name: /new receipt/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'New Receipt' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText('Order ID *'), '555');
     await userEvent.selectOptions(within(dialog).getByLabelText('Type *'), 'INVOICE');
