@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OnlineStoresView } from '@/modules/commerce/online-ordering/views/online-stores/OnlineStoresView';
 import { OnlineMenusView } from '@/modules/commerce/online-ordering/views/online-menus/OnlineMenusView';
 import { OnlineOrderingHubView } from '@/modules/commerce/online-ordering/views/OnlineOrderingHubView';
+import { OnlineOrderItemsView } from '@/modules/commerce/online-ordering/views/online-order-items/OnlineOrderItemsView';
+import { OnlinePaymentsView } from '@/modules/commerce/online-ordering/views/online-payments/OnlinePaymentsView';
 import { calledRoutes, fakeBackend, jsonResponse } from '@/test/fetch';
 
 // Some shared components (quick links, nav hubs) navigate with react-router.
@@ -141,5 +143,171 @@ describe('OnlineOrderingHubView', () => {
     render(<OnlineOrderingHubView />);
 
     expect(await screen.findByText('1 in maintenance')).toBeInTheDocument();
+  });
+});
+
+const ORDER_ITEMS = [
+  {
+    id: 1,
+    onlineOrderId: 10,
+    productId: 5,
+    variantId: 2,
+    orderItemId: 99,
+    quantity: 2,
+    unitPrice: 12.5,
+    modifiers: { extraCheese: true },
+    notes: 'No onions',
+    kitchenLineStatus: 'PENDING',
+    status: 'active',
+    createdAt: '2026-11-18T10:00:00Z',
+    updatedAt: '2026-11-18T10:00:00Z',
+    product: { id: 5, name: 'Classic Burger', sku: 'BRG-01' },
+    variant: { id: 2, name: 'Double' },
+  },
+  {
+    id: 2,
+    onlineOrderId: 10,
+    productId: 6,
+    variantId: null,
+    orderItemId: null,
+    quantity: 1,
+    unitPrice: 4.5,
+    modifiers: null,
+    notes: null,
+    kitchenLineStatus: 'READY',
+    status: 'deleted',
+    createdAt: '2026-11-18T10:05:00Z',
+    updatedAt: '2026-11-18T10:05:00Z',
+    product: { id: 6, name: 'Cola Soda', sku: 'DRK-01' },
+    variant: null,
+  },
+];
+
+const ONLINE_PAYMENTS = [
+  {
+    id: 1,
+    onlineOrderId: 10,
+    paymentProvider: 'stripe',
+    transactionId: 'txn_stripe_001',
+    amount: 45.5,
+    status: 'paid',
+    processedAt: '2026-11-18T10:00:00Z',
+    logicalStatus: 'active',
+    createdAt: '2026-11-18T10:00:00Z',
+    updatedAt: '2026-11-18T10:00:00Z',
+  },
+  {
+    id: 2,
+    onlineOrderId: 11,
+    paymentProvider: 'paypal',
+    transactionId: 'txn_pp_002',
+    amount: 15.0,
+    status: 'pending',
+    processedAt: null,
+    logicalStatus: 'active',
+    createdAt: '2026-11-18T10:05:00Z',
+    updatedAt: '2026-11-18T10:05:00Z',
+  },
+  {
+    id: 3,
+    onlineOrderId: 12,
+    paymentProvider: 'square',
+    transactionId: 'txn_sq_003',
+    amount: 10.0,
+    status: 'failed',
+    processedAt: null,
+    logicalStatus: 'active',
+    createdAt: '2026-11-18T10:10:00Z',
+    updatedAt: '2026-11-18T10:10:00Z',
+  },
+  {
+    id: 4,
+    onlineOrderId: 13,
+    paymentProvider: 'clover_pay',
+    transactionId: 'txn_cl_004',
+    amount: 5.0,
+    status: 'refunded',
+    processedAt: '2026-11-18T10:15:00Z',
+    logicalStatus: 'active',
+    createdAt: '2026-11-18T10:15:00Z',
+    updatedAt: '2026-11-18T10:15:00Z',
+  },
+];
+
+describe('OnlineOrderItemsView', () => {
+  it('loads line items and renders active lines with product, variant, and POS binding', async () => {
+    const fetchMock = stub({
+      '/online-order-items': { data: ORDER_ITEMS },
+      '/online-orders': { data: [{ id: 10, customer: { name: 'Alice' } }] },
+      '/products': { data: [{ id: 5, name: 'Classic Burger', basePrice: 12.5 }, { id: 6, name: 'Cola Soda', basePrice: 4.5 }] },
+      '/variants': { data: [{ id: 2, productId: 5, name: 'Double', price: 12.5 }] },
+    });
+    render(<OnlineOrderItemsView />);
+
+    expect(await screen.findByText('#ORI-1')).toBeInTheDocument();
+    expect(screen.getByText('Classic Burger', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.queryByText('#ORI-2')).not.toBeInTheDocument();
+    expect(calledRoutes(fetchMock)).toEqual(
+      expect.arrayContaining(['GET /online-order-items']),
+    );
+  });
+
+  it('reveals deleted line items when the DELETED logical status checkbox is checked', async () => {
+    stub({
+      '/online-order-items': { data: ORDER_ITEMS },
+      '/online-orders': { data: [{ id: 10, customer: { name: 'Alice' } }] },
+      '/products': { data: [{ id: 5, name: 'Classic Burger', basePrice: 12.5 }, { id: 6, name: 'Cola Soda', basePrice: 4.5 }] },
+      '/variants': { data: [] },
+    });
+    render(<OnlineOrderItemsView />);
+
+    expect(await screen.findByText('#ORI-1')).toBeInTheDocument();
+    const deletedCheckbox = screen.getByLabelText('DELETED');
+    await userEvent.click(deletedCheckbox);
+
+    expect(await screen.findByText('#ORI-2')).toBeInTheDocument();
+    expect(screen.getByText('Cola Soda', { selector: 'div' })).toBeInTheDocument();
+  });
+
+  it('shows the error banner when /online-order-items fails', async () => {
+    stub({
+      '/online-order-items': () => jsonResponse({ message: 'Server returned HTTP 500' }, 500),
+      '/online-orders': { data: [] },
+      '/products': { data: [] },
+      '/variants': { data: [] },
+    });
+    render(<OnlineOrderItemsView />);
+
+    expect(await screen.findByText('Server returned HTTP 500')).toBeInTheDocument();
+  });
+});
+
+describe('OnlinePaymentsView', () => {
+  it('loads payments, displays KPI financial totals, and renders transaction rows', async () => {
+    const fetchMock = stub({
+      '/online-payments': { data: ONLINE_PAYMENTS },
+      '/online-orders': { data: [{ id: 10, customer: { name: 'Alice' }, totalAmount: 45.5 }] },
+    });
+    render(<OnlinePaymentsView />);
+
+    expect(await screen.findByText('#PAY-1')).toBeInTheDocument();
+    expect(screen.getByText('txn_stripe_001')).toBeInTheDocument();
+    expect(screen.getByText('$45.50', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.getByText('$15.00', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.getByText('$10.00', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.getByText('$5.00', { selector: 'div' })).toBeInTheDocument();
+    expect(calledRoutes(fetchMock)).toEqual(
+      expect.arrayContaining(['GET /online-payments', 'GET /online-orders']),
+    );
+  });
+
+  it('shows the error banner when /online-payments fails', async () => {
+    stub({
+      '/online-payments': () => jsonResponse({ message: 'Server returned HTTP 503' }, 503),
+      '/online-orders': { data: [] },
+    });
+    render(<OnlinePaymentsView />);
+
+    expect(await screen.findByText('Server returned HTTP 503')).toBeInTheDocument();
   });
 });

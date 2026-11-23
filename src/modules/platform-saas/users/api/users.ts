@@ -56,6 +56,17 @@ export async function getCompanyUsers(): Promise<PlatformUser[]> {
   return json.data ?? [];
 }
 
+/** GET /users/:id — the backend returns the safe user (no password or hashes). */
+export async function getUserById(id: number): Promise<MerchantUser> {
+  const json = await apiRequest<UserMutationResponse>(
+    `/users/${id}`,
+    { method: 'GET' },
+    'Failed to load user. Please try again.',
+  );
+
+  return json.data;
+}
+
 export async function createUser(
   payload: CreateUserPayload,
 ): Promise<MerchantUser> {

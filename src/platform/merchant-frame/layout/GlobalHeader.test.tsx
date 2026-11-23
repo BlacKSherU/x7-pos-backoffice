@@ -65,3 +65,22 @@ describe('GlobalHeader profile', () => {
     expect(screen.getAllByText('Subscription System Command Hub').length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('GlobalHeader Platform SaaS context tabs', () => {
+  it.each([
+    ['saas-companies-directory', 'Companies Directory'],
+    ['saas-merchant-users', 'Merchant User Directory'],
+    ['saas-merchant-terminals', 'Merchant Terminals'],
+    ['saas-company-profile', 'Company Profile'],
+  ])('labels %s under Platform SaaS instead of SYSTEM', async (tab, title) => {
+    vi.stubGlobal('fetch', fakeBackend({}));
+
+    renderHeader(tab);
+
+    const banner = screen.getByRole('banner');
+    expect(banner).toHaveTextContent('Platform SaaS');
+    expect(banner).toHaveTextContent(title);
+    expect(banner).not.toHaveTextContent(/SYSTEM/);
+    expect(banner).not.toHaveTextContent(/Saas /);
+  });
+});

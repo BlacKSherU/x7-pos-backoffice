@@ -48,6 +48,9 @@ import { CashShiftsView } from '@/modules/restaurant-operations/cash-drawers/vie
 import { CashTransactionsView } from '@/modules/restaurant-operations/cash-drawers/views/CashTransactionsView';
 import { CashMovementsView } from '@/modules/restaurant-operations/cash-drawers/views/CashMovementsView';
 import { CashDrawerHistoryView } from '@/modules/restaurant-operations/cash-drawers/views/CashDrawerHistoryView';
+import { OrderPaymentsView } from '@/modules/restaurant-operations/pos/views/OrderPaymentsView';
+import { PaymentGatewayConfigsView } from '@/modules/restaurant-operations/pos/views/PaymentGatewayConfigsView';
+import { PaymentTerminalsView } from '@/modules/restaurant-operations/pos/views/PaymentTerminalsView';
 import { CollaboratorPersonalScheduleView } from '@/modules/restaurant-operations/shifts/views/CollaboratorPersonalScheduleView';
 import { ShiftAssignmentView } from '@/modules/restaurant-operations/shifts/views/ShiftAssignmentView';
 import { TimeClockKioskView } from '@/modules/restaurant-operations/shifts/views/TimeClockKioskView';
@@ -88,6 +91,22 @@ import { GlobalUsersDirectoryView } from '@/modules/platform-saas/users/views/Gl
 import { CompanyProfileView } from '@/modules/platform-saas/companies/views/CompanyProfileView';
 import { CompanyConfigurationsView } from '@/modules/platform-saas/companies/views/CompanyConfigurationsView';
 import { CompanyRegistryView } from '@/modules/platform-saas/companies/views/CompanyRegistryView';
+import { CompaniesHubView } from '@/components/MerchantFrame/views/platform-saas/companies/CompaniesHubView';
+import { CompaniesDirectoryView } from '@/components/MerchantFrame/views/platform-saas/companies/CompaniesDirectoryView';
+import { CompanyHubView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanyHubView';
+import { CompanyProfileView as SaasCompanyProfileView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanyProfileView';
+import { SaasMissingContext } from '@/components/MerchantFrame/views/platform-saas/SaasViewKit';
+import { CompanyMerchantsDirectoryView } from '@/components/MerchantFrame/views/platform-saas/merchants/CompanyMerchantsDirectoryView';
+import { MerchantHubView } from '@/components/MerchantFrame/views/platform-saas/merchants/MerchantHubView';
+import { MerchantProfileView } from '@/components/MerchantFrame/views/platform-saas/merchants/MerchantProfileView';
+import { MerchantTerminalsDirectoryView } from '@/components/MerchantFrame/views/platform-saas/merchants/MerchantTerminalsDirectoryView';
+import { MerchantUsersDirectoryView } from '@/components/MerchantFrame/views/platform-saas/users/MerchantUsersDirectoryView';
+import { MerchantUserDashboardView } from '@/components/MerchantFrame/views/platform-saas/users/MerchantUserDashboardView';
+import {
+  PLATFORM_SAAS_TABS,
+  platformSaasPaths,
+  type PlatformSaasRouteParams,
+} from '@/modules/platform-saas/companies/lib/platform-saas-routes';
 
 import { FloorPlansView } from '@/modules/restaurant-operations/dining-system/views/FloorPlansView';
 import { FloorZonesView } from '@/modules/restaurant-operations/dining-system/views/FloorZonesView';
@@ -121,6 +140,8 @@ import { OnlineMenusView } from '@/modules/commerce/online-ordering/views/online
 import { OnlineMenuCategoriesView } from '@/modules/commerce/online-ordering/views/online-menu-categories/OnlineMenuCategoriesView';
 import { OnlineMenuItemsView } from '@/modules/commerce/online-ordering/views/online-menu-items/OnlineMenuItemsView';
 import { OnlineOrdersView } from '@/modules/commerce/online-ordering/views/online-orders/OnlineOrdersView';
+import { OnlineOrderItemsView } from '@/modules/commerce/online-ordering/views/online-order-items/OnlineOrderItemsView';
+import { OnlinePaymentsView } from '@/modules/commerce/online-ordering/views/online-payments/OnlinePaymentsView';
 
 export interface AllocationsContext {
   payment?: SupplierPayment | null;
@@ -154,6 +175,10 @@ export interface MerchantViewContext {
   setItemsPaymentFilter: (payment: SupplierPayment | null) => void;
   allocationsContext: AllocationsContext | null;
   setAllocationsContext: (context: AllocationsContext | null) => void;
+  /** Ids de la URL en las rutas /platform-saas/... (companyId, merchantId, userId). */
+  routeParams?: PlatformSaasRouteParams;
+  /** Abre una URL del backoffice (las vistas con ids en la URL navegan así). */
+  navigateToPath?: (path: string) => void;
 }
 
 type ViewRenderer = (ctx: MerchantViewContext) => ReactNode;
@@ -288,6 +313,65 @@ view(['subscription-system-hub', 'subscription-hub'], (ctx) => (
 ));
 view(['companies', 'company-registry', 'companies-registry'], () => <CompanyRegistryView />);
 
+// ---- Platform SaaS: companies / merchants / users con contexto en la URL (historias 1-7) ----
+const missing = (ctx: MerchantViewContext, entity: string) => (
+  <SaasMissingContext entity={entity} onPick={() => ctx.navigateToPath?.(platformSaasPaths.companiesDirectory())} />
+);
+view(PLATFORM_SAAS_TABS.companiesHub, () => <CompaniesHubView />);
+view(PLATFORM_SAAS_TABS.companiesDirectory, () => <CompaniesDirectoryView />);
+view(PLATFORM_SAAS_TABS.companyHub, (ctx) => {
+  const companyId = ctx.routeParams?.companyId;
+  return companyId ? <CompanyHubView key={companyId} companyId={companyId} /> : missing(ctx, 'company');
+});
+view(PLATFORM_SAAS_TABS.companyProfile, (ctx) => {
+  const companyId = ctx.routeParams?.companyId;
+  return companyId ? <SaasCompanyProfileView key={companyId} companyId={companyId} /> : missing(ctx, 'company');
+});
+view(PLATFORM_SAAS_TABS.companyConfiguration, (ctx) => {
+  const companyId = ctx.routeParams?.companyId;
+  return companyId ? <CompanyConfigurationsView key={companyId} companyId={companyId} /> : missing(ctx, 'company');
+});
+view(PLATFORM_SAAS_TABS.companyMerchants, (ctx) => {
+  const companyId = ctx.routeParams?.companyId;
+  return companyId ? <CompanyMerchantsDirectoryView key={companyId} companyId={companyId} /> : missing(ctx, 'company');
+});
+view(PLATFORM_SAAS_TABS.merchantHub, (ctx) => {
+  const { companyId, merchantId } = ctx.routeParams ?? {};
+  return companyId && merchantId ? (
+    <MerchantHubView key={`${companyId}-${merchantId}`} companyId={companyId} merchantId={merchantId} />
+  ) : (
+    missing(ctx, 'merchant')
+  );
+});
+view(PLATFORM_SAAS_TABS.merchantProfile, (ctx) => {
+  const { companyId, merchantId } = ctx.routeParams ?? {};
+  return companyId && merchantId ? (
+    <MerchantProfileView key={`${companyId}-${merchantId}`} companyId={companyId} merchantId={merchantId} />
+  ) : (
+    missing(ctx, 'merchant')
+  );
+});
+view(PLATFORM_SAAS_TABS.merchantTerminals, (ctx) => {
+  const { companyId, merchantId } = ctx.routeParams ?? {};
+  return companyId && merchantId ? (
+    <MerchantTerminalsDirectoryView key={`${companyId}-${merchantId}`} companyId={companyId} merchantId={merchantId} />
+  ) : (
+    missing(ctx, 'merchant')
+  );
+});
+view(PLATFORM_SAAS_TABS.merchantUsers, (ctx) => {
+  const merchantId = ctx.routeParams?.merchantId;
+  return merchantId ? <MerchantUsersDirectoryView key={merchantId} merchantId={merchantId} /> : missing(ctx, 'merchant');
+});
+view(PLATFORM_SAAS_TABS.merchantUserDetail, (ctx) => {
+  const { merchantId, userId } = ctx.routeParams ?? {};
+  return merchantId && userId ? (
+    <MerchantUserDashboardView key={`${merchantId}-${userId}`} merchantId={merchantId} userId={userId} />
+  ) : (
+    missing(ctx, 'user')
+  );
+});
+
 // ---- Productos e inventario ----
 view('categories', (ctx) => <CategoriesView onNavigate={ctx.onNavigate} />);
 view('products', (ctx) => <ProductsView onNavigate={ctx.onNavigate} />);
@@ -315,6 +399,11 @@ view('cash-shifts', (ctx) => <CashShiftsView onNavigate={ctx.onNavigate} />);
 view('cash-transactions', (ctx) => <CashTransactionsView onNavigate={ctx.onNavigate} />);
 view('cash-movements', (ctx) => <CashMovementsView onNavigate={ctx.onNavigate} />);
 view('cash-drawer-history', (ctx) => <CashDrawerHistoryView onNavigate={ctx.onNavigate} />);
+
+// ---- POS: cobros con tarjeta ----
+view('order-payments', (ctx) => <OrderPaymentsView onNavigate={ctx.onNavigate} />);
+view('payment-gateway-configs', (ctx) => <PaymentGatewayConfigsView onNavigate={ctx.onNavigate} />);
+view('payment-terminals', (ctx) => <PaymentTerminalsView onNavigate={ctx.onNavigate} />);
 
 // ---- Personal: turnos y asistencia ----
 view(['my-schedule', 'personal-schedule', '/staff-management/schedule/me'], (ctx) => (
@@ -502,6 +591,8 @@ view('online-menus', (ctx) => <OnlineMenusView onNavigate={ctx.onNavigate} />);
 view('online-menu-categories', (ctx) => <OnlineMenuCategoriesView onNavigate={ctx.onNavigate} />);
 view('online-menu-items', (ctx) => <OnlineMenuItemsView onNavigate={ctx.onNavigate} />);
 view('online-orders', (ctx) => <OnlineOrdersView onNavigate={ctx.onNavigate} />);
+view(['online-order-items', 'online-ordering-order-items'], (ctx) => <OnlineOrderItemsView onNavigate={ctx.onNavigate} />);
+view(['online-payments', 'online-ordering-payments'], (ctx) => <OnlinePaymentsView onNavigate={ctx.onNavigate} />);
 
 // ---- Cocina (KDS) ----
 view(['kds-dashboard', 'kitchen-kds-hub', 'kitchen-display-system-hub', 'kitchen-display-system'], (ctx) => (

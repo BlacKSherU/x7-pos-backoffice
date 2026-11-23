@@ -51,7 +51,7 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
                 className="px-5 py-2.5 bg-[#ae001a] text-white font-black text-label-caps border-b-4 border-white cursor-default font-poppins flex items-center gap-2 rounded shadow-md"
               >
                 {action.icon && (
-                  <span className="material-symbols-outlined text-[18px] no-underline">{action.icon}</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-[18px] no-underline">{action.icon}</span>
                 )}
                 <span aria-current="page" className="underline underline-offset-4 decoration-2">{action.label}</span>
               </span>
@@ -75,7 +75,7 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
               }
             >
               {action.icon && (
-                <span className="material-symbols-outlined text-[18px] transition-colors duration-200">{action.icon}</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-[18px] transition-colors duration-200">{action.icon}</span>
               )}
               {action.label}
             </button>
