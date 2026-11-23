@@ -93,7 +93,7 @@ export const PayrollAdjustmentsGrid: React.FC<PayrollAdjustmentsGridProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [payrollRunId, payrollEntryId, onAdjustmentsChange]);
+  }, [payrollEntryId, onAdjustmentsChange]);
 
   useEffect(() => {
     if ((payrollRunId !== undefined || payrollEntryId !== undefined) && propAdjustments === undefined) {

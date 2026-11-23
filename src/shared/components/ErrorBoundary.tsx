@@ -40,7 +40,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      const err = this.state.error as any;
+      const err = this.state.error as (Error & {
+        status?: number;
+        statusCode?: number;
+        code?: string;
+        details?: { redirectTo?: string };
+      }) | null;
       const isSubscriptionError =
         err?.status === 403 ||
         err?.statusCode === 403 ||

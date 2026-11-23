@@ -887,7 +887,7 @@ export const saasService = {
       const items = Array.isArray(response) ? response : response.data ?? [];
       if (companyId) {
         return items.filter(
-          (p: any) =>
+          (p: SubscriptionPayment & { company_id?: number; companySubscription?: { company_id?: number; company?: { id?: number } } }) =>
             p.companyId === companyId ||
             p.company_id === companyId ||
             p.companySubscription?.company_id === companyId ||
