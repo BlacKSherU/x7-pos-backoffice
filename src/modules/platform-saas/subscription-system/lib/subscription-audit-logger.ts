@@ -7,132 +7,7 @@ import { getStoredUser, getEffectiveUserRole } from '@/platform/auth/lib/auth-st
 
 export const SUBSCRIPTION_AUDIT_LOGS_STORAGE_KEY = 'x7_subscription_audit_logs';
 
-// Initial baseline seed logs for audit trail inspection
-export const SEED_SUBSCRIPTION_AUDIT_LOGS: SubscriptionAuditLog[] = [
-  {
-    id: 'log_sub_1092',
-    timestamp: '2026-11-13T14:45:00.000Z',
-    actor_user_id: 1,
-    actor_name: 'Rafael Cordero (SuperAdmin)',
-    actor_email: 'superadmin@x7pos.com',
-    actor_role: 'superadmin',
-    action_type: 'PLAN_MAPPING_UPDATED',
-    target_type: 'PLAN_APPLICATION',
-    target_id: 103,
-    target_name: 'Delivery Fleet Tracking',
-    company_id: null,
-    company_name: undefined,
-    previous_value: {
-      linked: false,
-      plan_id: 2,
-      plan_name: 'Professional',
-      application_id: 103,
-      application_name: 'Delivery Fleet Tracking',
-    },
-    new_value: {
-      linked: true,
-      plan_id: 2,
-      plan_name: 'Professional',
-      application_id: 103,
-      application_name: 'Delivery Fleet Tracking',
-    },
-    reason_notes: 'Updated Professional plan bundle with Q4 fleet tracking capabilities.',
-    metadata: {
-      scope: 'global_catalog',
-      session_ip: '192.168.1.100',
-    },
-    ledger_hash: '0x8f2d61a9bc3451e0f84a3219ef891c01e3895ac712bf',
-  },
-  {
-    id: 'log_sub_1091',
-    timestamp: '2026-11-12T16:20:00.000Z',
-    actor_user_id: 42,
-    actor_name: 'Elena Morales (SaaS Compliance)',
-    actor_email: 'compliance@x7platform.com',
-    actor_role: 'saasadmin',
-    action_type: 'SUBSCRIPTION_STATUS_CHANGED',
-    target_type: 'COMPANY_SUBSCRIPTION',
-    target_id: 101,
-    target_name: 'Bella Vista Gourmet - Professional Tier',
-    company_id: 10,
-    company_name: 'Bella Vista Gourmet',
-    previous_value: {
-      status: 'ACTIVE',
-      isExpired: false,
-    },
-    new_value: {
-      status: 'SUSPENDED',
-      immediate: true,
-      isExpired: false,
-    },
-    reason_notes: 'Delinquent subscription invoice over 45 days. Tenant write access suspended as per SLA.',
-    metadata: {
-      invoices_overdue: 2,
-      total_balance_due_usd: 398.0,
-      termination_scope: 'immediate',
-    },
-    ledger_hash: '0x5c3e72b1aa9046f1e29811c0ab845d02fa741cb834de',
-  },
-  {
-    id: 'log_sub_1090',
-    timestamp: '2026-11-10T11:05:00.000Z',
-    actor_user_id: 1,
-    actor_name: 'Rafael Cordero (SuperAdmin)',
-    actor_email: 'superadmin@x7pos.com',
-    actor_role: 'superadmin',
-    action_type: 'PLAN_MAPPING_UPDATED',
-    target_type: 'PLAN_FEATURE',
-    target_id: 205,
-    target_name: 'Advanced Cost Analytics & Forecasting',
-    company_id: null,
-    company_name: undefined,
-    previous_value: {
-      linked: true,
-      plan_id: 1,
-      plan_name: 'Essential',
-      feature_id: 205,
-      limit_value: 5,
-    },
-    new_value: {
-      linked: false,
-      plan_id: 1,
-      plan_name: 'Essential',
-      feature_id: 205,
-      limit_value: 0,
-    },
-    reason_notes: 'Repackaged advanced forecasting to Enterprise and Professional tiers only.',
-    metadata: {
-      rule_version: 'v2026.4',
-    },
-    ledger_hash: '0x4a1b99cf021387d89ab55e123fc76e1098bc52a198de',
-  },
-  {
-    id: 'log_sub_1089',
-    timestamp: '2026-11-08T09:30:00.000Z',
-    actor_user_id: 42,
-    actor_name: 'Elena Morales (SaaS Compliance)',
-    actor_email: 'compliance@x7platform.com',
-    actor_role: 'saasadmin',
-    action_type: 'SUBSCRIPTION_STATUS_CHANGED',
-    target_type: 'COMPANY_SUBSCRIPTION',
-    target_id: 102,
-    target_name: 'Sabor Criollo Corp - Essential Tier',
-    company_id: 20,
-    company_name: 'Sabor Criollo Corp',
-    previous_value: {
-      status: 'SUSPENDED',
-    },
-    new_value: {
-      status: 'ACTIVE',
-      renewalDate: '2026-12-08T00:00:00.000Z',
-    },
-    reason_notes: 'Wire transfer payment verified by accounting; tenant credentials and access unblocked.',
-    metadata: {
-      transaction_id: 'WT-2026-99182',
-    },
-    ledger_hash: '0x71e809cb554162da091c6674e10b45e20aa39021f4bc',
-  },
-];
+export const SEED_SUBSCRIPTION_AUDIT_LOGS: SubscriptionAuditLog[] = [];
 
 let inMemoryLogs: SubscriptionAuditLog[] | null = null;
 
@@ -150,29 +25,23 @@ function computePseudoHash(entry: Partial<SubscriptionAuditLog>): string {
 
 export function getStoredAuditLogs(): SubscriptionAuditLog[] {
   if (typeof window === 'undefined') {
-    return inMemoryLogs ?? [...SEED_SUBSCRIPTION_AUDIT_LOGS];
+    return inMemoryLogs ?? [];
   }
 
   try {
     const raw = localStorage.getItem(SUBSCRIPTION_AUDIT_LOGS_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(
-        SUBSCRIPTION_AUDIT_LOGS_STORAGE_KEY,
-        JSON.stringify(SEED_SUBSCRIPTION_AUDIT_LOGS),
-      );
-      inMemoryLogs = [...SEED_SUBSCRIPTION_AUDIT_LOGS];
-      return [...SEED_SUBSCRIPTION_AUDIT_LOGS];
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      inMemoryLogs = parsed;
-      return parsed;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        inMemoryLogs = parsed;
+        return parsed;
+      }
     }
   } catch {
     // fallback
   }
 
-  return inMemoryLogs ?? [...SEED_SUBSCRIPTION_AUDIT_LOGS];
+  return inMemoryLogs ?? [];
 }
 
 export function saveStoredAuditLogs(logs: SubscriptionAuditLog[]): void {

@@ -44,7 +44,7 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
       { featureId: 'sub-plans-core', label: 'SUBSCRIPTION PLANS', icon: 'workspace_premium', live: true, description: 'Plan tiers, pricing and billing cycles.' },
       { featureId: 'sub-apps-mapping', label: 'SUBSCRIPTION APPLICATIONS', icon: 'developer_board', live: true, description: 'Applications active on each tenant subscription.' },
       { featureId: 'subscription-audit-logs', label: 'AUDIT LOGS', icon: 'history', live: true, description: 'Immutable audit trail recording administrative changes to subscription statuses and plan associations.' },
-      { featureId: 'sub-payments-billing', label: 'SUBSCRIPTION PAYMENTS', icon: 'payments', live: false, description: 'Subscription invoices and payment history.' },
+      { featureId: 'sub-payments-billing', label: 'SUBSCRIPTION PAYMENTS', icon: 'payments', live: true, description: 'Subscription invoices and payment history.' },
     ],
   },
   {

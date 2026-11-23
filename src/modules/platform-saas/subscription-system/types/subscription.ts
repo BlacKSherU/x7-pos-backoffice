@@ -134,6 +134,8 @@ export interface CompanySubscriptionDetail extends CompanySubscription {
 export interface SubscriptionPayment {
   id: number;
   companyId: number;
+  companyName?: string;
+  planName?: string;
   externalTransactionId: string;
   invoiceNumber?: string;
   amount: number | string;
@@ -141,6 +143,8 @@ export interface SubscriptionPayment {
   status: 'paid' | 'completed' | 'pending' | 'failed' | 'refunded' | 'settled';
   paymentDate: string;
   paymentMethod: string;
+  billingPeriod?: string;
+  notes?: string;
 }
 
 export interface ProvisionedApplication {

@@ -170,7 +170,12 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
           reason: suspensionReason.trim() || undefined,
         },
       );
-      setSubscription(updated);
+      // Immediately update subscription state in UI without requiring page reload
+      setSubscription((prev) => ({
+        ...(prev ?? updated),
+        ...updated,
+        status: targetStatus,
+      }));
       setStatusModalOpen(false);
       setToast({
         message: `Subscription successfully updated to ${targetStatus}${
@@ -184,8 +189,14 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
         }`,
         type: 'success',
       });
-      // Refresh details
-      loadCompanyDetails(selectedCompanyId);
+      // Silently refresh payments and applications in background without full-page spinner
+      Promise.all([
+        saasService.getCompanyPayments(selectedCompanyId).catch(() => []),
+        saasService.getCompanySubscriptionApplications(selectedCompanyId).catch(() => []),
+      ]).then(([paymentsData, appsData]) => {
+        setPayments(paymentsData);
+        setApplications(appsData);
+      });
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Failed to update subscription status',

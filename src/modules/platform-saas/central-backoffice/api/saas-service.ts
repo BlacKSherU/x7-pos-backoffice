@@ -720,33 +720,67 @@ export const saasService = {
     id: number,
     dto: UpdateCompanySubscriptionDto,
   ): Promise<CompanySubscription> {
+    // Only send fields explicitly accepted by the backend UpdateCompanySubscriptionDto
+    // (planId, status, startDate, endDate, renewalDate, paymentMethod)
+    // to strictly prevent NestJS ValidationPipe (forbidNonWhitelisted: true) 400 Bad Request
+    const payload: Record<string, unknown> = {};
+    if (dto.planId !== undefined) payload.planId = Number(dto.planId);
+    if (dto.status !== undefined) {
+      payload.status = String(dto.status).toLowerCase() === 'active' ? 'active' : 'inactive';
+    }
+    if (dto.startDate !== undefined) payload.startDate = dto.startDate;
+    if (dto.endDate !== undefined) payload.endDate = dto.endDate;
+    if (dto.renewalDate !== undefined) payload.renewalDate = dto.renewalDate;
+    if (dto.paymentMethod !== undefined) payload.paymentMethod = dto.paymentMethod;
+
     const response = await saasApiFetch<{ data: CompanySubscription }>(
       `company-subscriptions/${id}`,
-      { method: 'PATCH', body: JSON.stringify(dto) },
+      { method: 'PATCH', body: JSON.stringify(payload) },
     );
     return response.data;
   },
 
   // ── Company-level Subscription Operations ────────────────────────────
   async getCompanySubscription(companyId: number): Promise<CompanySubscriptionDetail> {
+    const cachedTenant = await redisCacheService.getTenantFeatures(companyId).catch(() => null);
+
     try {
-      const response = await saasApiFetch<{ data: CompanySubscriptionDetail }>(
-        `companies/${companyId}/subscription`,
-      );
-      return response.data;
-    } catch {
-      // Fallback: search company-subscriptions by companyId
-      const all = await saasFetchAll<CompanySubscription>('company-subscriptions');
-      const found = all.find((s) => s.company?.id === companyId);
-      if (!found) {
-        throw new Error(`Subscription not found for company ${companyId}`);
+      const list = await saasFetchAll<CompanySubscription>(`company-subscriptions?companyId=${companyId}`);
+      const found = list.find((s) => s.company?.id === companyId) ?? list[0];
+      if (found) {
+        const effectiveStatus =
+          cachedTenant?.subscriptionStatus && cachedTenant.subscriptionStatus !== 'ACTIVE'
+            ? (cachedTenant.subscriptionStatus as SubscriptionLifecycleStatus)
+            : found.status;
+
+        return {
+          ...found,
+          status: effectiveStatus,
+          billingCycle: found.billingCycle ?? 'MONTHLY',
+          price: found.price ?? (found.plan?.price ?? '0.00'),
+        };
       }
-      return {
-        ...found,
-        billingCycle: found.billingCycle ?? 'MONTHLY',
-        price: found.price ?? (found.plan?.price ?? '0.00'),
-      };
+    } catch {
+      // Fallback: search company-subscriptions without query
     }
+
+    const all = await saasFetchAll<CompanySubscription>('company-subscriptions');
+    const found = all.find((s) => s.company?.id === companyId);
+    if (!found) {
+      throw new Error(`Subscription not found for company ${companyId}`);
+    }
+
+    const effectiveStatus =
+      cachedTenant?.subscriptionStatus && cachedTenant.subscriptionStatus !== 'ACTIVE'
+        ? (cachedTenant.subscriptionStatus as SubscriptionLifecycleStatus)
+        : found.status;
+
+    return {
+      ...found,
+      status: effectiveStatus,
+      billingCycle: found.billingCycle ?? 'MONTHLY',
+      price: found.price ?? (found.plan?.price ?? '0.00'),
+    };
   },
 
   async updateCompanySubscriptionStatus(
@@ -754,41 +788,47 @@ export const saasService = {
     status: SubscriptionLifecycleStatus,
     options?: { immediate?: boolean; reason?: string },
   ): Promise<CompanySubscriptionDetail> {
-    let result: CompanySubscriptionDetail;
+    // 1. Locate the subscription record for this company
+    let targetSubscription: CompanySubscription | null = null;
     try {
-      const response = await saasApiFetch<{ data: CompanySubscriptionDetail }>(
-        `companies/${companyId}/subscription`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            status,
-            immediate: options?.immediate ?? true,
-            reason: options?.reason,
-          }),
-        },
-      );
-      result = response.data;
+      const list = await saasFetchAll<CompanySubscription>(`company-subscriptions?companyId=${companyId}`);
+      targetSubscription = list.find((s) => s.company?.id === companyId) ?? list[0] ?? null;
     } catch {
-      // Fallback: update via company-subscriptions endpoint
-      const all = await saasFetchAll<CompanySubscription>('company-subscriptions');
-      const found = all.find((s) => s.company?.id === companyId);
-      if (found) {
-        const normalized = status.toLowerCase() === 'active' ? 'active' : 'inactive';
-        const updated = await this.updateCompanySubscription(found.id, {
-          status: normalized,
-          immediate: options?.immediate,
-          reason: options?.reason,
-        });
-        result = {
-          ...updated,
-          status,
-        };
-      } else {
-        throw new Error(`Failed to update subscription status for company ${companyId}`);
-      }
+      // Fallback
     }
 
-    // Immutable Audit Trail recording
+    if (!targetSubscription) {
+      const all = await saasFetchAll<CompanySubscription>('company-subscriptions');
+      targetSubscription = all.find((s) => s.company?.id === companyId) ?? null;
+    }
+
+    if (!targetSubscription) {
+      throw new Error(`Failed to update subscription status: subscription not found for company ${companyId}`);
+    }
+
+    // 2. Prepare payload conforming to backend UpdateCompanySubscriptionDto
+    const isActivating = String(status).toLowerCase() === 'active';
+    const isCancellingAtPeriodEnd = String(status).toUpperCase() === 'CANCELLED' && options?.immediate === false;
+
+    const payload: UpdateCompanySubscriptionDto = {
+      status: isActivating || isCancellingAtPeriodEnd ? 'active' : 'inactive',
+    };
+
+    if (isCancellingAtPeriodEnd) {
+      // Preserves active status until billing period ends, disable renewal
+      payload.renewalDate = null;
+    }
+
+    // 3. Persist via PATCH company-subscriptions/:id with whitelisted fields
+    const updated = await this.updateCompanySubscription(targetSubscription.id, payload);
+    const result: CompanySubscriptionDetail = {
+      ...updated,
+      status,
+      billingCycle: targetSubscription.billingCycle ?? 'MONTHLY',
+      price: targetSubscription.price ?? (targetSubscription.plan?.price ?? '0.00'),
+    };
+
+    // 4. Immutable Audit Trail recording
     this.recordSubscriptionAuditLog({
       action_type: 'SUBSCRIPTION_STATUS_CHANGED',
       target_type: 'COMPANY_SUBSCRIPTION',
@@ -796,7 +836,7 @@ export const saasService = {
       target_name: result.company?.name ? `${result.company.name} Subscription` : `Company #${companyId} Subscription`,
       company_id: companyId,
       company_name: result.company?.name,
-      previous_value: { status: 'PREVIOUS_STATE' },
+      previous_value: { status: targetSubscription.status },
       new_value: {
         status,
         immediate: options?.immediate ?? true,
@@ -812,7 +852,7 @@ export const saasService = {
       metadata: { companyId, immediate: options?.immediate ?? true },
     }).catch(() => {});
 
-    // Invalidate and instantly refresh Redis cache for this tenant
+    // 5. Invalidate and instantly refresh Redis cache for this tenant
     redisCacheService
       .refreshTenantFeatures(companyId, async () => ({
         companyId: Number(companyId),
@@ -834,18 +874,65 @@ export const saasService = {
   },
 
   async getCompanyPayments(companyId: number): Promise<SubscriptionPayment[]> {
+    return this.listSubscriptionPayments(companyId);
+  },
+
+  async listSubscriptionPayments(companyId?: number): Promise<SubscriptionPayment[]> {
     try {
-      const response = await saasApiFetch<{ data: SubscriptionPayment[] }>(
-        `companies/${companyId}/payments`,
+      // Backend GET /subscription-payments accepts { status, search, page, limit, sortBy, sortOrder }.
+      // companyId is filtered client-side to prevent NestJS ValidationPipe (forbidNonWhitelisted: true) 400 Bad Request.
+      const response = await saasApiFetch<{ data: SubscriptionPayment[] } | SubscriptionPayment[]>(
+        'subscription-payments?limit=100',
       );
-      return response.data;
-    } catch {
-      try {
-        return await saasFetchAll<SubscriptionPayment>(`subscription-payments?companyId=${companyId}`);
-      } catch {
-        return [];
+      const items = Array.isArray(response) ? response : response.data ?? [];
+      if (companyId) {
+        return items.filter(
+          (p: any) =>
+            p.companyId === companyId ||
+            p.company_id === companyId ||
+            p.companySubscription?.company_id === companyId ||
+            p.companySubscription?.company?.id === companyId,
+        );
       }
+      return items;
+    } catch {
+      return [];
     }
+  },
+
+  async updateSubscriptionPaymentStatus(
+    paymentId: number,
+    newStatus: SubscriptionPayment['status'],
+    notes?: string,
+  ): Promise<SubscriptionPayment> {
+    const response = await saasApiFetch<{ data: SubscriptionPayment }>(
+      `v1/saas/subscription-payments/${paymentId}/status`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus, notes }),
+      },
+    );
+    const updatedPayment = response.data;
+
+    // Log audit entry
+    try {
+      await this.recordSubscriptionAuditLog({
+        action_type: 'SUBSCRIPTION_STATUS_CHANGED',
+        target_type: 'COMPANY_SUBSCRIPTION',
+        target_id: paymentId,
+        target_name: updatedPayment?.invoiceNumber || `Payment #${paymentId}`,
+        company_id: updatedPayment?.companyId ?? null,
+        company_name: updatedPayment?.companyName,
+        previous_value: null,
+        new_value: { status: newStatus, notes },
+        reason_notes: notes || `Subscription payment status updated to ${newStatus.toUpperCase()}`,
+        metadata: { paymentId, newStatus },
+      });
+    } catch {
+      // Safe fail
+    }
+
+    return updatedPayment;
   },
 
   async getCompanySubscriptionApplications(
@@ -853,34 +940,26 @@ export const saasService = {
     planId?: number,
   ): Promise<ProvisionedApplication[]> {
     try {
-      const response = await saasApiFetch<{ data: ProvisionedApplication[] }>(
-        `companies/${companyId}/subscription/applications`,
-      );
-      return response.data;
-    } catch {
-      // Fallback: determine applications unlocked by the subscription plan
-      try {
-        let targetPlanId = planId;
-        if (!targetPlanId) {
-          const sub = await this.getCompanySubscription(companyId);
-          targetPlanId = sub.plan?.id;
-        }
-        const [allApps, planApps] = await Promise.all([
-          this.getApplications(),
-          targetPlanId ? this.getPlanApplications(targetPlanId) : Promise.resolve([]),
-        ]);
-        const unlockedAppIds = new Set(planApps.map((pa) => pa.application.id));
-        return allApps.map((app) => ({
-          id: app.id,
-          name: app.name,
-          code: app.code ?? app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          description: app.description ?? undefined,
-          category: app.category,
-          isProvisioned: unlockedAppIds.has(app.id),
-        }));
-      } catch {
-        return [];
+      let targetPlanId = planId;
+      if (!targetPlanId) {
+        const sub = await this.getCompanySubscription(companyId);
+        targetPlanId = sub.plan?.id;
       }
+      const [allApps, planApps] = await Promise.all([
+        this.getApplications(),
+        targetPlanId ? this.getPlanApplications(targetPlanId) : Promise.resolve([]),
+      ]);
+      const unlockedAppIds = new Set(planApps.map((pa) => pa.application.id));
+      return allApps.map((app) => ({
+        id: app.id,
+        name: app.name,
+        code: app.code ?? app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        description: app.description ?? undefined,
+        category: app.category,
+        isProvisioned: unlockedAppIds.has(app.id),
+      }));
+    } catch {
+      return [];
     }
   },
 
@@ -902,29 +981,12 @@ export const saasService = {
 
   // ── Subscription Audit Trail Ledger ──────────────────────────────────
   async getSubscriptionAuditLogs(companyId?: number): Promise<SubscriptionAuditLog[]> {
-    const path = companyId
-      ? `v1/saas/companies/${companyId}/subscription-audit-logs`
-      : 'v1/saas/subscription-audit-logs';
-    try {
-      const response = await saasApiFetch<{ data: SubscriptionAuditLog[] } | SubscriptionAuditLog[]>(path);
-      const items = Array.isArray(response) ? response : response.data ?? [];
-      return items;
-    } catch {
-      return fetchSubscriptionAuditLogsFromStorage(companyId);
-    }
+    return fetchSubscriptionAuditLogsFromStorage(companyId);
   },
 
   async recordSubscriptionAuditLog(
     dto: CreateSubscriptionAuditLogDto,
   ): Promise<SubscriptionAuditLog> {
-    try {
-      await saasApiFetch('v1/saas/subscription-audit-logs', {
-        method: 'POST',
-        body: JSON.stringify(dto),
-      });
-    } catch {
-      // Backend offline or mock fallback
-    }
     return logAuditEntryLocally(dto);
   },
 };

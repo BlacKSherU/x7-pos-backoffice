@@ -161,12 +161,13 @@ describe('SubscriptionHubView', () => {
         'Merchant Subscriptions Inquiry',
         'Subscription Payments Inquiry (with Status Change)',
         'Subscription Applications Inquiry',
+        'Subscription Audit Log Ledger',
       ];
 
       for (const title of expectedTitles) {
         expect(await screen.findByText(title)).toBeInTheDocument();
       }
-      expect(SUBSCRIPTION_SUB_MODULES).toHaveLength(9);
+      expect(SUBSCRIPTION_SUB_MODULES).toHaveLength(expectedTitles.length);
     });
 
     it.each(SUBSCRIPTION_SUB_MODULES)(
