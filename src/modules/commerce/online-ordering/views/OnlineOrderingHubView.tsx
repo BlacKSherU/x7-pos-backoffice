@@ -129,7 +129,7 @@ export const OnlineOrderingHubView: React.FC<OnlineOrderingHubViewProps> = ({
       actionText: 'Manage Stores',
     },
     {
-      id: 'online-payments',
+      id: 'online-payment-gateways',
       title: 'Digital Payments Gateway',
       subtitle: 'CHECKOUT & CARD PROCESSORS',
       description: 'Configure online payment gateways, Stripe, card acquiring providers, and digital checkout tender rules.',

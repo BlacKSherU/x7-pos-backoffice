@@ -24,12 +24,14 @@ const COMMON_CATEGORIES = [
   'Other Adjustment',
 ];
 
+const EMPTY_ENTRIES: PayrollEntry[] = [];
+
 export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps> = ({
   isOpen,
   onClose,
   onSave,
   payrollRunId = 1,
-  payrollEntries = [],
+  payrollEntries = EMPTY_ENTRIES,
   currency = 'USD',
 }) => {
   const [adjustmentType, setAdjustmentType] = useState<PayrollAdjustmentType>('BONUS');
@@ -55,45 +57,45 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Sync available entries with prop
+  // Reset form and sync/fetch entries when modal opens
   useEffect(() => {
-    setAvailableEntries(payrollEntries);
-  }, [payrollEntries]);
+    if (!isOpen) return;
 
-  // Reset form and fetch entries if none passed when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setAdjustmentType('BONUS');
-      setCollaboratorName('');
-      setPayrollEntryId('');
-      setAmount('');
-      setDescription('');
-      setCategory(COMMON_CATEGORIES[0]);
-      setErrorMessage(null);
-      setIsSubmitting(false);
+    setAdjustmentType('BONUS');
+    setCollaboratorName('');
+    setPayrollEntryId('');
+    setAmount('');
+    setDescription('');
+    setCategory(COMMON_CATEGORIES[0]);
+    setErrorMessage(null);
+    setIsSubmitting(false);
 
-      if (payrollEntries.length === 0) {
-        const promise = apiRequest<{ data?: PayrollEntry[] } | PayrollEntry[]>(
-          `/payroll-entries?payroll_run_id=${encodeURIComponent(payrollRunId)}&limit=100`,
-          { method: 'GET' },
-          'Failed to load entries',
-        );
-        if (promise && typeof promise.then === 'function') {
-          void promise
-            .then((res) => {
-              const list = Array.isArray(res) ? res : res?.data ?? [];
-              setAvailableEntries(list);
-              if (list.length > 0) {
-                setPayrollEntryId(String(list[0].id));
-                setCollaboratorName(list[0].collaborator_name || `Collaborator #${list[0].collaborator_id}`);
-              }
-            })
-            .catch(() => {});
+    if (payrollEntries.length > 0) {
+      setAvailableEntries(payrollEntries);
+      setPayrollEntryId(String(payrollEntries[0].id));
+      setCollaboratorName(payrollEntries[0].collaborator_name || `Collaborator #${payrollEntries[0].collaborator_id}`);
+    } else {
+      const loadEntries = async () => {
+        try {
+          const promise = apiRequest<{ data?: PayrollEntry[] } | PayrollEntry[]>(
+            `/payroll-entries?payroll_run_id=${encodeURIComponent(payrollRunId)}&limit=100`,
+            { method: 'GET' },
+            'Failed to load entries',
+          );
+          if (promise && typeof promise.then === 'function') {
+            const res = await promise;
+            const list = Array.isArray(res) ? res : res?.data ?? [];
+            setAvailableEntries(list);
+            if (list.length > 0) {
+              setPayrollEntryId(String(list[0].id));
+              setCollaboratorName(list[0].collaborator_name || `Collaborator #${list[0].collaborator_id}`);
+            }
+          }
+        } catch {
+          // ignore
         }
-      } else {
-        setPayrollEntryId(String(payrollEntries[0].id));
-        setCollaboratorName(payrollEntries[0].collaborator_name || `Collaborator #${payrollEntries[0].collaborator_id}`);
-      }
+      };
+      void loadEntries();
     }
   }, [isOpen, payrollEntries, payrollRunId]);
 
