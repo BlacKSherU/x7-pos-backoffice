@@ -101,6 +101,7 @@ export const MerchantFrame: React.FC = () => {
   const [itemsPaymentFilter, setItemsPaymentFilter] = useState<SupplierPayment | null>(null);
   const [allocationsContext, setAllocationsContext] = useState<AllocationsContext | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
 
   const SAAS_VIEW_TAB_MAP: Record<string, string> = {
@@ -109,10 +110,17 @@ export const MerchantFrame: React.FC = () => {
     'subscription-features': 'features-control',
     'subscription-plan-applications': 'plan-apps-rules',
     'subscription-plan-features': 'plan-features-mapping',
+    'plan-applications-association': 'plan-applications-association',
+    'plan-apps-association': 'plan-applications-association',
+    'plan-features-association': 'plan-features-association',
+    'plan-features-mapping-association': 'plan-features-association',
     'company-subscriptions': 'company-subscriptions',
     'subscription-company-subscriptions': 'company-subscriptions',
     'company-subscription': 'company-subscription-detail',
     'company-subscription-detail': 'company-subscription-detail',
+    'subscription-applications-inquiry': 'subscription-applications-inquiry',
+    'company-applications-inquiry': 'subscription-applications-inquiry',
+    'sub-apps-mapping': 'sub-apps-mapping',
     'merchant-subscriptions': 'merchant-subs-link',
     'subscription-merchant-subscriptions': 'merchant-subs-link',
   };
@@ -159,7 +167,10 @@ export const MerchantFrame: React.FC = () => {
   }, [activeTab]);
 
   const handleNavigateView = (view: string, plan?: SubscriptionPlan, companyId?: number) => {
-    if (plan) setSelectedPlan(plan);
+    if (plan) {
+      setSelectedPlan(plan);
+      setSelectedPlanId(plan.id);
+    }
     if (companyId !== undefined) setSelectedCompanyId(companyId);
     setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
   };
@@ -172,6 +183,12 @@ export const MerchantFrame: React.FC = () => {
     setPrevRouteKey(currentRouteKey);
     const routeNav = getNavFromPath(location.pathname, location.state, effectiveProfileRole);
     if (routeNav) {
+      if (routeNav.planId !== undefined) {
+        setSelectedPlanId(Number(routeNav.planId));
+      }
+      if (routeNav.companyId !== undefined) {
+        setSelectedCompanyId(Number(routeNav.companyId));
+      }
       const isPlatformStaff =
         effectiveProfileRole === 'super_admin' ||
         effectiveProfileRole === 'Super Admin (All Access)' ||
@@ -711,6 +728,9 @@ export const MerchantFrame: React.FC = () => {
       'features-control',
       'plan-apps-rules',
       'plan-features-mapping',
+      'plan-applications-association',
+      'plan-features-association',
+      'subscription-applications-inquiry',
       'sub-plans-core',
       'sub-apps-mapping'
     ];
@@ -832,6 +852,8 @@ export const MerchantFrame: React.FC = () => {
     activeCategory,
     profile,
     selectedPlan,
+    selectedPlanId,
+    setSelectedPlanId,
     refreshTrigger,
     onNavigate: handleViewChange,
     onStaffNavigate: handleStaffNavigate,

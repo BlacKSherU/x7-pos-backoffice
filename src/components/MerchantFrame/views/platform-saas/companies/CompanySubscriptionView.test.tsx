@@ -254,6 +254,40 @@ describe('CompanySubscriptionView', () => {
       });
     });
 
+    it('allows reactivating subscription to ACTIVE with instant state update', async () => {
+      const user = userEvent.setup();
+      vi.mocked(saasService.getCompanySubscription).mockResolvedValue({
+        ...MOCK_ACTIVE_SUBSCRIPTION,
+        status: 'SUSPENDED',
+      });
+      vi.mocked(saasService.updateCompanySubscriptionStatus).mockResolvedValue({
+        ...MOCK_ACTIVE_SUBSCRIPTION,
+        status: 'ACTIVE',
+      });
+
+      render(<CompanySubscriptionView companyId={101} />);
+      await screen.findByRole('heading', { name: /company subscription management/i });
+
+      // Click "Active" / "Reactivate" button
+      const activeBtn = screen.getByRole('button', { name: /active/i });
+      await user.click(activeBtn);
+
+      // Verify modal
+      expect(screen.getByText(/Confirm Subscription State Transition: ACTIVE/i)).toBeInTheDocument();
+      expect(screen.getByText(/Reactivate Subscription/i)).toBeInTheDocument();
+
+      // Confirm reactivation
+      const confirmBtn = screen.getByRole('button', { name: /confirm active/i });
+      await user.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(saasService.updateCompanySubscriptionStatus).toHaveBeenCalledWith(101, 'ACTIVE', {
+          immediate: false,
+          reason: undefined,
+        });
+      });
+    });
+
     it('displays warning alert banner when subscription is suspended', async () => {
       vi.mocked(saasService.getCompanySubscription).mockResolvedValue({
         ...MOCK_ACTIVE_SUBSCRIPTION,

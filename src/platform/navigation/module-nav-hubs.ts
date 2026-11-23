@@ -42,8 +42,9 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
       { featureId: 'plan-apps-rules', label: 'PLAN APPLICATIONS', icon: 'widgets', live: true, description: 'Applications included in each plan.' },
       { featureId: 'plan-features-mapping', label: 'PLAN FEATURES', icon: 'checklist', live: true, description: 'Features unlocked by each plan.' },
       { featureId: 'sub-plans-core', label: 'SUBSCRIPTION PLANS', icon: 'workspace_premium', live: true, description: 'Plan tiers, pricing and billing cycles.' },
-      { featureId: 'sub-apps-mapping', label: 'SUBSCRIPTION APPLICATIONS', icon: 'apps_outage', live: false, description: 'Applications active on each merchant subscription.' },
-      { featureId: 'sub-payments-billing', label: 'SUBSCRIPTION PAYMENTS', icon: 'payments', live: false, description: 'Subscription invoices and payment history.' },
+      { featureId: 'sub-apps-mapping', label: 'SUBSCRIPTION APPLICATIONS', icon: 'developer_board', live: true, description: 'Applications active on each tenant subscription.' },
+      { featureId: 'subscription-audit-logs', label: 'AUDIT LOGS', icon: 'history', live: true, description: 'Immutable audit trail recording administrative changes to subscription statuses and plan associations.' },
+      { featureId: 'sub-payments-billing', label: 'SUBSCRIPTION PAYMENTS', icon: 'payments', live: true, description: 'Subscription invoices and payment history.' },
     ],
   },
   {
@@ -191,8 +192,8 @@ export const MODULE_NAV_HUBS: ModuleNavHub[] = [
     icon: 'account_balance_wallet',
     description: 'Payroll runs, per-employee entries, tax detail and adjustments.',
     items: [
-      { featureId: 'payroll-adjustments', label: 'Payroll Adjustments & Bonuses', icon: 'tune', live: false, description: 'Apply discretionary bonuses, staff advances, performance commissions, and manual deductions.' },
-      { featureId: 'payroll-entries', label: 'Employee Payroll Entries', icon: 'list_alt', live: false, description: 'Inspect per-collaborator gross pay, overtime additions, tips earned, deductions, and final net pay.' },
+      { featureId: 'payroll-adjustments', label: 'Payroll Adjustments & Bonuses', icon: 'tune', live: true, description: 'Apply discretionary bonuses, staff advances, performance commissions, and manual deductions.' },
+      { featureId: 'payroll-entries', label: 'Employee Payroll Entries', icon: 'list_alt', live: true, description: 'Inspect per-collaborator gross pay, overtime additions, tips earned, deductions, and final net pay.' },
       { featureId: 'payroll-runs', label: 'Payroll Calculation Runs', icon: 'play_circle', live: false, description: 'Open, compute, verify, and finalize periodic payroll runs for restaurant staff across all branches.' },
       { featureId: 'payroll-tax-detail', label: 'Payroll Tax Detail & Withholdings', icon: 'percent', live: false, description: 'Audit statutory income tax withholdings, social security contributions, and employer tax liabilities.' },
     ],

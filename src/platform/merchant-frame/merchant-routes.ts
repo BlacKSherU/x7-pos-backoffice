@@ -14,6 +14,8 @@ import {
 export interface RouteNav {
   category: string;
   tab: string;
+  planId?: string | number;
+  companyId?: string | number;
 }
 
 export interface NavigationLocationState {
@@ -43,12 +45,16 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes('platformsaas', 'apps-config', '/platform-saas/subscription/applications', '/subscription/applications'),
   ...routes('platformsaas', 'features-control', '/platform-saas/subscription/features', '/subscription/features'),
   ...routes('platformsaas', 'plan-apps-rules', '/platform-saas/subscription/plan-applications', '/subscription/plan-applications'),
+  ...routes('platformsaas', 'plan-applications-association', '/platform-saas/subscription/plan-applications-association', '/subscription/plan-applications-association'),
   ...routes('platformsaas', 'plan-features-mapping', '/platform-saas/subscription/plan-features', '/subscription/plan-features'),
+  ...routes('platformsaas', 'plan-features-association', '/platform-saas/subscription/plan-features-association', '/subscription/plan-features-association'),
   ...routes('platformsaas', 'company-subscriptions', '/platform-saas/subscription/company-subscriptions', '/subscription/company-subscriptions'),
   ...routes('platformsaas', 'company-subscription-detail', '/platform-saas/subscription/company-subscription', '/platform-saas/companies/subscription'),
+  ...routes('platformsaas', 'subscription-applications-inquiry', '/platform-saas/subscription/company-applications', '/subscription/company-applications'),
   ...routes('platformsaas', 'merchant-subs-link', '/platform-saas/subscription/merchant-subscriptions', '/subscription/merchant-subscriptions'),
   ...routes('platformsaas', 'sub-payments-billing', '/platform-saas/subscription/payments', '/subscription/payments'),
   ...routes('platformsaas', 'sub-apps-mapping', '/platform-saas/subscription/subscription-applications', '/subscription/subscription-applications'),
+  ...routes('platformsaas', 'subscription-audit-logs', '/platform-saas/subscription/audit-logs', '/subscription/audit-logs'),
   ...routes('merchant-portal', 'merchant-directory', '/dashboard/merchants'),
   ...routes('merchant-portal', 'user-management', '/dashboard/users'),
   ...routes('merchant-portal', 'company-profile', '/dashboard/company-profile'),
@@ -124,10 +130,15 @@ const EXACT_ROUTES: Record<string, RouteNav> = Object.fromEntries([
   ...routes(OPS, 'kitchen-order-items', '/kitchen-order-items', '/kds/order-items', '/app/kitchen-display-system/kitchen-order-items'),
   ...routes(OPS, 'kitchen-event-log', '/kitchen-event-log', '/kds/event-log', '/app/kitchen-display-system/kitchen-event-log'),
   ...routes(OPS, 'kitchen-performance', '/kitchen-analytics', '/kitchen-performance', '/kds/analytics', '/app/kitchen-display-system/kitchen-performance', '/app/kitchen-display-system/kitchen-analytics'),
+
+  // Finance & HR - Payrolls
+  ...routes('finance-hr', 'payroll-entries', '/finance-hr/payrolls/entries', '/dashboard/payroll-entries', '/payrolls/entries'),
+  ...routes('finance-hr', 'payroll-adjustments', '/finance-hr/payrolls/adjustments', '/dashboard/payroll-adjustments', '/payrolls/adjustments'),
 ]);
 
 /** Secciones cuyas sub-URLs abren MerchantFrame aunque no estén en la tabla. */
 const SECTION_PREFIXES = [
+  '/finance-hr',
   '/staff-management',
   '/store-operations',
   '/tips',
@@ -156,6 +167,33 @@ export function getNavFromPath(
 ): RouteNav | null {
   const exact = EXACT_ROUTES[path];
   if (exact) return exact;
+
+  const planAppsMatch = path.match(/^\/(?:platform-saas\/)?subscription\/plans\/([^/]+)\/applications\/?$/);
+  if (planAppsMatch) {
+    return {
+      category: 'platformsaas',
+      tab: 'plan-applications-association',
+      planId: planAppsMatch[1],
+    };
+  }
+
+  const planFeaturesMatch = path.match(/^\/(?:platform-saas\/)?subscription\/plans\/([^/]+)\/features\/?$/);
+  if (planFeaturesMatch) {
+    return {
+      category: 'platformsaas',
+      tab: 'plan-features-association',
+      planId: planFeaturesMatch[1],
+    };
+  }
+
+  const companyAppsMatch = path.match(/^\/(?:platform-saas\/)?subscription\/company\/([^/]+)\/applications\/?$/);
+  if (companyAppsMatch) {
+    return {
+      category: 'platformsaas',
+      tab: 'subscription-applications-inquiry',
+      companyId: companyAppsMatch[1],
+    };
+  }
 
   if (path.startsWith('/app/') || path.startsWith('/hub/')) {
     const appCode = path.replace(/^\/(app|hub)\//, '').split('/')[0];

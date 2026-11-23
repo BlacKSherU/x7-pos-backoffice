@@ -314,9 +314,15 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'apps-config',
     'features-control',
     'company-subscriptions',
+    'subscription-applications-inquiry',
+    'company-applications-inquiry',
     'merchant-subs-link',
     'plan-apps-rules',
+    'plan-applications-association',
+    'plan-apps-association',
     'plan-features-mapping',
+    'plan-features-association',
+    'plan-features-mapping-association',
     'sub-plans-core',
     'sub-apps-mapping',
     'sub-payments-billing',
@@ -410,15 +416,30 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       activeFeatureName = 'Apps Config';
     } else if (activeTab === 'features-control' || activeTab === 'subscription-features') {
       activeFeatureName = 'Features Control';
-    } else if (activeTab === 'plan-apps-rules' || activeTab === 'subscription-plan-applications') {
+    } else if (
+      activeTab === 'plan-apps-rules' ||
+      activeTab === 'subscription-plan-applications' ||
+      activeTab === 'plan-applications-association' ||
+      activeTab === 'plan-apps-association'
+    ) {
       activeFeatureName = 'Plan Apps Rules';
-    } else if (activeTab === 'plan-features-mapping' || activeTab === 'subscription-plan-features') {
+    } else if (
+      activeTab === 'plan-features-mapping' ||
+      activeTab === 'subscription-plan-features' ||
+      activeTab === 'plan-features-association' ||
+      activeTab === 'plan-features-mapping-association'
+    ) {
       activeFeatureName = 'Plan Features Mapping';
     } else if (
       activeTab === 'company-subscriptions' ||
       activeTab === 'subscription-company-subscriptions'
     ) {
       activeFeatureName = 'Company Subscriptions';
+    } else if (
+      activeTab === 'subscription-applications-inquiry' ||
+      activeTab === 'company-applications-inquiry'
+    ) {
+      activeFeatureName = 'Subscription Applications Inquiry';
     } else if (
       activeTab === 'merchant-subs-link' ||
       activeTab === 'merchant-subscriptions' ||
@@ -581,15 +602,30 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Apps Config';
   } else if (activeTab === 'features-control' || activeTab === 'subscription-features') {
     friendlyTitle = 'Features Control';
-  } else if (activeTab === 'plan-apps-rules' || activeTab === 'subscription-plan-applications') {
+  } else if (
+    activeTab === 'plan-apps-rules' ||
+    activeTab === 'subscription-plan-applications' ||
+    activeTab === 'plan-applications-association' ||
+    activeTab === 'plan-apps-association'
+  ) {
     friendlyTitle = 'Plan Apps Rules';
-  } else if (activeTab === 'plan-features-mapping' || activeTab === 'subscription-plan-features') {
+  } else if (
+    activeTab === 'plan-features-mapping' ||
+    activeTab === 'subscription-plan-features' ||
+    activeTab === 'plan-features-association' ||
+    activeTab === 'plan-features-mapping-association'
+  ) {
     friendlyTitle = 'Plan Features Mapping';
   } else if (
     activeTab === 'company-subscriptions' ||
     activeTab === 'subscription-company-subscriptions'
   ) {
     friendlyTitle = 'Company Subscriptions';
+  } else if (
+    activeTab === 'subscription-applications-inquiry' ||
+    activeTab === 'company-applications-inquiry'
+  ) {
+    friendlyTitle = 'Subscription Applications Inquiry';
   } else if (
     activeTab === 'merchant-subs-link' ||
     activeTab === 'merchant-subscriptions' ||

@@ -170,7 +170,12 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
           reason: suspensionReason.trim() || undefined,
         },
       );
-      setSubscription(updated);
+      // Immediately update subscription state in UI without requiring page reload
+      setSubscription((prev) => ({
+        ...(prev ?? updated),
+        ...updated,
+        status: targetStatus,
+      }));
       setStatusModalOpen(false);
       setToast({
         message: `Subscription successfully updated to ${targetStatus}${
@@ -184,8 +189,14 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
         }`,
         type: 'success',
       });
-      // Refresh details
-      loadCompanyDetails(selectedCompanyId);
+      // Silently refresh payments and applications in background without full-page spinner
+      Promise.all([
+        saasService.getCompanyPayments(selectedCompanyId).catch(() => []),
+        saasService.getCompanySubscriptionApplications(selectedCompanyId).catch(() => []),
+      ]).then(([paymentsData, appsData]) => {
+        setPayments(paymentsData);
+        setApplications(appsData);
+      });
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Failed to update subscription status',
@@ -243,6 +254,12 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
       label: 'MERCHANT SUBS',
       icon: 'storefront',
       onClick: () => onNavigate?.('merchant-subs-link'),
+    },
+    {
+      id: 'subscription-audit-logs',
+      label: 'AUDIT LOGS',
+      icon: 'history',
+      onClick: () => onNavigate?.('subscription-audit-logs'),
     },
   ];
 
@@ -662,9 +679,26 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                   PROVISIONED APPLICATIONS ({subscription.plan.name} TIER)
                 </span>
               </div>
-              <span className="text-white/60 text-xs">
-                {applications.filter((a) => a.isProvisioned).length} modules unlocked
-              </span>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-white/60 text-xs">
+                  {applications.filter((a) => a.isProvisioned).length} modules unlocked
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNavigate?.(
+                      'subscription-applications-inquiry',
+                      undefined,
+                      selectedCompanyId ?? undefined,
+                    )
+                  }
+                  className="px-3 py-1 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest rounded transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Open dedicated Subscription Applications Inquiry View"
+                >
+                  <span className="material-symbols-outlined text-sm">developer_board</span>
+                  INSPECT APPLICATIONS INQUIRY
+                </button>
+              </div>
             </div>
 
             <div className="p-6">
@@ -794,7 +828,7 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                       htmlFor="suspension-reason"
                       className="block text-xs font-bold uppercase tracking-wider text-[#5f5e5e] mb-1"
                     >
-                      Reason for Suspension (Optional):
+                      Reason for Suspension <span className="text-[#ae001a] font-bold">* (Mandatory for Compliance)</span>:
                     </label>
                     <textarea
                       id="suspension-reason"
@@ -803,6 +837,7 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                       onChange={(e) => setSuspensionReason(e.target.value)}
                       placeholder="e.g. Delinquent account, billing failure, administrative hold…"
                       className="w-full p-2.5 text-sm border border-[#e8e2d8] rounded focus:outline-none focus:border-[#ae001a]"
+                      required
                     />
                   </div>
                 </>
@@ -820,6 +855,24 @@ export const CompanySubscriptionView: React.FC<CompanySubscriptionViewProps> = (
                       <strong>{subscription?.company.name}</strong>. Choose whether the cancellation
                       takes effect immediately or at the end of the current billing cycle.
                     </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="cancellation-reason"
+                      className="block text-xs font-bold uppercase tracking-wider text-[#5f5e5e] mb-1"
+                    >
+                      Reason for Cancellation <span className="text-[#ae001a] font-bold">* (Mandatory for Compliance)</span>:
+                    </label>
+                    <textarea
+                      id="cancellation-reason"
+                      rows={2}
+                      value={suspensionReason}
+                      onChange={(e) => setSuspensionReason(e.target.value)}
+                      placeholder="e.g. Customer offboarding, non-payment, vendor transition…"
+                      className="w-full p-2.5 text-sm border border-[#e8e2d8] rounded focus:outline-none focus:border-[#ae001a]"
+                      required
+                    />
                   </div>
 
                   <div className="space-y-2">

@@ -967,6 +967,13 @@ const KNOWN_CARD_METADATA: Record<string, CardMetadata> = {
     badge: 'In Development',
     badgeVariant: 'amber',
   },
+  'subscription-audit-logs': {
+    title: 'Subscription Audit Log Ledger',
+    subtitle: 'IMMUTABLE AUDIT TRAIL',
+    description: 'Track administrative changes to subscription statuses, plan-application matrices, and feature mappings with cryptographic hashes.',
+    badge: 'Audit Trail Live',
+    badgeVariant: 'emerald',
+  },
   'sub-payments-billing': {
     title: 'Subscription Billing Invoices',
     subtitle: 'RECURRING BILLS & CHARGES',
