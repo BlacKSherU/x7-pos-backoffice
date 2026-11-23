@@ -110,7 +110,7 @@ const BADGE_COLOR_MAP: Record<DashboardBadgeVariant, string> = {
  * Standard Reusable Component for x7POS Dashboards and Command Hubs.
  * Includes:
  * 1. Corporate Header Card with Icon, Title, and Action Button.
- * 2. 4-KPI horizontal status strip (grid-cols-4) with colored top borders and micro-animations.
+ * 2. 4-KPI horizontal status strip (2 columns on phones, 4 from md) with colored top borders and micro-animations.
  * 3. Module Cards Grid (grid-cols-3) with badges, icons, and direct arrow links.
  * 4. Bottom slot for quick links or NavHubBar.
  */
@@ -145,7 +145,7 @@ export const StandardDashboardHub: React.FC<StandardDashboardHubProps> = ({
                 <span>{breadcrumb}</span>
               </div>
             )}
-            <h1 className="text-xl md:text-2xl font-black text-[#1d1c17] tracking-tight leading-tight truncate">
+            <h1 className="text-xl md:text-2xl font-black text-[#1d1c17] tracking-tight leading-tight md:truncate">
               {title}
             </h1>
             <p className="text-body-sm text-[#5f5e5e] mt-1 max-w-3xl">
@@ -184,7 +184,7 @@ export const StandardDashboardHub: React.FC<StandardDashboardHubProps> = ({
       </div>
 
       {/* 2. Hero KPI Health Strip (4 small cards strictly in 1 single horizontal row - Informational Only) */}
-      <div className="grid grid-cols-4 gap-3 w-full">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
         {kpis.slice(0, 4).map((kpi, idx) => {
           const defaultVariant: DashboardKPIVariant =
             kpi.variant || (idx === 0 ? 'red' : idx === 1 ? 'blue' : idx === 2 ? 'amber' : 'emerald');
