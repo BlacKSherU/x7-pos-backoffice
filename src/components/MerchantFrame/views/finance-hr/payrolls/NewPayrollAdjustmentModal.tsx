@@ -38,6 +38,7 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
   const [amount, setAmount] = useState<string>('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(COMMON_CATEGORIES[0]);
+  const [availableEntries, setAvailableEntries] = useState<PayrollEntry[]>(payrollEntries);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -54,7 +55,12 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Reset form when modal opens
+  // Sync available entries with prop
+  useEffect(() => {
+    setAvailableEntries(payrollEntries);
+  }, [payrollEntries]);
+
+  // Reset form and fetch entries if none passed when modal opens
   useEffect(() => {
     if (isOpen) {
       setAdjustmentType('BONUS');
@@ -65,8 +71,31 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
       setCategory(COMMON_CATEGORIES[0]);
       setErrorMessage(null);
       setIsSubmitting(false);
+
+      if (payrollEntries.length === 0) {
+        const promise = apiRequest<{ data?: PayrollEntry[] } | PayrollEntry[]>(
+          `/payroll-entries?payroll_run_id=${encodeURIComponent(payrollRunId)}&limit=100`,
+          { method: 'GET' },
+          'Failed to load entries',
+        );
+        if (promise && typeof promise.then === 'function') {
+          void promise
+            .then((res) => {
+              const list = Array.isArray(res) ? res : res?.data ?? [];
+              setAvailableEntries(list);
+              if (list.length > 0) {
+                setPayrollEntryId(String(list[0].id));
+                setCollaboratorName(list[0].collaborator_name || `Collaborator #${list[0].collaborator_id}`);
+              }
+            })
+            .catch(() => {});
+        }
+      } else {
+        setPayrollEntryId(String(payrollEntries[0].id));
+        setCollaboratorName(payrollEntries[0].collaborator_name || `Collaborator #${payrollEntries[0].collaborator_id}`);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, payrollEntries, payrollRunId]);
 
   const numericAmount = useMemo(() => parseMonetaryValue(amount), [amount]);
 
@@ -74,7 +103,7 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
 
   const handleEntrySelect = (entryId: string) => {
     setPayrollEntryId(entryId);
-    const matched = payrollEntries.find((e) => String(e.id) === entryId);
+    const matched = availableEntries.find((e) => String(e.id) === entryId);
     if (matched?.collaborator_name) {
       setCollaboratorName(matched.collaborator_name);
     }
@@ -85,8 +114,8 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
     setErrorMessage(null);
 
     const trimmedName = collaboratorName.trim();
-    if (!trimmedName) {
-      setErrorMessage('Please specify the collaborator name.');
+    if (!trimmedName && !payrollEntryId) {
+      setErrorMessage('Please specify the collaborator name or select a payroll entry.');
       return;
     }
 
@@ -101,45 +130,48 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
       return;
     }
 
+    const finalEntryId = Number(payrollEntryId) || (availableEntries.length > 0 ? Number(availableEntries[0].id) : 1);
+    const backendAdjustmentType = adjustmentType === 'BONUS' ? 'bonus' : 'deduction';
+    const backendAmount = adjustmentType === 'BONUS' ? numericAmount : -numericAmount;
+
     setIsSubmitting(true);
 
-    const payload: Partial<PayrollAdjustment> = {
-      payroll_run_id: payrollRunId,
-      payroll_entry_id: payrollEntryId ? Number(payrollEntryId) || payrollEntryId : undefined,
-      collaborator_name: trimmedName,
-      adjustment_type: adjustmentType,
-      amount: numericAmount,
+    const payload = {
+      payroll_entry_id: finalEntryId,
+      adjustment_type: backendAdjustmentType,
+      amount: backendAmount,
       description: trimmedDesc,
-      category,
-      created_at: new Date().toISOString(),
-      deleted_at: null,
     };
 
     try {
-      let createdAdjustment: PayrollAdjustment;
-      try {
-        const res = await apiRequest<{ data?: PayrollAdjustment } | PayrollAdjustment>(
-          '/api/v1/payroll-adjustments',
-          {
-            method: 'POST',
-            body: JSON.stringify(payload),
-          },
-          'Failed to persist adjustment to server.',
-        );
-        createdAdjustment = (res && 'data' in res && res.data ? res.data : res) as PayrollAdjustment;
-        if (!createdAdjustment?.id) {
-          createdAdjustment = {
-            id: `ADJ-${Date.now()}`,
-            ...payload,
-          } as PayrollAdjustment;
-        }
-      } catch {
-        // Fallback for offline/local environment
-        createdAdjustment = {
-          id: `ADJ-${Date.now()}`,
-          ...payload,
-        } as PayrollAdjustment;
-      }
+      const res = await apiRequest<{ data?: PayrollAdjustment } | PayrollAdjustment>(
+        '/payroll-adjustments',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        'Failed to persist adjustment to server.',
+      );
+
+      const responseAdj = ((res && 'data' in res && res.data ? res.data : res) || {}) as PayrollAdjustment;
+      const matchedEntry = availableEntries.find((e) => String(e.id) === String(finalEntryId));
+      const displayName =
+        trimmedName ||
+        matchedEntry?.collaborator_name ||
+        (matchedEntry?.collaborator_id ? `Collaborator #${matchedEntry.collaborator_id}` : `Entry #${finalEntryId}`);
+
+      const createdAdjustment: PayrollAdjustment = {
+        ...responseAdj,
+        id: responseAdj.id ?? `ADJ-${Date.now()}`,
+        payroll_entry_id: finalEntryId,
+        adjustment_type: adjustmentType,
+        amount: numericAmount,
+        description: trimmedDesc,
+        category,
+        collaborator_name: displayName,
+        created_at: responseAdj.created_at || new Date().toISOString(),
+        deleted_at: null,
+      };
 
       onSave?.(createdAdjustment);
       onClose();
@@ -252,14 +284,14 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
             </div>
           </div>
 
-          {/* Optional Association with existing Entry */}
-          {payrollEntries.length > 0 && (
+          {/* Association with existing Entry */}
+          {availableEntries.length > 0 && (
             <div>
               <label
                 htmlFor="select-payroll-entry"
                 className="block text-xs font-bold uppercase tracking-wider text-[#1d1c17] mb-1.5"
               >
-                Attach to Payroll Entry (Optional)
+                Attach to Payroll Entry <span className="text-[#ae001a]">*</span>
               </label>
               <select
                 id="select-payroll-entry"
@@ -269,7 +301,7 @@ export const NewPayrollAdjustmentModal: React.FC<NewPayrollAdjustmentModalProps>
                 className="w-full px-3.5 py-2.5 bg-white border border-[#d0cac0] rounded-lg text-sm text-[#1d1c17] focus:outline-none focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] transition-colors"
               >
                 <option value="">-- Select an active payroll entry --</option>
-                {payrollEntries.map((entry) => (
+                {availableEntries.map((entry) => (
                   <option key={entry.id} value={entry.id}>
                     #{entry.id} - {entry.collaborator_name ?? `Collaborator #${entry.collaborator_id}`}
                   </option>

@@ -68,17 +68,22 @@ export const PayrollAdjustmentsGrid: React.FC<PayrollAdjustmentsGridProps> = ({
     setError(null);
     try {
       const queryParams = new URLSearchParams();
-      if (payrollRunId !== undefined) queryParams.set('payrollRunId', String(payrollRunId));
-      if (payrollEntryId !== undefined) queryParams.set('payrollEntryId', String(payrollEntryId));
+      if (payrollEntryId !== undefined) queryParams.set('payroll_entry_id', String(payrollEntryId));
+      queryParams.set('limit', '100');
 
       const response = await apiRequest<MaybeEnvelopedList<PayrollAdjustment>>(
-        `/api/v1/payroll-adjustments?${queryParams.toString()}`,
+        `/payroll-adjustments?${queryParams.toString()}`,
         { method: 'GET' },
         'Failed to retrieve payroll adjustments.',
       );
       const list = unwrapList(response);
-      setInternalAdjustments(list);
-      onAdjustmentsChange?.(list);
+      const normalized = list.map((adj) => ({
+        ...adj,
+        adjustment_type: (adj.adjustment_type || 'bonus').toUpperCase(),
+        amount: Math.abs(Number(adj.amount)),
+      }));
+      setInternalAdjustments(normalized);
+      onAdjustmentsChange?.(normalized);
     } catch (err) {
       setError(
         err instanceof Error
@@ -150,7 +155,7 @@ export const PayrollAdjustmentsGrid: React.FC<PayrollAdjustmentsGridProps> = ({
       } else if (payrollRunId !== undefined) {
         // Optional REST call when live backend is available
         await apiRequest(
-          `/api/v1/payroll-adjustments/${adj.id}`,
+          `/payroll-adjustments/${adj.id}`,
           { method: isAlreadyDeleted ? 'PATCH' : 'DELETE' },
           `Failed to ${actionLabel} adjustment.`,
         );

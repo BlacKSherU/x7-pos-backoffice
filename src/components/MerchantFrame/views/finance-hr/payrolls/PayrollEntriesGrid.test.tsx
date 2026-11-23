@@ -292,7 +292,7 @@ describe('PayrollEntriesGrid Component', () => {
 
       await waitFor(() => {
         expect(apiRequestMock).toHaveBeenCalledWith(
-          '/api/v1/payroll-entries?payrollRunId=42',
+          expect.stringContaining('/payroll-entries?payroll_run_id=42'),
           { method: 'GET' },
           expect.any(String),
         );

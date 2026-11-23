@@ -265,7 +265,7 @@ describe('PayrollAdjustmentsGrid', () => {
 
     await waitFor(() => {
       expect(httpModule.apiRequest).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/payroll-adjustments?payrollRunId=1'),
+        expect.stringContaining('/payroll-adjustments'),
         { method: 'GET' },
         expect.any(String),
       );

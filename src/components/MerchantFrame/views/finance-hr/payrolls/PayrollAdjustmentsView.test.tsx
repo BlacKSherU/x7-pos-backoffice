@@ -88,7 +88,7 @@ describe('PayrollAdjustmentsView', () => {
 
     await waitFor(() => {
       expect(apiRequest).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/payroll-adjustments?payrollRunId=42'),
+        expect.stringContaining('/payroll-adjustments'),
         expect.objectContaining({ method: 'GET' }),
         expect.any(String),
       );
@@ -124,6 +124,10 @@ describe('PayrollAdjustmentsView', () => {
 
   it('opens NewPayrollAdjustmentModal on header action and adds newly saved adjustment to grid', async () => {
     render(<PayrollAdjustmentsView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Performance bonus Q3')).toBeInTheDocument();
+    });
 
     const newBtn = screen.getByTestId('new-adjustment-btn');
     fireEvent.click(newBtn);

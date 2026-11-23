@@ -21,6 +21,7 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
   payrollRunId = 1,
 }) => {
   const [adjustments, setAdjustments] = useState<PayrollAdjustment[]>([]);
+  const [payrollEntries, setPayrollEntries] = useState<PayrollEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<PayrollAdjustmentFilterType>('ALL');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,14 +32,48 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
   const hydrateAdjustments = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await apiRequest<{ data?: PayrollAdjustment[] } | PayrollAdjustment[]>(
-        `/api/v1/payroll-adjustments?payrollRunId=${encodeURIComponent(payrollRunId)}`,
-        { method: 'GET' },
-        'Failed to fetch payroll adjustments',
-      );
-      const list = Array.isArray(res) ? res : res?.data;
-      if (Array.isArray(list)) {
-        setAdjustments(list);
+      const [adjRes, entriesRes] = await Promise.allSettled([
+        apiRequest<{ data?: PayrollAdjustment[] } | PayrollAdjustment[]>(
+          '/payroll-adjustments?limit=100',
+          { method: 'GET' },
+          'Failed to fetch payroll adjustments',
+        ),
+        apiRequest<{ data?: PayrollEntry[] } | PayrollEntry[]>(
+          `/payroll-entries?payroll_run_id=${encodeURIComponent(payrollRunId)}&limit=100`,
+          { method: 'GET' },
+          'Failed to fetch payroll entries',
+        ),
+      ]);
+
+      let entriesList: PayrollEntry[] = [];
+      if (entriesRes.status === 'fulfilled') {
+        const raw = Array.isArray(entriesRes.value) ? entriesRes.value : entriesRes.value?.data;
+        if (Array.isArray(raw)) {
+          entriesList = raw;
+          setPayrollEntries(entriesList);
+        }
+      }
+
+      if (adjRes.status === 'fulfilled') {
+        const list = Array.isArray(adjRes.value) ? adjRes.value : adjRes.value?.data;
+        if (Array.isArray(list)) {
+          const normalized = list.map((adj) => {
+            const matchedEntry = entriesList.find(
+              (e) => String(e.id) === String(adj.payroll_entry_id),
+            );
+            return {
+              ...adj,
+              adjustment_type: (adj.adjustment_type || 'bonus').toUpperCase(),
+              amount: Math.abs(Number(adj.amount)),
+              collaborator_name:
+                adj.collaborator_name ||
+                matchedEntry?.collaborator_name ||
+                (matchedEntry?.collaborator_id ? `Collaborator #${matchedEntry.collaborator_id}` : undefined) ||
+                `Entry #${adj.payroll_entry_id}`,
+            };
+          });
+          setAdjustments(normalized);
+        }
       }
     } catch {
       // Backend error or route not reachable
@@ -150,6 +185,7 @@ export const PayrollAdjustmentsView: React.FC<PayrollAdjustmentsViewProps> = ({
         onClose={() => setIsNewModalOpen(false)}
         onSave={handleSaveAdjustment}
         payrollRunId={payrollRunId}
+        payrollEntries={payrollEntries}
       />
     </div>
   );

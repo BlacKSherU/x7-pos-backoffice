@@ -84,12 +84,17 @@ describe('NewPayrollAdjustmentModal', () => {
     const handleClose = vi.fn();
     const handleSave = vi.fn();
 
-    vi.mocked(apiRequest).mockResolvedValueOnce({
-      id: 'ADJ-101',
-      collaborator_name: 'Maria Gomez',
-      adjustment_type: 'BONUS',
-      amount: 300,
-      description: 'Outstanding performance',
+    vi.mocked(apiRequest).mockImplementation(async (path) => {
+      if (typeof path === 'string' && path.includes('/payroll-entries')) {
+        return { data: [{ id: 1, collaborator_name: 'Maria Gomez' }] };
+      }
+      return {
+        id: 'ADJ-101',
+        collaborator_name: 'Maria Gomez',
+        adjustment_type: 'bonus',
+        amount: 300,
+        description: 'Outstanding performance',
+      };
     });
 
     render(

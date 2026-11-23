@@ -27,14 +27,42 @@ export const PayrollEntriesView: React.FC<PayrollEntriesViewProps> = ({
   const hydrateEntries = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await apiRequest<{ data?: PayrollEntry[] } | PayrollEntry[]>(
-        `/api/v1/payroll-entries?payrollRunId=${encodeURIComponent(payrollRunId)}`,
-        { method: 'GET' },
-        'Failed to fetch payroll entries',
-      );
-      const list = Array.isArray(res) ? res : res?.data;
-      if (Array.isArray(list)) {
-        setEntries(list);
+      const [entriesRes, collabsRes] = await Promise.allSettled([
+        apiRequest<{ data?: PayrollEntry[] } | PayrollEntry[]>(
+          `/payroll-entries?payroll_run_id=${encodeURIComponent(payrollRunId)}&limit=100`,
+          { method: 'GET' },
+          'Failed to fetch payroll entries',
+        ),
+        apiRequest<{ data?: Array<{ id: number; first_name?: string; last_name?: string }> }>(
+          '/collaborators?limit=100',
+          { method: 'GET' },
+          'Failed to fetch collaborators',
+        ),
+      ]);
+
+      const collabs =
+        collabsRes.status === 'fulfilled'
+          ? (Array.isArray(collabsRes.value) ? collabsRes.value : collabsRes.value?.data ?? [])
+          : [];
+      const collabMap = new Map<string | number, string>();
+      collabs.forEach((c: { id: number; name?: string; first_name?: string; last_name?: string }) => {
+        const fullName = c.name || `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim();
+        collabMap.set(c.id, fullName || `Collaborator #${c.id}`);
+      });
+
+      if (entriesRes.status === 'fulfilled') {
+        const rawList = Array.isArray(entriesRes.value) ? entriesRes.value : entriesRes.value?.data;
+        if (Array.isArray(rawList)) {
+          const enriched = rawList.map((entry) => ({
+            ...entry,
+            collaborator_name:
+              entry.collaborator_name ||
+              (entry.collaborator_id ? collabMap.get(entry.collaborator_id) : undefined) ||
+              (entry.collaborator?.name) ||
+              `Collaborator #${entry.collaborator_id ?? entry.id}`,
+          }));
+          setEntries(enriched);
+        }
       }
     } catch {
       // Backend error or route not reachable

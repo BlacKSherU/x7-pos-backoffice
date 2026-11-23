@@ -19,6 +19,10 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
   payrollRunId = 1,
   currency = 'USD',
 }) => {
+  const [collaborators, setCollaborators] = useState<
+    Array<{ id: number; first_name?: string; last_name?: string; name?: string }>
+  >([]);
+  const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string>('');
   const [collaboratorName, setCollaboratorName] = useState('');
   const [basePay, setBasePay] = useState<string>('');
   const [overtimePay, setOvertimePay] = useState<string>('');
@@ -43,20 +47,38 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Reset form when modal opens
+  // Load collaborators when modal opens
   useEffect(() => {
-    if (isOpen) {
-      setCollaboratorName('');
-      setBasePay('');
-      setOvertimePay('');
-      setDoubleOvertimePay('');
-      setTipsAmount('');
-      setBonuses('');
-      setDeductions('');
-      setTaxTotal('');
-      setErrorMessage(null);
-      setIsSubmitting(false);
-    }
+    if (!isOpen) return;
+    setCollaboratorName('');
+    setSelectedCollaboratorId('');
+    setBasePay('');
+    setOvertimePay('');
+    setDoubleOvertimePay('');
+    setTipsAmount('');
+    setBonuses('');
+    setDeductions('');
+    setTaxTotal('');
+    setErrorMessage(null);
+    setIsSubmitting(false);
+
+    const loadCollaborators = async () => {
+      try {
+        const promise = apiRequest<{ data?: Array<{ id: number; first_name?: string; last_name?: string; name?: string }> }>(
+          '/collaborators?limit=100',
+          { method: 'GET' },
+          'Failed to load collaborators',
+        );
+        if (promise && typeof promise.then === 'function') {
+          const res = await promise;
+          const list = Array.isArray(res) ? res : res?.data ?? [];
+          setCollaborators(list);
+        }
+      } catch {
+        // Ignored in offline/test
+      }
+    };
+    void loadCollaborators();
   }, [isOpen]);
 
   // Real-time calculation of gross and net totals
@@ -77,12 +99,21 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
 
   if (!isOpen) return null;
 
+  const handleSelectCollaborator = (collabIdStr: string) => {
+    setSelectedCollaboratorId(collabIdStr);
+    const found = collaborators.find((c) => String(c.id) === collabIdStr);
+    if (found) {
+      const name = found.name || `${found.first_name ?? ''} ${found.last_name ?? ''}`.trim();
+      setCollaboratorName(name);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
     const trimmedName = collaboratorName.trim();
-    if (!trimmedName) {
+    if (!trimmedName && !selectedCollaboratorId) {
       setErrorMessage('Please enter the collaborator name.');
       return;
     }
@@ -95,14 +126,20 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
 
     setIsSubmitting(true);
 
-    const newEntryPayload: Partial<PayrollEntry> = {
-      payroll_run_id: payrollRunId,
-      collaborator_name: trimmedName,
-      collaborator: {
-        id: `collab-${Date.now()}`,
-        name: trimmedName,
-        email: `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@x7pos.internal`,
-      },
+    // Resolve collaborator ID (from dropdown, or matched from name, or fallback to 1)
+    let finalCollabId = Number(selectedCollaboratorId);
+    if (!finalCollabId || finalCollabId <= 0) {
+      const matched = collaborators.find(
+        (c) =>
+          (c.name && c.name.toLowerCase() === trimmedName.toLowerCase()) ||
+          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim().toLowerCase() === trimmedName.toLowerCase(),
+      );
+      finalCollabId = matched ? Number(matched.id) : 1;
+    }
+
+    const backendPayload = {
+      payroll_run_id: Number(payrollRunId) || 1,
+      collaborator_id: finalCollabId,
       base_pay: parsedBase,
       overtime_pay: parseMonetaryValue(overtimePay),
       double_overtime_pay: parseMonetaryValue(doubleOvertimePay),
@@ -112,36 +149,39 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
       tax_total: parseMonetaryValue(taxTotal),
       gross_total: grossTotal,
       net_total: netTotal,
-      status: 'computed',
-      created_at: new Date().toISOString(),
-      deleted_at: null,
     };
 
     try {
-      let createdEntry: PayrollEntry;
-      try {
-        const res = await apiRequest<{ data?: PayrollEntry } | PayrollEntry>(
-          '/api/v1/payroll-entries',
-          {
-            method: 'POST',
-            body: JSON.stringify(newEntryPayload),
-          },
-          'Failed to persist payroll entry to server.',
-        );
-        createdEntry = (res && 'data' in res && res.data ? res.data : res) as PayrollEntry;
-        if (!createdEntry?.id) {
-          createdEntry = {
-            id: `PE-${Date.now()}`,
-            ...newEntryPayload,
-          } as PayrollEntry;
-        }
-      } catch {
-        // Fallback for local development/offline environments
-        createdEntry = {
-          id: `PE-${Date.now()}`,
-          ...newEntryPayload,
-        } as PayrollEntry;
-      }
+      const res = await apiRequest<{ data?: PayrollEntry } | PayrollEntry>(
+        '/payroll-entries',
+        {
+          method: 'POST',
+          body: JSON.stringify(backendPayload),
+        },
+        'Failed to persist payroll entry to server.',
+      );
+
+      const responseEntry = ((res && 'data' in res && res.data ? res.data : res) || {}) as PayrollEntry;
+      const matchedCollab = collaborators.find((c) => String(c.id) === String(finalCollabId));
+      const displayName =
+        trimmedName ||
+        (matchedCollab
+          ? matchedCollab.name || `${matchedCollab.first_name ?? ''} ${matchedCollab.last_name ?? ''}`.trim()
+          : `Collaborator #${finalCollabId}`);
+
+      const createdEntry: PayrollEntry = {
+        ...backendPayload,
+        ...responseEntry,
+        id: responseEntry.id ?? `PE-${Date.now()}`,
+        collaborator_name: displayName,
+        collaborator: {
+          id: finalCollabId,
+          name: displayName,
+        },
+        status: responseEntry.status || 'computed',
+        created_at: responseEntry.created_at || new Date().toISOString(),
+        deleted_at: null,
+      };
 
       onSave?.(createdEntry);
       onClose();
@@ -212,7 +252,7 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
             </div>
           )}
 
-          {/* Collaborator Name */}
+          {/* Collaborator Selection */}
           <div>
             <label
               htmlFor="manual-collaborator-name"
@@ -220,16 +260,44 @@ export const ManualPayrollEntryModal: React.FC<ManualPayrollEntryModalProps> = (
             >
               Collaborator Full Name <span className="text-[#ae001a]">*</span>
             </label>
-            <input
-              id="manual-collaborator-name"
-              type="text"
-              required
-              placeholder="e.g. Carlos Mendoza"
-              value={collaboratorName}
-              onChange={(e) => setCollaboratorName(e.target.value)}
-              data-testid="input-collaborator-name"
-              className="w-full px-3.5 py-2.5 bg-white border border-[#d0cac0] rounded-lg text-sm text-[#1d1c17] focus:outline-none focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] transition-colors"
-            />
+            {collaborators.length > 0 ? (
+              <div className="space-y-2">
+                <select
+                  id="select-collaborator-dropdown"
+                  value={selectedCollaboratorId}
+                  onChange={(e) => handleSelectCollaborator(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#d0cac0] rounded-lg text-sm text-[#1d1c17] focus:outline-none focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] transition-colors"
+                >
+                  <option value="">-- Select from registered collaborators --</option>
+                  {collaborators.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim()} (#{c.id})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  id="manual-collaborator-name"
+                  type="text"
+                  required
+                  placeholder="Or enter collaborator name"
+                  value={collaboratorName}
+                  onChange={(e) => setCollaboratorName(e.target.value)}
+                  data-testid="input-collaborator-name"
+                  className="w-full px-3.5 py-2 bg-white border border-[#d0cac0] rounded-lg text-xs text-[#1d1c17] focus:outline-none focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] transition-colors"
+                />
+              </div>
+            ) : (
+              <input
+                id="manual-collaborator-name"
+                type="text"
+                required
+                placeholder="e.g. Carlos Mendoza"
+                value={collaboratorName}
+                onChange={(e) => setCollaboratorName(e.target.value)}
+                data-testid="input-collaborator-name"
+                className="w-full px-3.5 py-2.5 bg-white border border-[#d0cac0] rounded-lg text-sm text-[#1d1c17] focus:outline-none focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] transition-colors"
+              />
+            )}
           </div>
 
           {/* Compensation Breakdown Grid */}

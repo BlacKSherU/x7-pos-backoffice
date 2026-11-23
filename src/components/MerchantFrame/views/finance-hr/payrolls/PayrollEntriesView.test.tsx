@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
-import React from 'react';
 import { PayrollEntriesView } from './PayrollEntriesView';
 import * as httpModule from '@/shared/api/http';
 import type { PayrollEntry } from './types';

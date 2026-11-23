@@ -46,13 +46,13 @@ export const PayrollEntriesGrid: React.FC<PayrollEntriesGridProps> = ({
     }
   }, [propEntries]);
 
-  // Data Hydration: GET /api/v1/payroll-entries?payrollRunId={id}
+  // Data Hydration: GET /payroll-entries?payroll_run_id={id}
   const fetchEntries = useCallback(async (runId: string | number) => {
     setLoading(true);
     setError(null);
     try {
       const response = await apiRequest<MaybeEnvelopedList<PayrollEntry>>(
-        `/api/v1/payroll-entries?payrollRunId=${encodeURIComponent(runId)}`,
+        `/payroll-entries?payroll_run_id=${encodeURIComponent(runId)}&limit=100`,
         { method: 'GET' },
         'Failed to retrieve payroll entries for this pay run.',
       );
@@ -135,7 +135,7 @@ export const PayrollEntriesGrid: React.FC<PayrollEntriesGridProps> = ({
       } else if (payrollRunId !== undefined) {
         // Attempt standard REST soft-delete
         await apiRequest(
-          `/api/v1/payroll-entries/${entry.id}`,
+          `/payroll-entries/${entry.id}`,
           {
             method: 'DELETE',
           },

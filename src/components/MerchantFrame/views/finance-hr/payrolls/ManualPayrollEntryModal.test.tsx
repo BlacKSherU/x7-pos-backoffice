@@ -80,11 +80,16 @@ describe('ManualPayrollEntryModal', () => {
     const handleClose = vi.fn();
     const handleSave = vi.fn();
 
-    vi.mocked(apiRequest).mockResolvedValueOnce({
-      id: 'PE-999',
-      collaborator_name: 'Elena Rostova',
-      base_pay: 1500,
-      net_total: 1300,
+    vi.mocked(apiRequest).mockImplementation(async (path) => {
+      if (typeof path === 'string' && path.includes('/collaborators')) {
+        return { data: [{ id: 1, first_name: 'Elena', last_name: 'Rostova' }] };
+      }
+      return {
+        id: 'PE-999',
+        collaborator_name: 'Elena Rostova',
+        base_pay: 1500,
+        net_total: 1300,
+      };
     });
 
     render(
