@@ -44,7 +44,14 @@ export class ErrorBoundary extends Component<Props, State> {
         status?: number;
         statusCode?: number;
         code?: string;
-        details?: { redirectTo?: string };
+        details?: {
+          redirectTo?: string;
+          subscriptionStatus?: string;
+          companyId?: string | number;
+          requiredFeature?: string;
+          actionRequired?: string;
+          [key: string]: unknown;
+        };
       }) | null;
       const isSubscriptionError =
         err?.status === 403 ||
