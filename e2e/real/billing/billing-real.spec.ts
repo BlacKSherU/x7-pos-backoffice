@@ -901,19 +901,26 @@ test('Reports: tax liability and discount & void audit with filters, CSV / Excel
 
 test('every billing screen fits a 390 px phone without horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  // El shell abre el menú lateral al cargar en cualquier ancho; en el teléfono el usuario lo
-  // oculta con el botón ☰ y la pantalla ocupa todo el ancho.
-  const openOnPhone = async (path: string) => {
-    await page.goto(path);
-    await settle();
-    await page.getByTitle('Hide menu').click();
+  // En el teléfono el menú lateral arranca oculto y la pantalla ocupa todo el ancho
+  const expectFullWidth = async (label: string) => {
     await expect(page.getByTitle('Show menu')).toBeVisible();
     await page.waitForTimeout(350); // transición del menú
     const mainBox = (await page.locator('main').boundingBox())!;
-    expect(mainBox.x, `main starts at the left edge on ${path}`).toBeLessThanOrEqual(1);
+    expect(mainBox.x, `main starts at the left edge on ${label}`).toBeLessThanOrEqual(1);
     expect(mainBox.width).toBeGreaterThanOrEqual(389);
   };
-  await openOnPhone('/app/billing-transactions');
+  const openOnPhone = async (path: string) => {
+    await page.goto(path);
+    await settle();
+    await expectFullWidth(path);
+  };
+  await openOnPhone('/app/billing-transactions/receipt-orders');
+  // el botón ☰ abre el menú; elegir una pantalla lo vuelve a cerrar
+  await page.getByTitle('Show menu').click();
+  await expect(page.getByTitle('Hide menu')).toBeVisible();
+  await page.locator('aside').getByText('Billing / Transactions', { exact: true }).click();
+  await expect(page.locator('main h1').first()).toHaveText('Billing & Transactions Command Hub');
+  await expectFullWidth('the hub opened from the menu');
   await shot('mobile-billing-hub');
   for (const tab of ['receipt-orders', 'receipt-items', 'receipt-taxes', 'billing-financial-sync', 'billing-inventory-sync', 'billing-partner-sync', 'billing-reports']) {
     await openOnPhone(`/app/billing-transactions/${tab}`);
