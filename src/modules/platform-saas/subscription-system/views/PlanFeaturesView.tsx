@@ -570,14 +570,25 @@ export const PlanFeaturesView: React.FC<PlanFeaturesViewProps> = ({ plan, onNavi
                 </select>
               </div>
               {!isReadOnly && (
-                <button
-                  type="button"
-                  onClick={openMapModal}
-                  className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
-                >
-                  <span className="material-symbols-outlined text-base">add_link</span>
-                  MAP FEATURE
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('plan-features-association')}
+                    className="px-4 py-2 border border-[#ae001a] text-[#ae001a] hover:bg-[#ae001a] hover:text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer"
+                    title="Open Superadmin Plan-to-Features Association Workspace"
+                  >
+                    <span className="material-symbols-outlined text-base">rule_settings</span>
+                    SUPERADMIN MATRIX
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openMapModal}
+                    className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <span className="material-symbols-outlined text-base">add_link</span>
+                    MAP FEATURE
+                  </button>
+                </div>
               )}
             </div>
           )}

@@ -89,10 +89,12 @@ export interface UpdatePlanFeatureDto {
 
 export type SubscriptionLifecycleStatus =
   | 'active'
+  | 'grace_period'
   | 'suspended'
   | 'cancelled'
   | 'inactive'
   | 'ACTIVE'
+  | 'GRACE_PERIOD'
   | 'SUSPENDED'
   | 'CANCELLED'
   | 'INACTIVE';
@@ -132,6 +134,8 @@ export interface CompanySubscriptionDetail extends CompanySubscription {
 export interface SubscriptionPayment {
   id: number;
   companyId: number;
+  companyName?: string;
+  planName?: string;
   externalTransactionId: string;
   invoiceNumber?: string;
   amount: number | string;
@@ -139,6 +143,8 @@ export interface SubscriptionPayment {
   status: 'paid' | 'completed' | 'pending' | 'failed' | 'refunded' | 'settled';
   paymentDate: string;
   paymentMethod: string;
+  billingPeriod?: string;
+  notes?: string;
 }
 
 export interface ProvisionedApplication {
@@ -150,6 +156,9 @@ export interface ProvisionedApplication {
   icon?: string;
   isProvisioned: boolean;
   featuresCount?: number;
+  provisionedAt?: string;
+  provisioned_at?: string;
+  status?: string;
 }
 
 export interface UpdateCompanySubscriptionDto {
@@ -187,3 +196,6 @@ export interface UpdateMerchantSubscriptionDto {
   renewalDate?: string | null;
   paymentMethod?: string;
 }
+
+export * from './subscription-audit-log';
+

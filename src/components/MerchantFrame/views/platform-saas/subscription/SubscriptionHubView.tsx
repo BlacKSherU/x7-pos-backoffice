@@ -57,7 +57,7 @@ export const SubscriptionHubView: React.FC<SubscriptionHubViewProps> = ({ onNavi
   const activePlansCount = plans.filter((p) => p.status === 'active').length;
   const activeAppsCount = applications.filter((a) => a.status === 'active').length;
   const activeSubsCount = companySubs.filter((s) => s.status === 'active' && !s.isExpired).length;
-  const totalPaymentsCount = companySubs.length > 0 ? companySubs.length : 128; // reflects active or simulated payments
+  const totalPaymentsCount = companySubs.length;
 
   const handleNavigate = (featureId: string) => {
     if (onNavigate) {

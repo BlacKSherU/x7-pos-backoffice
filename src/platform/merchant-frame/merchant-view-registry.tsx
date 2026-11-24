@@ -9,11 +9,16 @@ import { SubscriptionPlansView } from '@/modules/platform-saas/subscription-syst
 import { PlatformApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from '@/modules/platform-saas/subscription-system/views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from '@/modules/platform-saas/subscription-system/views/PlanApplicationsView';
+import { PlanApplicationsAssociationView } from '@/components/MerchantFrame/views/platform-saas/subscription/PlanApplicationsAssociationView';
 import { PlanFeaturesView } from '@/modules/platform-saas/subscription-system/views/PlanFeaturesView';
+import { PlanFeaturesAssociationView } from '@/components/MerchantFrame/views/platform-saas/subscription/PlanFeaturesAssociationView';
 import { SaasDashboardView } from '@/modules/platform-saas/central-backoffice/views/SaasDashboardView';
 import { SubscriptionHubView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionHubView';
 import { CompanySubscriptionsView } from '@/modules/platform-saas/subscription-system/views/CompanySubscriptionsView';
 import { CompanySubscriptionView } from '@/components/MerchantFrame/views/platform-saas/companies/CompanySubscriptionView';
+import { SubscriptionApplicationsInquiryView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionApplicationsInquiryView';
+import { SubscriptionAuditLogView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionAuditLogView';
+import { SubscriptionPaymentsView } from '@/components/MerchantFrame/views/platform-saas/subscription/SubscriptionPaymentsView';
 import { MerchantSubscriptionsView } from '@/modules/platform-saas/subscription-system/views/MerchantSubscriptionsView';
 import { OrdersRegistryView } from '@/modules/platform-saas/central-backoffice/views/OrdersRegistryView';
 import { MerchantSettlementsView } from '@/modules/platform-saas/central-backoffice/views/MerchantSettlementsView';
@@ -115,6 +120,8 @@ import { FloorZonesView } from '@/modules/restaurant-operations/dining-system/vi
 import { DiningTablesView } from '@/modules/restaurant-operations/dining-system/views/DiningTablesView';
 import { TableAssignmentsView } from '@/modules/restaurant-operations/dining-system/views/TableAssignmentsView';
 import { CollaboratorsView } from '@/modules/finance-hr/hr/views/CollaboratorsView';
+import { PayrollEntriesView } from '@/components/MerchantFrame/views/finance-hr/payrolls/PayrollEntriesView';
+import { PayrollAdjustmentsView } from '@/components/MerchantFrame/views/finance-hr/payrolls/PayrollAdjustmentsView';
 import { TimeEntriesView as HrTimeEntriesView } from '@/modules/finance-hr/hr/views/TimeEntriesView';
 import { ContractsView } from '@/modules/finance-hr/hr/views/ContractsView';
 import { ReservationsView } from '@/modules/restaurant-operations/reservations/views/ReservationsView';
@@ -153,6 +160,8 @@ export interface MerchantViewContext {
   activeCategory: string;
   profile: UserProfile | null;
   selectedPlan: SubscriptionPlan | null;
+  selectedPlanId?: number | null;
+  setSelectedPlanId?: (id: number | null) => void;
   refreshTrigger: number;
   /** Cambia de pestaña sin tocar la URL. */
   onNavigate: (view: string) => void;
@@ -216,11 +225,33 @@ view('merchant-settlements', (ctx) => <MerchantSettlementsView onNavigate={ctx.o
 view('plan-apps-rules', (ctx) => (
   <PlanApplicationsView plan={ctx.selectedPlan ?? undefined} onNavigate={ctx.onSaasNavigate} />
 ));
+view(
+  ['plan-applications-association', 'plan-apps-association'],
+  (ctx) => (
+    <PlanApplicationsAssociationView
+      planId={ctx.selectedPlanId ?? ctx.selectedPlan?.id}
+      plan={ctx.selectedPlan ?? undefined}
+      userRole={ctx.profile?.role}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
+);
 view('plan-features-mapping', (ctx) =>
   ctx.selectedPlan ? (
     <PlanFeaturesView plan={ctx.selectedPlan} onNavigate={ctx.onSaasNavigate} />
   ) : (
     <PlanFeaturesPickPlanView onChoosePlan={() => ctx.navigateToFeature('sub-plans-core')} />
+  ),
+);
+view(
+  ['plan-features-association', 'plan-features-mapping-association'],
+  (ctx) => (
+    <PlanFeaturesAssociationView
+      planId={ctx.selectedPlanId ?? ctx.selectedPlan?.id}
+      plan={ctx.selectedPlan ?? undefined}
+      userRole={ctx.profile?.role}
+      onNavigate={ctx.onSaasNavigate}
+    />
   ),
 );
 view(['merchant-directory', 'merchants-directory', 'merchants'], () => (
@@ -247,8 +278,42 @@ view(
   ),
 );
 view(
+  [
+    'subscription-applications-inquiry',
+    'company-applications-inquiry',
+    'sub-apps-mapping',
+    'subscription-applications',
+  ],
+  (ctx) => (
+    <SubscriptionApplicationsInquiryView
+      companyId={ctx.selectedCompanyId ?? undefined}
+      userRole={ctx.profile?.role}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
+);
+view(
   ['merchant-subs-link', 'merchant-subscriptions', 'subscription-merchant-subscriptions'],
   (ctx) => <MerchantSubscriptionsView onNavigate={ctx.onSaasNavigate} />,
+);
+view(
+  ['subscription-audit-logs', 'sub-audit-logs', 'subscription-audit-log-ledger'],
+  (ctx) => (
+    <SubscriptionAuditLogView
+      companyId={ctx.selectedCompanyId ?? undefined}
+      userRole={ctx.profile?.role}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
+);
+view(
+  ['sub-payments-billing', 'subscription-payments', 'subscription-billing-payments'],
+  (ctx) => (
+    <SubscriptionPaymentsView
+      companyId={ctx.selectedCompanyId ?? undefined}
+      onNavigate={ctx.onSaasNavigate}
+    />
+  ),
 );
 view(['subscription-system-hub', 'subscription-hub'], (ctx) => (
   <SubscriptionHubView onNavigate={ctx.navigateToFeature} />
@@ -513,6 +578,12 @@ view('tables', (ctx) => <DiningTablesView onNavigate={ctx.onNavigate} merchantId
 view('table-assignments', (ctx) => <TableAssignmentsView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
 view('collaborators', (ctx) => <CollaboratorsView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
 view('collaborators-contracts', (ctx) => <ContractsView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
+view(['payroll-entries', 'payrolls-entries', '/finance-hr/payrolls/entries'], (ctx) => (
+  <PayrollEntriesView onNavigate={ctx.onNavigate} />
+));
+view(['payroll-adjustments', 'payrolls-adjustments', '/finance-hr/payrolls/adjustments'], (ctx) => (
+  <PayrollAdjustmentsView onNavigate={ctx.onNavigate} />
+));
 view('reservations', (ctx) => <ReservationsView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
 view('reservation-tables', (ctx) => <ReservationTablesView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
 view('reservation-notes', (ctx) => <ReservationNotesView onNavigate={ctx.onNavigate} merchantId={merchantId()} />);
