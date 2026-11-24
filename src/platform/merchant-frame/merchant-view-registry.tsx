@@ -495,9 +495,7 @@ view('journal-entries-lines', (ctx) => (
 
 // ---- Billing & Transactions ----
 view('billing-financial-sync', () => <BillingFinancialSyncView />);
-view('billing-inventory-sync', (ctx) => (
-  <BillingInventorySyncView onNavigate={ctx.onNavigate} navigateToPath={ctx.navigateToPath} />
-));
+view('billing-inventory-sync', () => <BillingInventorySyncView />);
 view('receipt-orders', (ctx) => <ReceiptsView onNavigate={ctx.navigateToFeature} />);
 view('billing-reports', (ctx) => <BillingReportsView onNavigate={ctx.onNavigate} />);
 
@@ -511,8 +509,8 @@ view('customers', (ctx) => (
 ));
 
 // ---- Billing & Transactions ----
-view('receipt-items', (ctx) => <ReceiptItemsView onNavigate={ctx.navigateToFeature} />);
-view('receipt-taxes', (ctx) => <ReceiptTaxesView onNavigate={ctx.onNavigate} />);
+view('receipt-items', () => <ReceiptItemsView />);
+view('receipt-taxes', () => <ReceiptTaxesView />);
 view('billing-partner-sync', (ctx) => <BillingPartnerSyncView onNavigate={ctx.onNavigate} />);
 
 // ---- Cuentas por pagar ----

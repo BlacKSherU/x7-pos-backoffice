@@ -89,15 +89,9 @@ describe('merchant view registry', () => {
 });
 
 describe('billing ↔ inventory views', () => {
-  it('opens the stock sync screen with URL navigation for the inventory quick launch', () => {
-    const navigateToPath = vi.fn();
-    const onNavigate = vi.fn();
-    const node = renderMerchantView('billing-inventory-sync', context({ navigateToPath, onNavigate }));
-    expect(
-      isValidElement<{ navigateToPath?: unknown; onNavigate?: unknown }>(node) &&
-        node.type === BillingInventorySyncView &&
-        [node.props.navigateToPath, node.props.onNavigate],
-    ).toEqual([navigateToPath, onNavigate]);
+  it('opens the stock sync screen', () => {
+    const node = renderMerchantView('billing-inventory-sync', context({}));
+    expect(isValidElement(node) && node.type).toBe(BillingInventorySyncView);
   });
 });
 

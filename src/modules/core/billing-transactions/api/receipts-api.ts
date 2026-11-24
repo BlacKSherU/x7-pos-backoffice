@@ -6,6 +6,8 @@ import type {
   ReceiptActivityLog,
   ReceiptDetails,
   ReceiptListQuery,
+  ReceiptOrderOptions,
+  ReceiptOrderOptionsQuery,
   ReceiptSummary,
   ReceiptSummaryQuery,
   ReceiptTaxBreakdown,
@@ -44,6 +46,31 @@ export function toQueryString(params: Record<string, string | number | undefined
   }
   const qs = search.toString();
   return qs ? `?${qs}` : '';
+}
+
+/** GET /receipts/order-options — órdenes facturables del merchant para el selector de NEW RECEIPT. */
+export async function listReceiptOrderOptions(
+  query: ReceiptOrderOptionsQuery = {},
+): Promise<ReceiptOrderOptions> {
+  const json = await apiRequest<Envelope<ReceiptOrderOptions>>(
+    `${BASE}/order-options${toQueryString({
+      search: query.search?.trim(),
+      type: query.type,
+      includeOrderId: query.includeOrderId,
+      limit: query.limit,
+    })}`,
+    { method: 'GET' },
+    'Failed to load orders.',
+  );
+  return {
+    default_currency: json.data?.default_currency || null,
+    orders: (json.data?.orders ?? []).map((order) => ({
+      ...order,
+      total: Number(order.total ?? 0),
+      customer_name: order.customer_name ?? null,
+      issued_types: order.issued_types ?? [],
+    })),
+  };
 }
 
 /** GET /receipts — listado paginado con búsqueda (invoice_number / fiscal_data) y filtros. */

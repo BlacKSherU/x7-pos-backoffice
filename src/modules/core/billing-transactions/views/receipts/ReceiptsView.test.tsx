@@ -108,10 +108,39 @@ const invoiceDetails = {
 };
 
 /** Backend falso con el resumen de KPIs y el desglose de impuestos ya registrados. */
+const orderOptions = {
+  default_currency: 'CLP',
+  orders: [
+    {
+      id: 555,
+      order_number: '0009',
+      status: 'paid',
+      order_type: 'take_out',
+      total: '34510.00',
+      is_paid: true,
+      created_at: '2026-11-24T10:00:00.000Z',
+      customer_name: 'Cliente Mesón',
+      issued_types: [],
+    },
+    {
+      id: 556,
+      order_number: '0010',
+      status: 'paid',
+      order_type: 'dine_in',
+      total: '27370.00',
+      is_paid: true,
+      created_at: '2026-11-24T10:20:00.000Z',
+      customer_name: 'Viña Santa Rita Eventos SpA',
+      issued_types: ['RECEIPT'],
+    },
+  ],
+};
+
 function backend(routes: Parameters<typeof fakeBackend>[0]) {
   return fakeBackend({
     '/receipts/summary': { data: emptySummary },
     '/receipts/tax-breakdown': { data: taxBreakdown },
+    '/receipts/order-options': { data: orderOptions },
     ...routes,
   });
 }
@@ -227,9 +256,9 @@ describe('ReceiptsView — central table (Historia 18)', () => {
     const invoiceInput = within(dialog).getByLabelText('Invoice number');
     await userEvent.clear(invoiceInput);
     await userEvent.type(invoiceInput, 'INV-000900');
-    const currencyInput = within(dialog).getByLabelText('Currency *');
-    await userEvent.clear(currencyInput);
-    await userEvent.type(currencyInput, 'pen');
+    await userEvent.click(within(dialog).getByLabelText('Currency *'));
+    await userEvent.type(within(dialog).getByRole('combobox', { name: 'Search currency' }), 'pen');
+    await userEvent.keyboard('{Enter}');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() => expect(calledRoutes(fetchMock)).toContain('PATCH /receipts/1'));
@@ -272,7 +301,7 @@ describe('ReceiptsView — central table (Historia 18)', () => {
     const fetchMock = backend({
       '/receipts': page([invoice]),
       'POST /receipts': (init: RequestInit | undefined) => {
-        expect(JSON.parse(String(init?.body))).toEqual({ orderId: 555, type: 'INVOICE', currency: 'USD' });
+        expect(JSON.parse(String(init?.body))).toEqual({ orderId: 555, type: 'INVOICE', currency: 'CLP' });
         return jsonResponse({ data: { ...invoice, id: 9, order_id: 555, invoice_number: 'INV-000009' } }, 201);
       },
     });
@@ -282,12 +311,57 @@ describe('ReceiptsView — central table (Historia 18)', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'New Receipt' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText('Order ID *'), '555');
     await userEvent.selectOptions(within(dialog).getByLabelText('Type *'), 'INVOICE');
+    // la moneda arranca en la moneda base de la company
+    await waitFor(() => expect(within(dialog).getByLabelText('Currency *')).toHaveTextContent('CLP'));
+    await userEvent.click(within(dialog).getByLabelText('Order *'));
+    await userEvent.click(await within(dialog).findByRole('option', { name: /Order #0009 · ID 555/ }));
+    expect(within(dialog).getByLabelText('Order *')).toHaveTextContent('Order #0009 · ID 555');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create Receipt' }));
 
     await waitFor(() => expect(calledRoutes(fetchMock)).toContain('POST /receipts'));
     expect(await screen.findByText('INV-000009 created.')).toBeInTheDocument();
+    const optionUrls = urlsOf(fetchMock, '/receipts/order-options');
+    expect(optionUrls.at(-1)?.searchParams.get('type')).toBe('INVOICE');
+  });
+
+  it('requires an order and searches orders on the backend', async () => {
+    const fetchMock = backend({ '/receipts': page([invoice]) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'New Receipt' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create Receipt' }));
+    expect(within(dialog).getByText('Select the order to bill.')).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByLabelText('Order *'));
+    await userEvent.type(within(dialog).getByRole('combobox', { name: 'Search order' }), 'santa');
+    await waitFor(() =>
+      expect(urlsOf(fetchMock, '/receipts/order-options').some((url) => url.searchParams.get('search') === 'santa')).toBe(
+        true,
+      ),
+    );
+    // la orden 0010 ya tiene un RECEIPT: se describe en la opción
+    expect(within(dialog).getByRole('option', { name: /Order #0010/ })).toHaveTextContent('already has Receipt');
+  });
+
+  it('picks the currency from a searchable ISO 4217 list', async () => {
+    vi.stubGlobal('fetch', backend({ '/receipts': page([invoice]) }));
+    render(<ReceiptsView />);
+    await screen.findByTestId('receipt-row-1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'New Receipt' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(dialog).getByLabelText('Currency *')).toHaveTextContent('CLP'));
+    await userEvent.click(within(dialog).getByLabelText('Currency *'));
+    const search = within(dialog).getByRole('combobox', { name: 'Search currency' });
+    await userEvent.type(search, 'euro');
+    expect(within(dialog).getByRole('option', { name: /^EUR/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('option', { name: /^USD/ })).not.toBeInTheDocument();
+    await userEvent.keyboard('{Enter}');
+    expect(within(dialog).getByLabelText('Currency *')).toHaveTextContent('EUR');
   });
 
   it('logically deletes a receipt with PATCH /status isActive=false and reloads the list', async () => {

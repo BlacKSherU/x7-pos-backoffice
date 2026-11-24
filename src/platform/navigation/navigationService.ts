@@ -317,115 +317,112 @@ export const navigationService = {
     surface: string = 'merchant_web',
     previewUserId?: number,
   ): Promise<NavCategory[]> {
-    try {
-      const userParam =
-        previewUserId && Number.isInteger(previewUserId) && previewUserId > 0
-          ? `&userId=${encodeURIComponent(String(previewUserId))}`
-          : '';
-      const res = await apiRequest<NavigationTreeResponse>(
-        `/me/navigation?surface=${encodeURIComponent(surface)}${userParam}`,
-        { method: 'GET' },
-        'Failed to load dynamic navigation',
-      );
+    // Sin try/catch: un fallo transitorio lo reintenta MerchantFrame (loadWithRetry) y el
+    // definitivo lo registra él; avisar aquí ensuciaba la consola aunque el reintento funcionara.
+    const userParam =
+      previewUserId && Number.isInteger(previewUserId) && previewUserId > 0
+        ? `&userId=${encodeURIComponent(String(previewUserId))}`
+        : '';
+    const res = await apiRequest<NavigationTreeResponse>(
+      `/me/navigation?surface=${encodeURIComponent(surface)}${userParam}`,
+      { method: 'GET' },
+      'Failed to load dynamic navigation',
+    );
 
-      if (!res || !Array.isArray(res.categories)) {
-        return buildFallbackNavigation(surface);
-      }
+    if (!res || !Array.isArray(res.categories)) {
+      return buildFallbackNavigation(surface);
+    }
 
-      const dynamicHubs: ModuleNavHub[] = [];
+    const dynamicHubs: ModuleNavHub[] = [];
 
-      const categories: NavCategory[] = res.categories.map((cat) => {
-        const apps: NavApplication[] = cat.applications.map((app) => {
-          const appCode = app.code || String(app.id);
+    const categories: NavCategory[] = res.categories.map((cat) => {
+      const apps: NavApplication[] = cat.applications.map((app) => {
+        const appCode = app.code || String(app.id);
 
-          // Map features/screens (kind !== 'hub')
-          // Subscription System sub-modules are exclusively accessed from its Command Hub or persistent bar
-          const isSubscriptionSystem = appCode === 'subscription-system';
-          const features: NavFeature[] = isSubscriptionSystem
-            ? []
-            : (app.items || [])
-            .filter((item) => item.kind !== 'hub')
-            .map((item) => {
-              const resolvedIcon = resolveNavIcon(item.code, item.icon);
-              return {
-                id: item.code,
-                name: toTitleCaseLabel(item.label),
-                applicationId: appCode,
-                planId: res.planId ?? 1,
-                isSaaS: surface === 'saas_web',
-                icon: resolvedIcon,
-                route: item.route || undefined,
-                kind: item.kind,
-                status: item.status,
-                description: item.description || undefined,
-                sortOrder: item.sortOrder,
-              };
-            });
-
-          // Find or derive primary hub item
-          const hubItem = (app.items || []).find((item) => item.kind === 'hub');
-          const hubId = hubItem ? hubItem.code : `${appCode}-hub`;
-          const hubLabel = `${app.name.toUpperCase()} COMMAND HUB`;
-
-          // Build dynamic ModuleNavHub for this application
-          const hubNavItems: ModuleNavItem[] = (app.items || [])
-            .filter((item) => item.kind !== 'hub')
-            .map((item) => {
-              const resolvedIcon = resolveNavIcon(item.code, item.icon);
-              return {
-                featureId: item.code,
-                label: toTitleCaseLabel(item.label),
-                icon: resolvedIcon,
-                description: item.description || item.label,
-                live: item.status === 'live',
-              };
-            });
-
-          dynamicHubs.push({
-            appId: appCode,
-            hubId,
-            hubLabel,
-            title: resolveShortHubTitle(appCode, app.name),
-            category: cat.name,
-            icon: app.icon || cat.icon || 'space_dashboard',
-            description: `Operational command hub and navigation shortcuts for ${app.name}.`,
-            items: hubNavItems,
+        // Map features/screens (kind !== 'hub')
+        // Subscription System sub-modules are exclusively accessed from its Command Hub or persistent bar
+        const isSubscriptionSystem = appCode === 'subscription-system';
+        const features: NavFeature[] = isSubscriptionSystem
+          ? []
+          : (app.items || [])
+          .filter((item) => item.kind !== 'hub')
+          .map((item) => {
+            const resolvedIcon = resolveNavIcon(item.code, item.icon);
+            return {
+              id: item.code,
+              name: toTitleCaseLabel(item.label),
+              applicationId: appCode,
+              planId: res.planId ?? 1,
+              isSaaS: surface === 'saas_web',
+              icon: resolvedIcon,
+              route: item.route || undefined,
+              kind: item.kind,
+              status: item.status,
+              description: item.description || undefined,
+              sortOrder: item.sortOrder,
+            };
           });
 
-          return {
-            id: appCode,
-            name: toTitleCaseLabel(app.name),
-            categoryName: cat.name,
-            categoryIcon: cat.icon,
-            categorySortOrder: cat.sortOrder,
-            icon: app.icon || cat.icon,
-            sortOrder: app.sortOrder,
-            items: (app.items || []).map((item) => ({
-              ...item,
+        // Find or derive primary hub item
+        const hubItem = (app.items || []).find((item) => item.kind === 'hub');
+        const hubId = hubItem ? hubItem.code : `${appCode}-hub`;
+        const hubLabel = `${app.name.toUpperCase()} COMMAND HUB`;
+
+        // Build dynamic ModuleNavHub for this application
+        const hubNavItems: ModuleNavItem[] = (app.items || [])
+          .filter((item) => item.kind !== 'hub')
+          .map((item) => {
+            const resolvedIcon = resolveNavIcon(item.code, item.icon);
+            return {
+              featureId: item.code,
               label: toTitleCaseLabel(item.label),
-              icon: resolveNavIcon(item.code, item.icon),
-            })),
-            features,
-          };
+              icon: resolvedIcon,
+              description: item.description || item.label,
+              live: item.status === 'live',
+            };
+          });
+
+        dynamicHubs.push({
+          appId: appCode,
+          hubId,
+          hubLabel,
+          title: resolveShortHubTitle(appCode, app.name),
+          category: cat.name,
+          icon: app.icon || cat.icon || 'space_dashboard',
+          description: `Operational command hub and navigation shortcuts for ${app.name}.`,
+          items: hubNavItems,
         });
 
         return {
-          id: cat.code,
-          name: cat.name,
-          icon: cat.icon,
-          sortOrder: cat.sortOrder,
-          applications: apps,
+          id: appCode,
+          name: toTitleCaseLabel(app.name),
+          categoryName: cat.name,
+          categoryIcon: cat.icon,
+          categorySortOrder: cat.sortOrder,
+          icon: app.icon || cat.icon,
+          sortOrder: app.sortOrder,
+          items: (app.items || []).map((item) => ({
+            ...item,
+            label: toTitleCaseLabel(item.label),
+            icon: resolveNavIcon(item.code, item.icon),
+          })),
+          features,
         };
       });
 
-      // Register dynamically calculated hubs in runtime registry
-      registerDynamicNavHubs(dynamicHubs);
+      return {
+        id: cat.code,
+        name: cat.name,
+        icon: cat.icon,
+        sortOrder: cat.sortOrder,
+        applications: apps,
+      };
+    });
 
-      return categories;
-    } catch (error) {
-      console.warn('Dynamic navigation loading failed:', error);
-      throw error;
-    }
+    // Register dynamically calculated hubs in runtime registry
+    registerDynamicNavHubs(dynamicHubs);
+
+    return categories;
   },
 
   /**

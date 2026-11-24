@@ -1,8 +1,7 @@
-import { isValidElement, type ReactElement } from 'react';
+import { isValidElement } from 'react';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ReceiptItemsQuickLaunch } from './ReceiptItemsQuickLaunch';
 import { ReceiptItemsView } from './ReceiptItemsView';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
@@ -26,34 +25,8 @@ afterEach(() => {
 
 const SIBLINGS = ['receipt-orders', 'receipt-items', 'receipt-taxes'];
 
-describe('Receipt Items — Quick Launch (Historia 15)', () => {
-  it('offers RECEIPTS, RECEIPT ITEMS (active) and RECEIPTS TAXES', () => {
-    render(<ReceiptItemsQuickLaunch onNavigate={vi.fn()} />);
-    const nav = screen.getByRole('navigation', { name: 'Billing and transactions shortcuts' });
-
-    expect(within(nav).getByRole('button', { name: 'RECEIPTS' })).toBeInTheDocument();
-    expect(within(nav).getByRole('button', { name: 'RECEIPTS TAXES' })).toBeInTheDocument();
-
-    // Active anchor: not a button, aria-current, corporate red + underline.
-    expect(within(nav).queryByRole('button', { name: 'RECEIPT ITEMS' })).not.toBeInTheDocument();
-    const active = within(nav).getByText('RECEIPT ITEMS');
-    expect(active).toHaveAttribute('aria-current', 'page');
-    expect(active).toHaveClass('underline');
-    expect(active.closest('span[aria-current="page"].bg-\\[\\#ae001a\\]')).not.toBeNull();
-  });
-
-  it('navigates to the sibling screens through onNavigate (SPA, no reload)', async () => {
-    const user = userEvent.setup();
-    const onNavigate = vi.fn();
-    render(<ReceiptItemsQuickLaunch onNavigate={onNavigate} />);
-
-    await user.click(screen.getByRole('button', { name: 'RECEIPTS' }));
-    await user.click(screen.getByRole('button', { name: 'RECEIPTS TAXES' }));
-
-    expect(onNavigate.mock.calls).toEqual([['receipt-orders'], ['receipt-taxes']]);
-  });
-
-  it('is rendered inside the Receipt Items workspace', async () => {
+describe('Receipt Items — sin Quick Launch', () => {
+  it('renders no shortcuts panel inside the workspace (the NavHubBar covers it)', async () => {
     vi.stubGlobal(
       'fetch',
       fakeBackend({
@@ -62,13 +35,11 @@ describe('Receipt Items — Quick Launch (Historia 15)', () => {
         '/receipts': { data: [] },
       }),
     );
-    const user = userEvent.setup();
-    const onNavigate = vi.fn();
-    render(<ReceiptItemsView onNavigate={onNavigate} />);
+    render(<ReceiptItemsView />);
 
     await screen.findByTestId('receipt-items-empty');
-    await user.click(screen.getByRole('button', { name: 'RECEIPTS TAXES' }));
-    expect(onNavigate).toHaveBeenCalledWith('receipt-taxes');
+    expect(screen.queryByRole('navigation', { name: 'Billing and transactions shortcuts' })).toBeNull();
+    expect(screen.queryByText(/quick launch/i)).toBeNull();
   });
 });
 
@@ -132,13 +103,9 @@ describe('Receipt Items — NavHubBar (Historia 15)', () => {
     expect(navHubById('billing-transactions-hub')?.appId).toBe('billing-transactions');
   });
 
-  it('is wired in the view registry with MerchantFrame navigateToFeature', () => {
-    const navigateToFeature = vi.fn();
-    const ctx = { navigateToFeature, onNavigate: vi.fn() } as unknown as MerchantViewContext;
+  it('is wired in the view registry', () => {
+    const ctx = { navigateToFeature: vi.fn(), onNavigate: vi.fn() } as unknown as MerchantViewContext;
     const node = renderMerchantView('receipt-items', ctx);
-    expect(isValidElement(node)).toBe(true);
-    const element = node as ReactElement<{ onNavigate?: (v: string) => void }>;
-    expect(element.type).toBe(ReceiptItemsView);
-    expect(element.props.onNavigate).toBe(navigateToFeature);
+    expect(isValidElement(node) && node.type).toBe(ReceiptItemsView);
   });
 });

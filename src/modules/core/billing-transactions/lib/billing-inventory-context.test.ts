@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_BILLING_INVENTORY_FILTERS,
-  buildInventoryTargetPath,
   clearBillingInventoryContext,
-  describeBillingContext,
   filtersFromLocation,
   initialBillingInventoryContext,
   loadBillingInventoryContext,
@@ -28,12 +26,11 @@ afterEach(() => {
 });
 
 describe('billing inventory context', () => {
-  it('round-trips filters, selection and the last inventory target through sessionStorage', () => {
-    saveBillingInventoryContext(selected, 'audit-movements');
+  it('round-trips filters and selection through sessionStorage', () => {
+    saveBillingInventoryContext(selected);
     const loaded = loadBillingInventoryContext();
     expect(loaded?.filters).toEqual(selected.filters);
     expect(loaded?.selection).toEqual(selected.selection);
-    expect(loaded?.lastTarget).toBe('audit-movements');
     expect(loaded?.savedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
@@ -48,35 +45,6 @@ describe('billing inventory context', () => {
     expect(loaded?.filters.page).toBe(1);
     expect(loaded?.filters.limit).toBe(10);
     expect(loaded?.selection).toBeNull();
-  });
-
-  it('carries invoice, receipt, SKU and stock item to the movements views only', () => {
-    const audit = new URL(buildInventoryTargetPath('audit-movements', selected), 'http://x');
-    expect(audit.pathname).toBe('/inventory/movements');
-    expect(audit.searchParams.get('from')).toBe('billing-inventory-sync');
-    expect(audit.searchParams.get('invoice')).toBe('INV-000007');
-    expect(audit.searchParams.get('receiptId')).toBe('7');
-    expect(audit.searchParams.get('sku')).toBe('BURGER-01');
-    expect(audit.searchParams.get('itemId')).toBe('99');
-
-    const reconcile = new URL(buildInventoryTargetPath('reconcile', selected), 'http://x');
-    expect(reconcile.pathname).toBe('/inventory/stock-movements');
-    expect(reconcile.searchParams.get('itemId')).toBe('99');
-
-    const stock = new URL(buildInventoryTargetPath('stock-levels', selected), 'http://x');
-    expect(stock.pathname).toBe('/inventory/stock-inventory');
-    expect(stock.searchParams.get('itemId')).toBeNull();
-    expect(stock.searchParams.get('sku')).toBe('BURGER-01');
-  });
-
-  it('falls back to the invoice filter when no receipt line is selected', () => {
-    const path = buildInventoryTargetPath('stock-levels', {
-      filters: { ...DEFAULT_BILLING_INVENTORY_FILTERS, invoiceNumber: ' INV-9 ' },
-      selection: null,
-    });
-    const url = new URL(path, 'http://x');
-    expect(url.searchParams.get('invoice')).toBe('INV-9');
-    expect(url.searchParams.get('receiptId')).toBeNull();
   });
 
   it('reads filters from the URL only on the billing inventory sync routes', () => {
@@ -98,16 +66,5 @@ describe('billing inventory context', () => {
     expect(initialBillingInventoryContext('/billing/inventory-sync', '?invoice=INV-2').filters.invoiceNumber).toBe(
       'INV-2',
     );
-  });
-
-  it('describes the active billing context', () => {
-    expect(describeBillingContext(selected)).toBe('Invoice INV-000007 · SKU BURGER-01');
-    expect(
-      describeBillingContext({
-        filters: { ...DEFAULT_BILLING_INVENTORY_FILTERS, status: 'FAILED', dateFrom: '2026-11-01' },
-        selection: null,
-      }),
-    ).toBe('Status FAILED · 2026-11-01 → …');
-    expect(describeBillingContext({ filters: DEFAULT_BILLING_INVENTORY_FILTERS, selection: null })).toBe('');
   });
 });

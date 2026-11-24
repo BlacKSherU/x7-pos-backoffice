@@ -413,16 +413,27 @@ test('Receipts: locked receipt details, adjustment notes (credit / debit) and th
   await editExempt.getByRole('button', { name: 'Cancel' }).click();
 });
 
-test('Receipts: issue new receipts, edit fiscal data, reject a duplicate and deactivate one', async () => {
+test('Receipts: issue new receipts from the order and currency selectors, edit fiscal data and deactivate one', async () => {
   await openScreen('/app/billing-transactions/receipt-orders');
   await page.getByRole('button', { name: 'New Receipt', exact: true }).click();
   const form = dialog('New Receipt');
   await form.getByRole('button', { name: 'Create Receipt' }).click();
-  await expect(form.getByText('Enter a valid order ID.')).toBeVisible();
+  await expect(form.getByText('Select the order to bill.')).toBeVisible();
   await shot('new-receipt-validation', { full: false });
 
-  await form.locator('#receipt-order-id').fill('9');
+  // la moneda arranca en la moneda base de la company (USD) y se elige de la lista ISO 4217
+  await expect(form.locator('#receipt-currency')).toContainText('USD');
   await form.locator('#receipt-type').selectOption('INVOICE');
+  await form.locator('#receipt-order-id').click();
+  await form.getByRole('combobox', { name: 'Search order' }).fill('0009');
+  await shot('new-receipt-order-select', { full: false });
+  await form.getByRole('listbox', { name: 'Order' }).getByRole('option', { name: /Order #0009 · ID 9/ }).click();
+  await expect(form.locator('#receipt-order-id')).toContainText('Order #0009 · ID 9');
+  await form.locator('#receipt-currency').click();
+  await form.getByRole('combobox', { name: 'Search currency' }).fill('usd');
+  await expect(form.getByRole('listbox', { name: 'Currency' }).getByRole('option').first()).toContainText('USD — US Dollar');
+  await shot('new-receipt-currency-select', { full: false });
+  await page.keyboard.press('Escape');
   await form.locator('#receipt-tax-id').fill('76.123.456-7');
   await shot('new-receipt-form', { full: false });
   const created = waitApi('POST', /\/receipts$/);
@@ -431,18 +442,20 @@ test('Receipts: issue new receipts, edit fiscal data, reject a duplicate and dea
   await expectToast(`${NEW_INVOICE.label} created.`);
   await expect(page.getByTestId(`receipt-row-${NEW_INVOICE.id}`)).toBeVisible();
 
-  // una segunda factura para la misma orden: la API responde 409 y el formulario lo muestra
-  expectFailure(409, '/receipts');
+  // la orden ya facturada no se ofrece para otra factura: el selector evita el 409
   await page.getByRole('button', { name: 'New Receipt', exact: true }).click();
   const duplicate = dialog('New Receipt');
-  await duplicate.locator('#receipt-order-id').fill('9');
   await duplicate.locator('#receipt-type').selectOption('INVOICE');
-  await duplicate.getByRole('button', { name: 'Create Receipt' }).click();
-  await expect(duplicate.getByRole('alert')).toContainText(/already/i);
-  await shot('new-receipt-duplicate-rejected', { full: false });
-  settleExpectedFailures();
+  await duplicate.locator('#receipt-order-id').click();
+  await duplicate.getByRole('combobox', { name: 'Search order' }).fill('0009');
+  await expect(duplicate.getByText('No orders left to bill as invoice.')).toBeVisible();
+  await shot('new-receipt-duplicate-not-offered', { full: false });
+  await page.keyboard.press('Escape');
   // el comprobante (RECEIPT) de la misma orden sí se permite
   await duplicate.locator('#receipt-type').selectOption('RECEIPT');
+  await duplicate.locator('#receipt-order-id').click();
+  await duplicate.getByRole('combobox', { name: 'Search order' }).fill('0009');
+  await duplicate.getByRole('listbox', { name: 'Order' }).getByRole('option', { name: /Order #0009 · ID 9/ }).click();
   await duplicate.getByRole('button', { name: 'Create Receipt' }).click();
   await expectToast(`${NEW_RECEIPT.label} created.`);
   await expect(page.getByTestId(`receipt-row-${NEW_RECEIPT.id}`)).toBeVisible();
@@ -710,7 +723,7 @@ test('Ledger Sync: posting status, journal lines and posting the batch to the le
 
 // ---- Inventory & Billing Stock Sync --------------------------------------------------------
 
-test('Inventory Sync: deduction status per receipt line, components, stock validation and quick launch', async () => {
+test('Inventory Sync: deduction status per receipt line, components, stock validation and the NavHubBar', async () => {
   await openScreen('/app/billing-transactions/billing-financial-sync');
   await goNav('Inventory Sync');
   await expect(page.getByRole('main').getByRole('heading', { name: 'INVENTORY & BILLING STOCK SYNC', exact: true })).toBeVisible();
@@ -754,18 +767,11 @@ test('Inventory Sync: deduction status per receipt line, components, stock valid
   await shot('stock-validation-sku-list', { full: false });
   await drawer.getByRole('button', { name: 'Close drawer' }).click();
 
-  // acceso rápido a inventario con el contexto de facturación
-  const quickLaunch = page.getByTestId('billing-inventory-quick-launch');
-  await expect(quickLaunch).toContainText('INV-000004');
-  await shot('inventory-sync-quick-launch');
-  const stockLevels = quickLaunch.getByRole('button', { name: 'VIEW STOCK LEVELS' });
-  await expect(stockLevels).toBeVisible();
-  await stockLevels.click();
-  await expect(page).toHaveURL(/\/inventory\/stock-inventory\?from=billing-inventory-sync/);
-  await settle();
-  await shot('inventory-stock-levels-from-billing');
-  await page.goto('/app/billing-transactions/billing-inventory-sync');
-  await settle();
+  // sin Quick Launch: la NavHubBar es la única barra de atajos de la pantalla
+  await expect(page.getByTestId('billing-inventory-quick-launch')).toHaveCount(0);
+  await expect(page.locator('main').getByText(/quick launch/i)).toHaveCount(0);
+  await expectNavBar('Inventory Sync');
+  await shot('inventory-sync-navhubbar');
 });
 
 // ---- Business Partners Billing Link --------------------------------------------------------

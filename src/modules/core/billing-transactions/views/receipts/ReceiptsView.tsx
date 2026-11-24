@@ -26,7 +26,6 @@ import { ReceiptsDataGrid } from './ReceiptsDataGrid';
 import { ReceiptDetailsDrawer } from './ReceiptDetailsDrawer';
 import { ReceiptFormDrawer, type ReceiptFormMode } from './ReceiptFormDrawer';
 import { BILLING_HUB_ID, ReceiptsCommandHeader } from './ReceiptsCommandHeader';
-import { ReceiptsQuickLaunch } from './ReceiptsQuickLaunch';
 import { ReceiptTaxBreakdownCards } from './ReceiptTaxBreakdownCards';
 import { ConfirmLockReceiptDialog } from './ConfirmLockReceiptDialog';
 import { ReceiptActivityLogDrawer } from './ReceiptActivityLogDrawer';
@@ -423,15 +422,6 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onNavigate }) => {
           detailsVersion={reloadKey}
         />
       )}
-
-      <ReceiptsQuickLaunch
-        onNavigate={onNavigate}
-        onNewReceipt={() => setForm({ mode: 'create' })}
-        onShowDeactivated={() => {
-          setStatusFilter('inactive');
-          setPage(1);
-        }}
-      />
 
       {detailReceipt && (
         <ReceiptDetailsDrawer

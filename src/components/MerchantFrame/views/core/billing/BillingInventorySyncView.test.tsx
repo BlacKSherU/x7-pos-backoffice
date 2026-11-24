@@ -101,54 +101,46 @@ afterEach(() => {
 });
 
 describe('BillingInventorySyncView', () => {
-  it('restores the billing context saved before jumping to inventory', async () => {
-    saveBillingInventoryContext(
-      {
-        filters: { ...DEFAULT_BILLING_INVENTORY_FILTERS, invoiceNumber: 'INV-000010', page: 2 },
-        selection: {
-          receiptItemId: 31,
-          receiptId: 10,
-          invoiceNumber: 'INV-000010',
-          sku: 'FRIES-L',
-          orderId: 4,
-          stockItemId: 6,
-        },
+  it('restores the billing context saved on a previous visit', async () => {
+    saveBillingInventoryContext({
+      filters: { ...DEFAULT_BILLING_INVENTORY_FILTERS, invoiceNumber: 'INV-000010', page: 2 },
+      selection: {
+        receiptItemId: 31,
+        receiptId: 10,
+        invoiceNumber: 'INV-000010',
+        sku: 'FRIES-L',
+        orderId: 4,
+        stockItemId: 6,
       },
-      'audit-movements',
-    );
-    const user = userEvent.setup();
-    const navigateToPath = vi.fn();
+    });
 
-    render(<BillingInventorySyncView navigateToPath={navigateToPath} />);
+    render(<BillingInventorySyncView />);
 
-    expect(screen.getByText(/Invoice INV-000010 · SKU FRIES-L/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /audit warehouse movements/i }));
-    expect(navigateToPath).toHaveBeenCalledWith(expect.stringContaining('/inventory/movements?'));
-    expect(navigateToPath.mock.calls[0][0]).toContain('itemId=6');
+    expect(screen.getByLabelText('Filter by invoice number')).toHaveValue('INV-000010');
+    expect(await screen.findByTestId('inventory-sync-row-31')).toHaveAttribute('aria-selected', 'true');
     expect(loadBillingInventoryContext()?.filters.page).toBe(2);
     const gridCall = fetchMock.mock.calls.map(([url]) => String(url)).find((url) => url.includes('/billing/inventory-sync?'));
     expect(gridCall).toContain('invoiceNumber=INV-000010');
   });
 
-  it('selecting a grid line becomes the context the Quick Launch carries to inventory', async () => {
+  it('saves the selected grid line as the billing context', async () => {
     const user = userEvent.setup();
-    const navigateToPath = vi.fn();
-
-    render(<BillingInventorySyncView navigateToPath={navigateToPath} />);
+    render(<BillingInventorySyncView />);
 
     await user.click(await screen.findByTestId('inventory-sync-row-31'));
-    expect(screen.getByText(/Invoice INV-000010 · SKU FRIES-L/)).toBeInTheDocument();
     expect(loadBillingInventoryContext()?.selection).toMatchObject({ receiptItemId: 31, stockItemId: 6 });
+  });
 
-    await user.click(screen.getByRole('button', { name: /reconcile inventory/i }));
-    expect(navigateToPath.mock.calls[0][0]).toContain('/inventory/stock-movements?');
-    expect(navigateToPath.mock.calls[0][0]).toContain('itemId=6');
+  it('has no Quick Launch panel: the NavHubBar is the only shortcut bar', async () => {
+    render(<BillingInventorySyncView />);
+    await screen.findByTestId('inventory-sync-row-31');
+    expect(screen.queryByTestId('billing-inventory-quick-launch')).toBeNull();
+    expect(screen.queryByText(/quick launch/i)).toBeNull();
   });
 
   it('takes the invoice filter from its own URL', async () => {
     window.history.pushState({}, '', '/billing/inventory-sync?invoice=INV-000077');
     render(<BillingInventorySyncView />);
-    expect(screen.getByText(/Invoice INV-000077/)).toBeInTheDocument();
     expect(loadBillingInventoryContext()?.filters.invoiceNumber).toBe('INV-000077');
     expect(screen.getByLabelText('Filter by invoice number')).toHaveValue('INV-000077');
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());

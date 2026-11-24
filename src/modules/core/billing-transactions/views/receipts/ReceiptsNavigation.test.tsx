@@ -1,5 +1,5 @@
 import { isValidElement } from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fakeBackend } from '@/test/fetch';
@@ -8,7 +8,6 @@ import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-h
 import { renderMerchantView, type MerchantViewContext } from '@/platform/merchant-frame/merchant-view-registry';
 import { getNavFromPath } from '@/platform/merchant-frame/merchant-routes';
 import { ReceiptsView } from './ReceiptsView';
-import { ReceiptsQuickLaunch } from './ReceiptsQuickLaunch';
 
 afterEach(() => {
   cleanup();
@@ -81,53 +80,14 @@ describe('Receipts — NavHubBar (Historia 17)', () => {
   });
 });
 
-describe('Receipts — Quick Launch (Historia 17)', () => {
-  it('marks RECEIPTS as the active anchor and links the sibling views', async () => {
-    const onNavigate = vi.fn();
-    render(<ReceiptsQuickLaunch onNavigate={onNavigate} onNewReceipt={vi.fn()} onShowDeactivated={vi.fn()} />);
+describe('Receipts — sin Quick Launch', () => {
+  it('only keeps the NavHubBar as shortcut bar: the view renders no quick launch panel', async () => {
+    vi.stubGlobal('fetch', fakeBackend({ '/receipts': emptyPage, '/receipts/summary': { data: null } }));
+    render(<ReceiptsView onNavigate={vi.fn()} />);
 
-    const nav = screen.getByRole('navigation', { name: 'Receipts quick launch' });
-    const active = within(nav).getByText('RECEIPTS');
-    expect(active).toHaveAttribute('aria-current', 'page');
-    expect(active.parentElement?.className).toContain('bg-[#ae001a]');
-
-    await userEvent.click(within(nav).getByRole('button', { name: /receipt items/i }));
-    await userEvent.click(within(nav).getByRole('button', { name: /receipts taxes/i }));
-    expect(onNavigate).toHaveBeenNthCalledWith(1, 'receipt-items');
-    expect(onNavigate).toHaveBeenNthCalledWith(2, 'receipt-taxes');
-  });
-
-  it('offers shortcuts to frequent operations', async () => {
-    const onNewReceipt = vi.fn();
-    const onShowDeactivated = vi.fn();
-    render(<ReceiptsQuickLaunch onNewReceipt={onNewReceipt} onShowDeactivated={onShowDeactivated} />);
-
-    await userEvent.click(screen.getByRole('button', { name: /new receipt/i }));
-    await userEvent.click(screen.getByRole('button', { name: /deactivated receipts/i }));
-
-    expect(onNewReceipt).toHaveBeenCalledTimes(1);
-    expect(onShowDeactivated).toHaveBeenCalledTimes(1);
-  });
-
-  it('is wired into the Receipts view: new receipt drawer and deactivated list', async () => {
-    const fetchMock = fakeBackend({ '/receipts': emptyPage, '/receipts/summary': { data: null } });
-    vi.stubGlobal('fetch', fetchMock);
-    const onNavigate = vi.fn();
-    render(<ReceiptsView onNavigate={onNavigate} />);
-
-    const quickLaunch = screen.getByRole('navigation', { name: 'Receipts quick launch' });
-    await userEvent.click(within(quickLaunch).getByRole('button', { name: /deactivated receipts/i }));
-    await waitFor(() =>
-      expect(
-        fetchMock.mock.calls.some(([u]) => /\/receipts\?.*status=inactive/.test(String(u))),
-      ).toBe(true),
-    );
-
-    await userEvent.click(within(quickLaunch).getByRole('button', { name: /new receipt/i }));
-    expect(await screen.findByRole('dialog')).toHaveTextContent('New Receipt');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    await userEvent.click(within(quickLaunch).getByRole('button', { name: /receipt items/i }));
-    expect(onNavigate).toHaveBeenCalledWith('receipt-items');
+    expect(await screen.findByRole('button', { name: /new receipt/i })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Receipts quick launch' })).toBeNull();
+    expect(screen.queryByText(/quick launch/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /deactivated receipts/i })).toBeNull();
   });
 });

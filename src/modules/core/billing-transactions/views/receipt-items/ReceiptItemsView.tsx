@@ -31,11 +31,6 @@ import {
   type ReceiptItemFormSubmit,
 } from './ReceiptItemFormDrawer';
 import { ReceiptItemsHeader } from './ReceiptItemsHeader';
-import { ReceiptItemsQuickLaunch } from './ReceiptItemsQuickLaunch';
-
-export interface ReceiptItemsViewProps {
-  onNavigate?: (view: string) => void;
-}
 
 export const RECEIPT_ITEMS_PAGE_SIZE = 20;
 /** Debounce of the description/SKU search before hitting the API. */
@@ -48,7 +43,7 @@ const errorMessage = (err: unknown, fallback: string) =>
 
 const thClass = 'px-4 py-3 text-[10.5px] font-bold uppercase tracking-wider text-[#5f5e5e] font-poppins whitespace-nowrap';
 
-export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = ({ onNavigate }) => {
+export const ReceiptItemsView: React.FC = () => {
   const [items, setItems] = useState<ReceiptItem[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -545,9 +540,6 @@ export const ReceiptItemsView: React.FC<ReceiptItemsViewProps> = ({ onNavigate }
           </div>
         </AppModal>
       ) : null}
-
-      {/* Sibling shortcuts; the persistent NavHubBar is mounted at the bottom by MerchantFrame. */}
-      <ReceiptItemsQuickLaunch current="receipt-items" onNavigate={onNavigate} />
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>

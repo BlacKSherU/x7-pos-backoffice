@@ -19,7 +19,6 @@ import type {
 import { FiscalLockBadge } from '../receipts/ReceiptFiscalBadges';
 import { ReceiptTaxFormDrawer, type ReceiptTaxFormPayload } from './ReceiptTaxFormDrawer';
 import { ReceiptTaxesHeader } from './ReceiptTaxesHeader';
-import { ReceiptTaxesQuickLinks } from './ReceiptTaxesQuickLinks';
 import {
   SCOPE_BADGE_CLASSES,
   SCOPE_ICONS,
@@ -29,10 +28,6 @@ import {
   formatTaxDate,
   receiptLabel,
 } from './receiptTaxesHelpers';
-
-interface ReceiptTaxesViewProps {
-  onNavigate?: (view: string) => void;
-}
 
 const PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -55,7 +50,7 @@ function totalsSummary(tax: ReceiptTax): string {
  * mounted by MerchantFrame (ModuleNavHubBar) for every feature of the billing hub, with
  * RECEIPTS TAXES active; this view adds the in-flow Quick Launch to the sibling screens.
  */
-export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = ({ onNavigate }) => {
+export const ReceiptTaxesView: React.FC = () => {
   const [rows, setRows] = useState<ReceiptTax[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -509,8 +504,6 @@ export const ReceiptTaxesView: React.FC<ReceiptTaxesViewProps> = ({ onNavigate }
           </div>
         )}
       </div>
-
-      <ReceiptTaxesQuickLinks onNavigate={onNavigate} />
 
       {drawer && (
         <ReceiptTaxFormDrawer

@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SideDrawer } from '@/shared/components/SideDrawer';
 import { FormField, ModalFormError, ModalFormFooter } from '@/shared/components/AppModal';
+import { SearchableSelect, type SearchableSelectOption } from '@/shared/components/SearchableSelect';
+import { ISO_4217_CODES, currencyOptionLabel } from '@/modules/platform-saas/companies/lib/iso-currencies';
+import { listReceiptOrderOptions } from '../../api/receipts-api';
 import type {
   CreateReceiptPayload,
   Receipt,
+  ReceiptOrderOption,
   ReceiptType,
   UpdateReceiptPayload,
 } from '../../types/receipts';
-import { receiptLabel } from '../../lib/receipts-format';
+import { RECEIPT_TYPE_LABELS, formatMoney, receiptLabel } from '../../lib/receipts-format';
 import {
   FISCAL_DATA_MAX_FIELD_LENGTH,
   buildFiscalData,
@@ -19,6 +23,35 @@ import {
 } from '../../lib/receipt-fiscal';
 
 export type ReceiptFormMode = 'create' | 'edit';
+
+/** Espera antes de pedir al back-end las órdenes que coinciden con lo escrito. */
+const ORDER_SEARCH_DEBOUNCE_MS = 250;
+/** Moneda si la company no tiene moneda base. */
+const FALLBACK_CURRENCY = 'USD';
+
+const CURRENCY_OPTIONS: SearchableSelectOption[] = ISO_4217_CODES.map((code) => ({
+  value: code,
+  label: currencyOptionLabel(code),
+}));
+
+const ORDER_STATUS_LABEL = (status: string) => status.replace(/_/g, ' ');
+
+/** Opción del selector de órdenes: número de orden + ID, y cliente · total · estado debajo. */
+function orderOption(order: ReceiptOrderOption, currency: string): SearchableSelectOption {
+  const issued = order.issued_types.map((type) => RECEIPT_TYPE_LABELS[type]).join(' / ');
+  return {
+    value: String(order.id),
+    label: `Order #${order.order_number} · ID ${order.id}`,
+    description: [
+      order.customer_name ?? 'No customer',
+      formatMoney(order.total, currency),
+      ORDER_STATUS_LABEL(order.status),
+      issued ? `already has ${issued}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  };
+}
 
 interface ReceiptFormDrawerProps {
   mode: ReceiptFormMode;
@@ -160,20 +193,89 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
   const isEdit = mode === 'edit' && Boolean(receipt);
   const [orderId, setOrderId] = useState<string>(receipt ? String(receipt.order_id) : '');
   const [type, setType] = useState<ReceiptType>(receipt?.type ?? 'RECEIPT');
-  const [currency, setCurrency] = useState<string>(receipt?.currency ?? 'USD');
+  const [currency, setCurrency] = useState<string>(receipt?.currency ?? '');
+  const [orderOptions, setOrderOptions] = useState<ReceiptOrderOption[]>([]);
+  const [orderSearch, setOrderSearch] = useState('');
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<ReceiptOrderOption | null>(null);
+  const [defaultCurrency, setDefaultCurrency] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState<string>(receipt?.invoice_number ?? '');
   const [fiscal, setFiscal] = useState<FiscalFormState>(() => splitFiscalData(receipt?.fiscal_data));
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const editingOrderId = isEdit ? receipt?.order_id : undefined;
+
+  // Órdenes facturables con el tipo elegido (el back-end deja fuera las que ya tienen un recibo
+  // activo de ese tipo); en edición siempre incluye la orden del recibo.
+  useEffect(() => {
+    let cancelled = false;
+    setOrdersLoading(true);
+    const timer = setTimeout(() => {
+      listReceiptOrderOptions({ search: orderSearch, type, includeOrderId: editingOrderId })
+        .then((result) => {
+          if (cancelled) return;
+          setOrderOptions(result.orders);
+          setDefaultCurrency(result.default_currency);
+          setOrdersError(null);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setOrderOptions([]);
+          setOrdersError(err instanceof Error ? err.message : 'Orders could not be loaded.');
+        })
+        .finally(() => {
+          if (!cancelled) setOrdersLoading(false);
+        });
+    }, orderSearch ? ORDER_SEARCH_DEBOUNCE_MS : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [orderSearch, type, editingOrderId]);
+
+  // Recibo nuevo: la moneda arranca en la moneda base de la company.
+  useEffect(() => {
+    if (isEdit || currency || ordersLoading) return;
+    setCurrency(defaultCurrency ?? FALLBACK_CURRENCY);
+  }, [isEdit, currency, ordersLoading, defaultCurrency]);
+
+  const handleTypeChange = (next: ReceiptType) => {
+    setType(next);
+    // La orden elegida ya tiene un recibo de ese tipo: el alta respondería 409.
+    if (selectedOrder && Number(orderId) !== editingOrderId && selectedOrder.issued_types.includes(next)) {
+      setOrderId('');
+      setSelectedOrder(null);
+    }
+  };
+
+  const optionCurrency = currency || defaultCurrency || FALLBACK_CURRENCY;
+  const orderSelectOptions = useMemo(
+    () => orderOptions.map((order) => orderOption(order, optionCurrency)),
+    [orderOptions, optionCurrency],
+  );
+  const currencyOptions = useMemo(
+    () =>
+      currency && !ISO_4217_CODES.includes(currency)
+        ? [{ value: currency, label: currency }, ...CURRENCY_OPTIONS]
+        : CURRENCY_OPTIONS,
+    [currency],
+  );
+  const selectedOrderLabel = selectedOrder
+    ? orderOption(selectedOrder, optionCurrency).label
+    : orderId
+      ? `Order ID ${orderId}`
+      : undefined;
+
   const validate = (): FormErrors => {
     const next: FormErrors = {};
     const parsedOrder = Number(orderId);
     if (!orderId.trim() || !Number.isInteger(parsedOrder) || parsedOrder <= 0) {
-      next.orderId = 'Enter a valid order ID.';
+      next.orderId = 'Select the order to bill.';
     }
-    if (!currency.trim()) next.currency = 'Currency is required.';
+    if (!currency.trim()) next.currency = 'Select a currency.';
     else if (currency.trim().length > 10) next.currency = 'Use an ISO 4217 code (max 10 characters).';
     if (invoiceNumber.trim().length > 50) next.invoiceNumber = 'Invoice number is limited to 50 characters.';
     if (isEdit && receipt?.invoice_number && !invoiceNumber.trim()) {
@@ -254,14 +356,25 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
 
           <div className="bg-white p-5 rounded-xl border border-[#e8e2d8] shadow-xs space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <FormField
+              <SearchableSelect
                 id="receipt-order-id"
-                label="Order ID *"
-                type="number"
+                label="Order *"
                 value={orderId}
-                onChange={setOrderId}
+                options={orderSelectOptions}
+                selectedLabel={selectedOrderLabel}
+                onChange={(value) => {
+                  setOrderId(value);
+                  setSelectedOrder(orderOptions.find((order) => String(order.id) === value) ?? null);
+                  setErrors((prev) => ({ ...prev, orderId: undefined }));
+                }}
+                onSearch={setOrderSearch}
+                loading={ordersLoading}
+                placeholder="Select an order"
+                searchPlaceholder="Order number, ID or customer"
+                emptyMessage={
+                  ordersError ?? `No orders left to bill as ${RECEIPT_TYPE_LABELS[type].toLowerCase()}.`
+                }
                 error={errors.orderId}
-                placeholder="e.g. 1024"
               />
               <div className="flex flex-col gap-1.5 min-w-0">
                 <label htmlFor="receipt-type" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
@@ -270,7 +383,7 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
                 <select
                   id="receipt-type"
                   value={type}
-                  onChange={(e) => setType(e.target.value as ReceiptType)}
+                  onChange={(e) => handleTypeChange(e.target.value as ReceiptType)}
                   className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded outline-none focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a]"
                 >
                   <option value="RECEIPT">Receipt</option>
@@ -280,13 +393,19 @@ export const ReceiptFormDrawer: React.FC<ReceiptFormDrawerProps> = ({ mode, rece
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <FormField
+              <SearchableSelect
                 id="receipt-currency"
                 label="Currency *"
                 value={currency}
-                onChange={setCurrency}
+                options={currencyOptions}
+                onChange={(value) => {
+                  setCurrency(value);
+                  setErrors((prev) => ({ ...prev, currency: undefined }));
+                }}
+                placeholder={ordersLoading ? 'Loading…' : 'Select a currency'}
+                searchPlaceholder="Code or name (CLP, peso…)"
+                emptyMessage="No currency matches."
                 error={errors.currency}
-                placeholder="USD"
               />
               <FormField
                 id="receipt-invoice-number"

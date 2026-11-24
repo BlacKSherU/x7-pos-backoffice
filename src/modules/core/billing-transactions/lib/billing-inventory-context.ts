@@ -1,18 +1,10 @@
 /**
- * Contexto de facturación que viaja entre la vista "Inventory & Billing Stock Sync" y las vistas
- * de inventario a las que salta el Quick Launch.
- *
- * - Se guarda en sessionStorage (por pestaña del navegador) cada vez que cambian los filtros o la
- *   línea de recibo seleccionada, así que al volver (botón Atrás, menú lateral o NavHubBar) la
- *   vista restaura el mismo recibo, filtros y página.
- * - Además se copia en la query de la URL de destino (`from`, `invoice`, `receiptId`, `sku` e
- *   `itemId`). MovementsView ya filtra por `itemId`; el resto lo ignoran las vistas de inventario.
- *
- * Las vistas de inventario no se modifican: el contexto vive aquí y lo restaura la vista de
- * facturación.
+ * Contexto de facturación de la vista "Inventory & Billing Stock Sync" (filtros y línea de recibo
+ * seleccionada). Se guarda en sessionStorage (por pestaña del navegador) cada vez que cambia, así
+ * que al volver a la pantalla (botón Atrás, menú lateral o NavHubBar) se restaura el mismo recibo,
+ * filtros y página.
  */
 
-export const BILLING_INVENTORY_SYNC_TAB = 'billing-inventory-sync';
 export const BILLING_INVENTORY_SYNC_PATH = '/billing/inventory-sync';
 export const BILLING_INVENTORY_SYNC_PATHS: readonly string[] = [
   BILLING_INVENTORY_SYNC_PATH,
@@ -20,8 +12,6 @@ export const BILLING_INVENTORY_SYNC_PATHS: readonly string[] = [
 ];
 
 const STORAGE_KEY = 'x7:billing-inventory-sync:context';
-
-export type InventoryQuickLaunchTarget = 'stock-levels' | 'reconcile' | 'audit-movements';
 
 export interface BillingInventoryFilters {
   invoiceNumber: string;
@@ -52,8 +42,6 @@ export interface BillingInventoryContextInput {
 }
 
 export interface BillingInventoryContext extends BillingInventoryContextInput {
-  /** Vista de inventario a la que se saltó por última vez. */
-  lastTarget?: InventoryQuickLaunchTarget;
   savedAt: string;
 }
 
@@ -65,47 +53,6 @@ export const DEFAULT_BILLING_INVENTORY_FILTERS: BillingInventoryFilters = {
   page: 1,
   limit: 10,
 };
-
-export interface InventoryTargetDefinition {
-  label: string;
-  icon: string;
-  /** Pestaña de MerchantFrame (fallback cuando no hay navegación por URL). */
-  tab: string;
-  /** URL registrada en merchant-routes.ts. */
-  path: string;
-  /** Si la URL lleva `itemId` (MovementsView filtra por él). */
-  carriesStockItem: boolean;
-}
-
-export const INVENTORY_QUICK_LAUNCH_TARGETS: Record<InventoryQuickLaunchTarget, InventoryTargetDefinition> = {
-  'stock-levels': {
-    label: 'VIEW STOCK LEVELS',
-    icon: 'inventory',
-    tab: 'stock-inventory',
-    path: '/inventory/stock-inventory',
-    carriesStockItem: false,
-  },
-  reconcile: {
-    label: 'RECONCILE INVENTORY',
-    icon: 'fact_check',
-    tab: 'stock-movements',
-    path: '/inventory/stock-movements',
-    carriesStockItem: true,
-  },
-  'audit-movements': {
-    label: 'AUDIT WAREHOUSE MOVEMENTS',
-    icon: 'swap_vert',
-    tab: 'movements',
-    path: '/inventory/movements',
-    carriesStockItem: true,
-  },
-};
-
-export const INVENTORY_QUICK_LAUNCH_ORDER: InventoryQuickLaunchTarget[] = [
-  'stock-levels',
-  'reconcile',
-  'audit-movements',
-];
 
 function storage(): Storage | null {
   try {
@@ -160,22 +107,18 @@ function normalizeSelection(raw: unknown): BillingInventorySelection | null {
   };
 }
 
-export function saveBillingInventoryContext(
-  context: BillingInventoryContextInput,
-  lastTarget?: InventoryQuickLaunchTarget,
-): void {
+export function saveBillingInventoryContext(context: BillingInventoryContextInput): void {
   const store = storage();
   if (!store) return;
   const payload: BillingInventoryContext = {
     filters: context.filters,
     selection: context.selection,
-    ...(lastTarget ? { lastTarget } : {}),
     savedAt: new Date().toISOString(),
   };
   try {
     store.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
-    // Almacenamiento lleno o bloqueado: la navegación sigue funcionando sin restaurar.
+    // Almacenamiento lleno o bloqueado: la vista sigue funcionando sin restaurar.
   }
 }
 
@@ -187,13 +130,9 @@ export function loadBillingInventoryContext(): BillingInventoryContext | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed)) return null;
-    const lastTarget = asString(parsed.lastTarget);
     return {
       filters: normalizeFilters(parsed.filters),
       selection: normalizeSelection(parsed.selection),
-      ...(lastTarget in INVENTORY_QUICK_LAUNCH_TARGETS
-        ? { lastTarget: lastTarget as InventoryQuickLaunchTarget }
-        : {}),
       savedAt: asString(parsed.savedAt),
     };
   } catch {
@@ -250,37 +189,4 @@ export function initialBillingInventoryContext(
     return { filters: stored.filters, selection: stored.selection };
   }
   return { filters: { ...DEFAULT_BILLING_INVENTORY_FILTERS }, selection: null };
-}
-
-/** URL de la vista de inventario con el contexto de facturación en la query. */
-export function buildInventoryTargetPath(
-  target: InventoryQuickLaunchTarget,
-  context: BillingInventoryContextInput,
-): string {
-  const definition = INVENTORY_QUICK_LAUNCH_TARGETS[target];
-  const params = new URLSearchParams();
-  params.set('from', BILLING_INVENTORY_SYNC_TAB);
-  const invoice = context.selection?.invoiceNumber ?? (context.filters.invoiceNumber.trim() || null);
-  if (invoice) params.set('invoice', invoice);
-  if (context.selection) {
-    params.set('receiptId', String(context.selection.receiptId));
-    if (context.selection.sku) params.set('sku', context.selection.sku);
-    if (definition.carriesStockItem && context.selection.stockItemId != null) {
-      params.set('itemId', String(context.selection.stockItemId));
-    }
-  }
-  return `${definition.path}?${params.toString()}`;
-}
-
-/** Texto corto del contexto activo ("Invoice INV-0001 · SKU BURGER-01"). */
-export function describeBillingContext(context: BillingInventoryContextInput): string {
-  const parts: string[] = [];
-  const invoice = context.selection?.invoiceNumber ?? (context.filters.invoiceNumber.trim() || null);
-  if (invoice) parts.push(`Invoice ${invoice}`);
-  if (context.selection?.sku) parts.push(`SKU ${context.selection.sku}`);
-  if (!context.selection && context.filters.status) parts.push(`Status ${context.filters.status}`);
-  if (!context.selection && (context.filters.dateFrom || context.filters.dateTo)) {
-    parts.push(`${context.filters.dateFrom || '…'} → ${context.filters.dateTo || '…'}`);
-  }
-  return parts.join(' · ');
 }

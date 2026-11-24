@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BillingInventoryQuickLaunch } from './BillingInventoryQuickLaunch';
 import { BillingInventorySyncGrid } from './BillingInventorySyncGrid';
 import { BillingInventorySyncHeader } from './BillingInventorySyncHeader';
 import {
@@ -11,11 +10,6 @@ import {
 import { primaryStockItemId } from '@/modules/core/billing-transactions/lib/inventory-sync-status';
 import type { InventorySyncRow } from '@/modules/core/billing-transactions/types/inventory-sync';
 
-interface BillingInventorySyncViewProps {
-  onNavigate?: (view: string) => void;
-  navigateToPath?: (path: string) => void;
-}
-
 const selectionFromRow = (row: InventorySyncRow): BillingInventorySelection => ({
   receiptItemId: row.receiptItemId,
   receiptId: row.receiptId,
@@ -26,15 +20,11 @@ const selectionFromRow = (row: InventorySyncRow): BillingInventorySelection => (
 });
 
 /**
- * Pantalla `billing-inventory-sync` (Billing & Transactions): contenedor del header de métricas,
- * el grid ReceiptItem → deducciones de stock y el Quick Launch hacia inventario. Es dueña del
- * contexto de facturación (filtros + línea seleccionada), que persiste para restaurarlo al volver
- * de las vistas de inventario.
+ * Pantalla `billing-inventory-sync` (Billing & Transactions): contenedor del header de métricas
+ * y el grid ReceiptItem → deducciones de stock. Es dueña del contexto de facturación (filtros +
+ * línea seleccionada), que persiste en sessionStorage para restaurarlo al volver a la pantalla.
  */
-export const BillingInventorySyncView: React.FC<BillingInventorySyncViewProps> = ({
-  onNavigate,
-  navigateToPath,
-}) => {
+export const BillingInventorySyncView: React.FC = () => {
   const [initial] = useState(() => initialBillingInventoryContext());
   const [filters, setFilters] = useState<BillingInventoryFilters>(initial.filters);
   const [selection, setSelection] = useState<BillingInventorySelection | null>(initial.selection);
@@ -62,12 +52,6 @@ export const BillingInventorySyncView: React.FC<BillingInventorySyncViewProps> =
         selectedReceiptItemId={selection?.receiptItemId ?? null}
         onSelectRow={handleSelectRow}
         refreshKey={gridRefreshKey}
-      />
-
-      <BillingInventoryQuickLaunch
-        context={{ filters, selection }}
-        onNavigate={onNavigate}
-        navigateToPath={navigateToPath}
       />
     </div>
   );

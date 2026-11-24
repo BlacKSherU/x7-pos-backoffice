@@ -64,6 +64,36 @@ export interface CreateReceiptPayload {
   invoiceNumber?: string;
 }
 
+/** Orden facturable del merchant (GET /receipts/order-options). */
+export interface ReceiptOrderOption {
+  id: number;
+  order_number: string;
+  /** Estado de negocio de la orden (paid, in_progress…). */
+  status: string;
+  order_type: string;
+  total: number;
+  is_paid: boolean;
+  created_at: string;
+  customer_name: string | null;
+  /** Tipos de los recibos activos ya emitidos para la orden. */
+  issued_types: ReceiptType[];
+}
+
+export interface ReceiptOrderOptions {
+  /** Moneda base de la company del merchant (moneda por defecto del recibo nuevo). */
+  default_currency: string | null;
+  orders: ReceiptOrderOption[];
+}
+
+export interface ReceiptOrderOptionsQuery {
+  search?: string;
+  /** Tipo a emitir: deja fuera las órdenes que ya tienen un recibo activo de ese tipo. */
+  type?: ReceiptType;
+  /** Orden que siempre se incluye (la del recibo en edición). */
+  includeOrderId?: number;
+  limit?: number;
+}
+
 /** Cuerpo de PATCH /receipts/:id (solo los campos que cambian). */
 export type UpdateReceiptPayload = Partial<CreateReceiptPayload>;
 
